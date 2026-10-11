@@ -5,9 +5,12 @@ import { Catalog } from "./components/Catalog";
 import { PickDetails } from "./components/PickDetails";
 import { Sidebar, SidebarSection } from "./components/Sidebar";
 import { TopBar } from "./components/TopBar";
+import { UserDatasets } from "./components/UserDatasets";
 import { DropZone } from "./import/DropZone";
 import "./import/import.css";
 import { ImportWizard, type ImportedDataset } from "./import/ImportWizard";
+import { loadActiveLayers, saveActiveLayers } from "./storage/datasets";
+import { useUserDatasets, type UserDataset } from "./storage/useUserDatasets";
 import { useCityMap } from "./useCityMap";
 
 const CLIENT_DATASET = { id: "empresas", name: "Empresas (demonstração)", url: "/data/empresas.pmtiles" };
@@ -20,12 +23,12 @@ export function App() {
   const [sidebarOpen, setSidebarOpen] = useState(() => !isNarrowScreen());
   const [theme, setTheme] = useState<Theme>("light");
   const [objective, setObjective] = useState<string | null>(null);
-  const [active, setActive] = useState<Set<string>>(new Set());
+  const [active, setActive] = useState<Set<string>>(loadActiveLayers);
   const [datasetReady, setDatasetReady] = useState(false);
   const [datasetRecords, setDatasetRecords] = useState<number | null>(null);
   const [pick, setPick] = useState<MapPick | null>(null);
   const [importFile, setImportFile] = useState<File | null>(null);
-  const [userDatasets, setUserDatasets] = useState<ImportedDataset[]>([]);
+  const user = useUserDatasets();
   const fileInput = useRef<HTMLInputElement>(null);
 
   const { containerRef, map } = useCityMap({
@@ -64,32 +67,48 @@ export function App() {
       else map.hideCatalogLayer(d.id);
     }
     if (datasetReady) map.setDatasetVisible(CLIENT_DATASET.id, active.has(DATASET_KEY));
-    for (const d of userDatasets) {
-      if (active.has(d.manifest.id)) map.showCatalogLayer(d.manifest, d.dataUrl);
-      else map.hideCatalogLayer(d.manifest.id);
+    for (const d of user.datasets) {
+      if (active.has(d.id)) map.showCatalogLayer(d.manifest, d.dataUrl);
+      else map.hideCatalogLayer(d.id);
     }
-  }, [map, active, datasetReady, userDatasets]);
+  }, [map, active, datasetReady, user.datasets]);
+
+  useEffect(() => saveActiveLayers(active), [active]);
 
   const openImport = useCallback((file: File) => setImportFile(file), []);
 
   const finishImport = (dataset: ImportedDataset) => {
     setImportFile(null);
-    setUserDatasets((list) => [...list, dataset]);
+    void user.add({ id: dataset.manifest.id, ...dataset, createdAt: Date.now() });
     setActive((prev) => new Set(prev).add(dataset.manifest.id));
     setSidebarOpen(true);
     map?.fitBounds(dataset.bounds);
   };
 
   const removeUserDataset = (id: string) => {
+    const target = user.datasets.find((d) => d.id === id);
+    if (!target || !window.confirm(`Remover "${target.manifest.name}"? O dado salvo neste navegador será apagado.`)) return;
     map?.removeCatalogLayer(id);
-    const removed = userDatasets.find((d) => d.manifest.id === id);
-    if (removed) URL.revokeObjectURL(removed.dataUrl);
-    setUserDatasets((list) => list.filter((d) => d.manifest.id !== id));
+    void user.remove(id);
     setActive((prev) => {
       const next = new Set(prev);
       next.delete(id);
       return next;
     });
+  };
+
+  const renameUserDataset = (id: string) => {
+    const target = user.datasets.find((d) => d.id === id);
+    const name = target && window.prompt("Novo nome do dataset:", target.manifest.name)?.trim();
+    if (!name || name === target.manifest.name) return;
+    // A camada guarda o manifesto; recria com o nome novo (o efeito acima religa).
+    map?.removeCatalogLayer(id);
+    void user.rename(id, name);
+  };
+
+  const focusUserDataset = (d: UserDataset) => {
+    setActive((prev) => new Set(prev).add(d.id));
+    map?.fitBounds(d.bounds);
   };
 
   const toggle = (id: string, on: boolean) => {
@@ -155,29 +174,23 @@ export function App() {
                 ? ""
                 : "Gere com pnpm synth && pnpm tiles"}
           </p>
-          {userDatasets.map((d) => (
-            <div key={d.manifest.id} className="user-dataset">
-              <label className="toggle">
-                <input
-                  type="checkbox"
-                  checked={active.has(d.manifest.id)}
-                  onChange={(e) => toggle(d.manifest.id, e.target.checked)}
-                />
-                <span>{d.manifest.name}</span>
-              </label>
-              <button
-                type="button"
-                className="link"
-                onClick={() => removeUserDataset(d.manifest.id)}
-                aria-label={`Remover ${d.manifest.name}`}
-              >
-                remover
+          <UserDatasets
+            datasets={user.datasets}
+            active={active}
+            usage={user.usage}
+            onToggle={toggle}
+            onRename={renameUserDataset}
+            onRemove={removeUserDataset}
+            onFocus={focusUserDataset}
+          />
+          {user.error && (
+            <p className="warn user-error">
+              {user.error}{" "}
+              <button type="button" className="link" onClick={user.clearError}>
+                ok
               </button>
-              <p className="catalog-meta">
-                {new Intl.NumberFormat("pt-BR").format(d.count)} pontos · {d.fileName}
-              </p>
-            </div>
-          ))}
+            </p>
+          )}
           <button type="button" className="btn btn-block" onClick={() => fileInput.current?.click()}>
             Importar arquivo…
           </button>

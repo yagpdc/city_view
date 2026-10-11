@@ -7,8 +7,8 @@ import { useImportWorker } from "./useImportWorker";
 
 export interface ImportedDataset {
   manifest: DatapackManifest;
-  /** URL (blob:) do GeoJSON gerado; revogar ao remover o dataset. */
-  dataUrl: string;
+  /** GeoJSON (FeatureCollection) gerado no worker. */
+  data: Blob;
   count: number;
   bounds: [number, number, number, number];
   fileName: string;
@@ -186,7 +186,7 @@ export function ImportWizard({ file, onCancel, onImport }: ImportWizardProps) {
     };
     onImport({
       manifest,
-      dataUrl: URL.createObjectURL(blob),
+      data: blob,
       count: built.count,
       bounds: built.bounds,
       fileName: file.name,

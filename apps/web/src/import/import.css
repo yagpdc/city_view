@@ -1,6 +1,11 @@
 /* ---------- Seus dados ---------- */
+.user-datasets { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
 .user-dataset { display: grid; grid-template-columns: 1fr auto; align-items: center; }
 .user-dataset .catalog-meta { grid-column: 1 / -1; margin-top: 0; }
+.user-dataset-actions { display: flex; gap: 2px; }
+.link.danger { color: #b91c1c; }
+.storage-usage { text-align: left; }
+.user-error { margin: 4px 0 0; font-size: 12px; }
 .btn {
   padding: 7px 12px;
   border: 1px solid var(--border);

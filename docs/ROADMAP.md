@@ -66,7 +66,9 @@ Ordem pensada por encanto/esforço (ver [PRODUCT.md](PRODUCT.md)).
   - relatório de linhas ignoradas com motivo e número da linha; cor por categoria; clique mostra os atributos
   - 500 mil linhas: leitura ~2–3 s, revisão 0,4 s, importação 3,5 s (tudo em Web Worker)
 - [ ] Parquet/GeoJSON/Excel no wizard; arquivos acima de 2M linhas pelo motor local (Rust)
-- [ ] Persistir datasets importados (hoje somem ao recarregar a página)
+- [x] Datasets importados salvos no navegador (IndexedDB): voltam ao recarregar; renomear, remover, enquadrar; camadas ligadas lembradas
+  - 500 mil pontos (74 MB) salvos em ~3 s em segundo plano; leitura do banco em ms
+- [ ] Sincronizar com o servidor local quando ele existir (IndexedDB vira cache)
 - [ ] Geocodificação de endereços/CEP para quem não tem lat/lon (Photon/Nominatim local)
 - [ ] Esquema do dataset: quais colunas viram filtro/estilo (generalizar o tiler, hoje fixo no esquema de empresas)
 
