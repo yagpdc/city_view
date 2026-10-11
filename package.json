@@ -1,0 +1,12 @@
+{
+  "name": "city-view",
+  "private": true,
+  "packageManager": "pnpm@11.1.2",
+  "scripts": {
+    "dev": "pnpm --filter @cityview/web dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "data:sp": "python data/build_sp.py"
+  }
+}

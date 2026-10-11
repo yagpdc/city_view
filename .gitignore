@@ -19,3 +19,4 @@ target/
 *.parquet
 data/cache/
 data/out/
+data/bin/

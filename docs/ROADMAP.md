@@ -14,12 +14,13 @@
 
 ## Fase 0 — Fundação (semanas 1–4)
 
-- [ ] Monorepo (pnpm workspaces + Cargo workspace)
-- [ ] App web (Vite + React + TS) com mapa base vetorial servido de um arquivo **PMTiles local**
-- [ ] Terreno 3D (DEM) + prédios extrudados (2.5D)
-- [ ] Camada `@cityview/engine` encapsulando MapLibre/deck.gl
-- [ ] Lint, testes (Vitest / cargo test), CI local via scripts
-- [ ] Script `data/` para baixar/gerar extrato da sua cidade/região
+- [x] Monorepo pnpm (Cargo workspace entra junto com o primeiro crate Rust)
+- [x] App web (Vite + React + TS) com mapa base vetorial servido de um arquivo **PMTiles local**
+- [x] Terreno 3D (DEM) + prédios extrudados (2.5D)
+- [x] Camada `@cityview/engine` encapsulando MapLibre (deck.gl entra na fase 2)
+- [ ] Glyphs e sprites servidos localmente (hoje vêm do CDN do Protomaps)
+- [x] Typecheck e testes (Vitest) — [ ] lint/format
+- [x] Script `data/build_sp.py` gera mapa base e relevo da Grande São Paulo
 
 **Entrega:** abrir `localhost`, navegar em 3D numa cidade real, offline.
 
