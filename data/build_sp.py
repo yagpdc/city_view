@@ -2,8 +2,9 @@
 
 - sao-paulo.pmtiles          mapa base vetorial (Protomaps / OpenStreetMap)
 - sao-paulo-terrain.pmtiles  relevo (Terrarium, AWS Open Data / Mapzen)
+- brasil.pmtiles             mapa base do Brasil até z12 (~760 MB), com --brasil
 
-Uso: python data/build_sp.py [--force]
+Uso: python data/build_sp.py [--brasil] [--force]
 Somente biblioteca padrão. Idempotente: pula o que já existe.
 """
 
@@ -30,6 +31,8 @@ OUT_DIR = ROOT / "out"
 # Região metropolitana de São Paulo (lon_min, lat_min, lon_max, lat_max)
 BBOX = (-47.10, -24.05, -46.15, -23.35)
 BASEMAP_MAXZOOM = 15
+BRAZIL_BBOX = (-74.0, -34.0, -34.5, 5.5)
+BRAZIL_MAXZOOM = 12
 TERRAIN_MAXZOOM = 13
 
 PMTILES_VERSION = "1.31.2"
@@ -92,16 +95,21 @@ def latest_protomaps_build() -> str:
     raise RuntimeError("nenhum build recente do Protomaps encontrado")
 
 
-def build_basemap(force: bool) -> None:
-    out = OUT_DIR / "sao-paulo.pmtiles"
+def extract_basemap(out: Path, bbox: tuple[float, ...], maxzoom: int, force: bool) -> None:
     if out.exists() and not force:
         log(f"mapa base já existe ({out.name})")
         return
     src = latest_protomaps_build()
-    log(f"extraindo mapa base de {src}")
-    bbox = ",".join(str(v) for v in BBOX)
+    log(f"extraindo {out.name} de {src}")
     subprocess.run(
-        [str(pmtiles_cli()), "extract", src, str(out), f"--bbox={bbox}", f"--maxzoom={BASEMAP_MAXZOOM}"],
+        [
+            str(pmtiles_cli()),
+            "extract",
+            src,
+            str(out),
+            f"--bbox={','.join(str(v) for v in bbox)}",
+            f"--maxzoom={maxzoom}",
+        ],
         check=True,
     )
 
@@ -177,10 +185,13 @@ def build_terrain(force: bool) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--force", action="store_true", help="regera mesmo se já existir")
+    parser.add_argument("--brasil", action="store_true", help="também gera o mapa base do Brasil (z0-12)")
     args = parser.parse_args()
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    build_basemap(args.force)
+    extract_basemap(OUT_DIR / "sao-paulo.pmtiles", BBOX, BASEMAP_MAXZOOM, args.force)
     build_terrain(args.force)
+    if args.brasil:
+        extract_basemap(OUT_DIR / "brasil.pmtiles", BRAZIL_BBOX, BRAZIL_MAXZOOM, args.force)
     log(f"pronto: {OUT_DIR}")
 
 

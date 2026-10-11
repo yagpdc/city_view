@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Prospecta · demo de integração City View</title>
+  </head>
+  <body>
+    <!-- Simula o produto de uma empresa cliente que embute o mapa da City View. -->
+    <header class="client-header">
+      <strong>Prospecta</strong>
+      <span>Inteligência de mercado · 30 milhões de empresas</span>
+    </header>
+
+    <div class="layout">
+      <aside class="panel">
+        <section>
+          <h2>Setores</h2>
+          <div id="sectors"></div>
+        </section>
+        <section>
+          <h2>Porte <small>(zoom alto)</small></h2>
+          <div id="sizes"></div>
+        </section>
+        <section>
+          <h2>Ano de abertura <small>(zoom alto)</small></h2>
+          <label class="range">desde <output id="year-out">1970</output>
+            <input id="year" type="range" min="1970" max="2026" value="1970" />
+          </label>
+        </section>
+        <section>
+          <h2>Selecionado</h2>
+          <div id="picked" class="muted">Clique num hexágono ou ponto.</div>
+        </section>
+        <section>
+          <h2>Integração</h2>
+          <pre class="code">const map = CityView.map({
+  container: "#mapa",
+  dataset: "/data/empresas.pmtiles",
+});</pre>
+        </section>
+      </aside>
+
+      <main class="map-wrap">
+        <div id="mapa"></div>
+        <div class="hud" id="hud">
+          <div><span>Primeiro mapa</span><b id="m-ready">…</b></div>
+          <div><span>Último filtro</span><b id="m-filter">–</b></div>
+          <div><span>FPS</span><b id="m-fps">–</b></div>
+          <button type="button" id="tour">Rodar benchmark</button>
+          <div id="m-tour" class="muted"></div>
+        </div>
+      </main>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

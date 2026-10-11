@@ -7,6 +7,14 @@
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
-    "data:sp": "python data/build_sp.py"
+    "data:sp": "python data/build_sp.py",
+    "demo": "pnpm --filter @cityview/embed-demo dev",
+    "tiles": "cargo run --release -p tiler -- data/out/empresas.parquet data/out/empresas.pmtiles --name empresas",
+    "synth": "cargo run --release -p synth -- --rows 30000000 --out data/out/empresas.parquet"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "sirv": "^3.0.2",
+    "vite": "^8.3.4"
   }
 }

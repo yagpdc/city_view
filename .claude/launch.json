@@ -4,8 +4,18 @@
     {
       "name": "web",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["dev"],
+      "runtimeArgs": [
+        "dev"
+      ],
       "port": 5173
+    },
+    {
+      "name": "embed-demo",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "demo"
+      ],
+      "port": 5174
     }
   ]
 }

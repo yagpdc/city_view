@@ -34,12 +34,16 @@ A gente cuida de todo o motor: ingestão, indexação, tiles, consultas analíti
 
 ## Fase 1 — Prova de conceito: 30M de pontos embutidos (meses 1–2)
 
-- [ ] Gerador de dados sintéticos (30M de empresas no Brasil, distribuídas por população)
-- [ ] `crates/tiler` (Rust): Parquet → agregação H3 por zoom + pontos individuais em zoom alto → PMTiles
-- [ ] `@cityview/sdk`: `CityView.map({ container, dataset })`, filtros, eventos de clique
-- [ ] Página de "empresa cliente" embutindo o mapa com 3 linhas
-- [ ] Benchmarks: tempo de geração, tamanho, fps, tempo até primeiro mapa, latência de filtro
+- [x] Gerador de dados sintéticos (`crates/synth`): 30M de empresas em 6,7 s
+- [x] `crates/tiler` (Rust): Parquet → agregação H3 por zoom + pontos individuais no z14 → PMTiles
+  - 30M → 463 MB em 40 s, pico de 1,8 GB de RAM, maior tile 124 KB (gzip); validado com `pmtiles verify`
+- [x] `@cityview/sdk`: `CityView.map({ container, dataset })`, `filter()`, eventos `click`/`ready`/`idle`
+- [x] `apps/embed-demo`: site de "empresa cliente" com filtros, clique e painel de métricas
+- [x] Mapa base do Brasil até z12 (756 MB) para dar contexto aos dados
+- [ ] Benchmark com janela visível (fps no tour de câmera) — medido até agora só com o navegador em segundo plano
+- [ ] Filtros de porte/ano também nos agregados (hoje só nos pontos individuais; exige tiles dinâmicos — fase 2)
 
+**Medido (navegador do app, em segundo plano):** primeiro mapa 1,37 s · filtro 58 ms · SDK 299 KB gzip (+ worker).
 **Metas:** 60 fps navegando; primeiro mapa < 1,5 s; filtro < 200 ms; geração de 30M em minutos.
 
 ## Fase 2 — Dados reais e motor de análise (meses 2–6)

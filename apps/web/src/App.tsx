@@ -25,6 +25,7 @@ export function App() {
     terrainUrl: `${location.origin}/data/sao-paulo-terrain.pmtiles`,
     theme,
     camera: INITIAL_CAMERA,
+    hash: true,
   });
 
   useEffect(() => map?.setTerrain(terrain), [map, terrain]);

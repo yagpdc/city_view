@@ -6,7 +6,33 @@ settings:
 
 importers:
 
-  .: {}
+  .:
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.5
+        version: 26.6.5
+      sirv:
+        specifier: ^3.0.2
+        version: 3.0.2
+      vite:
+        specifier: ^8.3.4
+        version: 8.3.4(@types/node@26.6.5)
+
+  apps/embed-demo:
+    dependencies:
+      '@cityview/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.5
+        version: 26.6.5
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vite:
+        specifier: ^8.3.4
+        version: 8.3.4(@types/node@26.6.5)
 
   apps/web:
     dependencies:
@@ -32,9 +58,6 @@ importers:
       '@vitejs/plugin-react':
         specifier: ^6.1.2
         version: 6.1.2(vite@8.3.4(@types/node@26.6.5))
-      sirv:
-        specifier: ^3.0.2
-        version: 3.0.2
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
@@ -60,6 +83,16 @@ importers:
       vitest:
         specifier: ^5.0.3
         version: 5.0.3(@types/node@26.6.5)(vite@8.3.4(@types/node@26.6.5))
+
+  packages/sdk:
+    dependencies:
+      '@cityview/engine':
+        specifier: workspace:*
+        version: link:../engine
+    devDependencies:
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
 
 packages:
 
