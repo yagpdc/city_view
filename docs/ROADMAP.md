@@ -19,7 +19,8 @@ A gente cuida de todo o motor: ingestão, indexação, tiles, consultas analíti
 3. **Não reinventar o render cedo.** MapLibre por baixo, escondido atrás da nossa API (`@cityview/engine` → `@cityview/sdk`).
 4. **Motor de dados em Rust.** Ingestão e geração de tiles são o coração do produto.
 5. **DX de integração.** O cliente precisa de 3 linhas para ter um mapa funcionando.
-6. **Local-first por enquanto.** Infra e multi-cliente entram depois, mas o desenho já considera.
+6. **Sem dados próprios, com caminhos para dados.** Não produzimos nem vendemos datasets. Oferecemos um **catálogo de fontes** (públicas/externas) que o usuário baixa e aplica no mapa dele; a partir daí o dado é do usuário. Dados sintéticos existem só para teste e benchmark.
+7. **Local-first por enquanto.** Infra e multi-cliente entram depois, mas o desenho já considera.
 
 ---
 
@@ -67,6 +68,7 @@ A gente cuida de todo o motor: ingestão, indexação, tiles, consultas analíti
 - [ ] Multi-cliente: isolamento de dados, tiles protegidos (URLs assinadas), cotas
 - [ ] Editor de estilo visual do mapa no painel
 - [ ] Analytics de uso do mapa embutido
+- [ ] **Catálogo de dados (datapacks):** fontes curadas (IBGE, CNPJs da Receita, OSM, Overture…) com conector, licença e receita de importação; o usuário escolhe, baixa e aplica no próprio espaço de trabalho
 
 ## Fase 5 — Recursos avançados (meses 16–24)
 
@@ -79,5 +81,5 @@ A gente cuida de todo o motor: ingestão, indexação, tiles, consultas analíti
 ## Fase 6 — Além (24+ meses)
 
 - [ ] Infra de produção, CDN de tiles, deploy
+- [ ] Catálogo aberto a terceiros: qualquer um publica conectores/receitas de dados (marketplace)
 - [ ] Motor de render próprio em WebGPU (só com benchmarks justificando)
-- [ ] Marketplace de datasets (ex.: base pública de CNPJs, censo IBGE)

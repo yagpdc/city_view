@@ -53,8 +53,9 @@ Decisões podem ser revistas via ADR em `docs/adr/`.
 
 ## Recursos gratuitos que reaproveitamos
 
+A City View não produz nem vende dados. Usamos dados abertos como **referência visual** (mapa base, relevo) e mantemos um **catálogo de fontes** (datapacks) que o usuário pode baixar e aplicar no próprio mapa — ex.: IBGE (malhas, censo), Receita Federal (CNPJs), OSM, Overture. Cada item do catálogo traz conector, licença e receita de importação; o dado importado passa a ser do usuário.
+
 - **Mapa base:** Protomaps (OSM, ODbL) em PMTiles + estilos/fontes
-- **Dados:** OpenStreetMap, Overture Maps, IBGE (malhas, censo), Receita Federal (CNPJs públicos)
 - **Relevo:** Terrarium (AWS Open Data), Copernicus DEM
 - **Ferramentas:** GDAL, pmtiles CLI, DuckDB, H3
 - **Serviços self-hosted futuros:** Photon/Nominatim, Valhalla
