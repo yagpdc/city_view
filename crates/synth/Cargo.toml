@@ -1,0 +1,11 @@
+[package]
+name = "synth"
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+
+[dependencies]
+arrow-array = { version = "60.0.0", default-features = false }
+arrow-schema = { version = "60.0.0", default-features = false }
+parquet = { version = "60.0.0", default-features = false, features = ["arrow", "snap"] }
+rand = "0.10.3"

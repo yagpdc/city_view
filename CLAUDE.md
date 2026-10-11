@@ -1,6 +1,6 @@
 # City View
 
-Motor de mapas para dados em escala. Empresas jogam seus dados (ex.: 30M de registros) e embutem nosso mapa no produto delas via SDK; a gente cuida de ingestão, tiles, render e interação. Roda localmente por enquanto.
+Super interface para dados no mapa: o usuário traz os próprios dados (ex.: 30M de registros), explora e gera análises sobre eles na plataforma, e pode embutir mapas/análises no produto dele via SDK. A gente cuida de ingestão, tiles, consultas, render e interação. Roda localmente por enquanto.
 
 - Roadmap: `docs/ROADMAP.md`
 - Arquitetura e stack: `docs/ARCHITECTURE.md`

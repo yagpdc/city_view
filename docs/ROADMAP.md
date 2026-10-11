@@ -4,9 +4,13 @@
 
 ## Tese do produto
 
-Uma empresa tem dados geográficos em escala (ex.: 30M de empresas). Ela **joga os dados** na City View e **instala nosso mapa** no produto dela com poucas linhas de código. A gente cuida de todo o motor: ingestão, indexação, tiles, renderização, filtros, interação.
+Uma **super interface para dados no mapa**: o usuário traz os **próprios dados** (ex.: 30M de empresas), explora, filtra e **gera análises** sobre eles (densidade, contagem por região, cobertura, comparação, evolução no tempo).
 
-O produto principal é **SDK + motor de dados**. A plataforma web é a vitrine e o painel de controle.
+Dois jeitos de usar, sobre o mesmo motor:
+1. **Plataforma** — o espaço de trabalho onde o usuário sobe dados, analisa e monta mapas.
+2. **SDK** — o mapa e as análises embutidos no produto do cliente com poucas linhas de código.
+
+A gente cuida de todo o motor: ingestão, indexação, tiles, consultas analíticas, renderização e interação.
 
 ## Princípios
 
@@ -37,13 +41,15 @@ O produto principal é **SDK + motor de dados**. A plataforma web é a vitrine e
 
 **Metas:** 60 fps navegando; primeiro mapa < 1,5 s; filtro < 200 ms; geração de 30M em minutos.
 
-## Fase 2 — Dados reais em produção (meses 2–6)
+## Fase 2 — Dados reais e motor de análise (meses 2–6)
 
 - [ ] Ingestão de CSV, Parquet, GeoJSON; mapeamento de colunas; validação e relatório de erros
 - [ ] Geocodificação de endereços (CEP/logradouro) para quem não tem lat/lon
 - [ ] Esquema do dataset: tipos de coluna, quais colunas viram filtro/estilo
 - [ ] API de detalhes (clique → ficha completa pelo id) e de busca
 - [ ] Filtros arbitrários: rápidos no cliente quando possível; tiles dinâmicos no servidor (DuckDB) com cache quando não
+- [ ] Motor de consultas analíticas (DuckDB): agregações por região/polígono, estatísticas, comparações
+- [ ] Primeiras análises na interface: contagem/densidade por área desenhada, por município e por raio
 - [ ] Atualização incremental do dataset (sem regerar tudo)
 
 ## Fase 3 — SDK completo (meses 6–10)
