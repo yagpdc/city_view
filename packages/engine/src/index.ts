@@ -14,6 +14,7 @@ export { CityMap, type Camera, type CityMapEvent, type CityMapOptions, type MapP
 export {
   CATEGORY_COLORS,
   DatasetLayer,
+  type AreaSummary,
   OTHER_COLOR,
   categoryColor,
   type DatasetFilter,
@@ -21,4 +22,6 @@ export {
   type DatasetPick,
   type WhereClause,
 } from "./dataset";
-export { buildStyle, type StyleOptions, type Theme } from "./style";
+export { pickZoom, type HexFeature } from "./areaHexes";
+export { areaBounds, circleArea, pointInArea, type AreaGeometry, type Bounds } from "./geo";
+export { buildStyle, type BasemapLook, type StyleOptions, type Theme } from "./style";

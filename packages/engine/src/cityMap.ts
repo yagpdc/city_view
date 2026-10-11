@@ -1,5 +1,6 @@
 /// <reference path="./env.d.ts" />
 import {
+  type GeoJSONSource,
   Map as MapLibreMap,
   NavigationControl,
   ScaleControl,
@@ -10,8 +11,10 @@ import {
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import { PMTiles, Protocol } from "pmtiles";
 import { CatalogLayer, type CatalogPick, type DatapackManifest, type LayerData } from "./catalog";
-import { DatasetLayer, readDatasetMeta, type DatasetPick } from "./dataset";
-import { BUILDINGS_3D_LAYER, TERRAIN_SOURCE, buildStyle, type StyleOptions, type Theme } from "./style";
+import { DatasetLayer, readDatasetMeta, type AreaSummary, type DatasetPick } from "./dataset";
+import type { HexFeature } from "./areaHexes";
+import { areaBounds, worldMask, type AreaGeometry } from "./geo";
+import { BUILDINGS_3D_LAYER, TERRAIN_SOURCE, buildStyle, type BasemapLook, type StyleOptions, type Theme } from "./style";
 
 export interface Camera {
   center: [lon: number, lat: number];
@@ -70,6 +73,17 @@ export class CityMap {
    * do MapLibre, que só fica verdadeiro quando todos os tiles terminaram de carregar.
    */
   private styleReady = false;
+  /** Maquete ativa: área recortada e o que restaurar ao sair. */
+  private diorama: {
+    geometry: AreaGeometry;
+    prevTerrain: boolean;
+    prevExaggeration: number;
+    datasetId: string;
+    /** Hexágonos finos da área (GeoJSON), quando já carregados. */
+    hexes: HexFeature[] | null;
+    columns: boolean;
+  } | null = null;
+  private orbitFrame = 0;
 
   constructor({
     container,
@@ -135,7 +149,7 @@ export class CityMap {
     const pmtiles = new PMTiles(url);
     initMapLibre().add(pmtiles);
     const meta = await readDatasetMeta(pmtiles);
-    const layer = new DatasetLayer(this.map, id, url, meta);
+    const layer = new DatasetLayer(this.map, id, url, meta, pmtiles);
     this.datasets.push(layer);
     this.whenStyleReady(() => layer.attach());
     return layer;
@@ -182,6 +196,187 @@ export class CityMap {
 
   setDatasetVisible(id: string, visible: boolean): void {
     this.datasets.find((d) => d.id === id)?.setVisible(visible);
+  }
+
+  /** Hexágonos dos datasets como colunas 3D. */
+  setDatasetsExtruded(on: boolean): void {
+    for (const d of this.datasets) d.setExtruded(on);
+  }
+
+  /** Polígonos de uma camada do catálogo como prismas 3D. */
+  setCatalogExtruded(id: string, on: boolean): void {
+    this.catalog.get(id)?.setExtruded(on);
+  }
+
+  /** Contorno completo de uma feição do catálogo (ex.: município clicado). */
+  getCatalogGeometry(id: string, featureId: string | number): Promise<AreaGeometry | null> {
+    return this.catalog.get(id)?.getGeometry(featureId) ?? Promise.resolve(null);
+  }
+
+  // ---------- Maquete ----------
+
+  /**
+   * Recorta uma área em 3D: escurece o entorno, busca os hexágonos finos da área, pinta o
+   * relevo com eles (camada plana "drapeada" sobre o terreno) e leva a câmera até lá inclinada.
+   * `onSummary` recebe os números da área assim que os hexágonos chegam; a promessa resolve
+   * quando a câmera termina de inclinar.
+   */
+  enterDiorama(
+    geometry: AreaGeometry,
+    {
+      datasetId,
+      exaggeration = 1.8,
+      columns = false,
+      onSummary,
+      padding = 70,
+    }: {
+      datasetId: string;
+      exaggeration?: number;
+      columns?: boolean;
+      onSummary?: (summary: AreaSummary) => void;
+      /** Espaço livre nas bordas (ex.: deixar a esquerda para um painel). */
+      padding?: number | { top: number; bottom: number; left: number; right: number };
+    },
+  ): Promise<void> {
+    this.stopOrbit();
+    const dataset = this.datasets.find((d) => d.id === datasetId);
+    this.diorama = {
+      geometry,
+      datasetId,
+      hexes: null,
+      columns,
+      prevTerrain: this.diorama?.prevTerrain ?? this.terrainEnabled,
+      prevExaggeration: this.diorama?.prevExaggeration ?? this.terrainExaggeration,
+    };
+    const session = this.diorama;
+    this.addDioramaLayers();
+    const [w, s, e, n] = areaBounds(geometry);
+    const moveEnd = () => new Promise<void>((resolve) => this.map.once("moveend", () => resolve()));
+
+    return (async () => {
+      // Câmera e dados em paralelo: enquanto voa, os hexágonos finos da área chegam.
+      this.setTerrain(true, exaggeration);
+      const arrived = moveEnd();
+      this.map.fitBounds(
+        [
+          [w, s],
+          [e, n],
+        ],
+        { padding, pitch: 58, bearing: -18, maxZoom: 13.5, duration: 2600, essential: true },
+      );
+      if (dataset) {
+        const { features } = await dataset.loadAreaHexes(geometry);
+        if (this.diorama !== session) return;
+        session.hexes = features;
+        dataset.setVisible(false); // a camada da área substitui a normal
+        this.addDioramaLayers();
+        onSummary?.(dataset.summarize(features));
+      }
+      await arrived;
+    })();
+  }
+
+  /** Colunas 3D sobre o relevo pintado, na maquete. */
+  setDioramaColumns(on: boolean): void {
+    if (!this.diorama) return;
+    this.diorama.columns = on;
+    if (this.map.getLayer("diorama-data-columns")) {
+      this.map.setLayoutProperty("diorama-data-columns", "visibility", on ? "visible" : "none");
+    }
+  }
+
+  exitDiorama(): void {
+    if (!this.diorama) return;
+    this.stopOrbit();
+    const { prevTerrain, prevExaggeration, datasetId } = this.diorama;
+    this.diorama = null;
+    for (const id of ["diorama-outline", "diorama-glow", "diorama-mask", "diorama-data-columns", "diorama-data-surface"]) {
+      if (this.map.getLayer(id)) this.map.removeLayer(id);
+    }
+    for (const id of ["diorama-mask", "diorama-area", "diorama-data"]) if (this.map.getSource(id)) this.map.removeSource(id);
+    this.datasets.find((d) => d.id === datasetId)?.setVisible(true);
+    this.setTerrain(prevTerrain, prevExaggeration);
+    this.map.easeTo({ pitch: 0, bearing: 0, duration: 1200 });
+  }
+
+  isInDiorama(): boolean {
+    return this.diorama !== null;
+  }
+
+  setTerrainExaggeration(exaggeration: number): void {
+    this.setTerrain(true, exaggeration);
+  }
+
+  /** Câmera girando devagar em volta do centro (para quando a pessoa interagir). */
+  startOrbit(degreesPerSecond = 5): void {
+    this.stopOrbit();
+    let last = performance.now();
+    const step = (now: number) => {
+      this.map.setBearing(this.map.getBearing() + ((now - last) / 1000) * degreesPerSecond);
+      last = now;
+      this.orbitFrame = requestAnimationFrame(step);
+    };
+    this.orbitFrame = requestAnimationFrame(step);
+    const stop = () => this.stopOrbit();
+    this.map.once("mousedown", stop);
+    this.map.once("touchstart", stop);
+    this.map.once("wheel", stop);
+  }
+
+  stopOrbit(): void {
+    cancelAnimationFrame(this.orbitFrame);
+    this.orbitFrame = 0;
+  }
+
+  isOrbiting(): boolean {
+    return this.orbitFrame !== 0;
+  }
+
+  private addDioramaLayers(): void {
+    const d = this.diorama;
+    if (!d || !this.styleReady) return;
+    const mask = worldMask(d.geometry);
+    const area = { type: "Feature" as const, properties: {}, geometry: d.geometry };
+    const hexes = { type: "FeatureCollection" as const, features: d.hexes ?? [] };
+    const beforeId = this.map.getStyle().layers.find((l) => l.type === "symbol")?.id;
+    const dark = this.styleOptions.theme === "dark";
+
+    if (this.map.getSource("diorama-mask")) {
+      this.map.getSource<GeoJSONSource>("diorama-mask")?.setData(mask);
+      this.map.getSource<GeoJSONSource>("diorama-area")?.setData(area);
+      this.map.getSource<GeoJSONSource>("diorama-data")?.setData(hexes);
+    } else {
+      this.map.addSource("diorama-mask", { type: "geojson", data: mask });
+      this.map.addSource("diorama-area", { type: "geojson", data: area });
+      this.map.addSource("diorama-data", { type: "geojson", data: hexes });
+    }
+
+    // Ordem: dados da área (relevo pintado e colunas) → máscara do entorno → contorno → rótulos.
+    const dataset = this.datasets.find((x) => x.id === d.datasetId);
+    if (dataset && !this.map.getLayer("diorama-data-surface")) {
+      const { surface, columns } = dataset.areaLayers("diorama-data");
+      this.map.addLayer(surface, beforeId);
+      this.map.addLayer({ ...columns, layout: { visibility: d.columns ? "visible" : "none" } } as typeof columns, beforeId);
+    }
+    if (!this.map.getLayer("diorama-mask")) {
+      this.map.addLayer(
+        { id: "diorama-mask", type: "fill", source: "diorama-mask", paint: { "fill-color": dark ? "#05070b" : "#ebe9e4", "fill-opacity": 0.86 } },
+        beforeId,
+      );
+      this.map.addLayer(
+        {
+          id: "diorama-glow",
+          type: "line",
+          source: "diorama-area",
+          paint: { "line-color": "#ffd166", "line-width": 12, "line-blur": 10, "line-opacity": 0.45 },
+        },
+        beforeId,
+      );
+      this.map.addLayer(
+        { id: "diorama-outline", type: "line", source: "diorama-area", paint: { "line-color": "#ffd166", "line-width": 2.2 } },
+        beforeId,
+      );
+    }
   }
 
   /** Clique com tudo o que está sob o cursor, de todas as camadas. */
@@ -251,6 +446,13 @@ export class CityMap {
     this.map.setStyle(buildStyle(this.styleOptions));
   }
 
+  /** "data" (neutro, para dados) ou "classic" (colorido). */
+  setLook(look: BasemapLook): void {
+    this.styleOptions = { ...this.styleOptions, look };
+    this.styleReady = false;
+    this.map.setStyle(buildStyle(this.styleOptions));
+  }
+
   setTerrain(enabled: boolean, exaggeration = this.terrainExaggeration): void {
     this.terrainEnabled = enabled;
     this.terrainExaggeration = exaggeration;
@@ -263,6 +465,7 @@ export class CityMap {
   }
 
   destroy(): void {
+    this.stopOrbit();
     this.resizeObserver.disconnect();
     this.map.remove();
   }
@@ -283,5 +486,6 @@ export class CityMap {
     if (this.map.getLayer(BUILDINGS_3D_LAYER)) {
       this.map.setLayoutProperty(BUILDINGS_3D_LAYER, "visibility", this.buildingsEnabled ? "visible" : "none");
     }
+    this.addDioramaLayers();
   }
 }

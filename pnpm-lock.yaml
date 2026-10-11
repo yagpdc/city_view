@@ -76,12 +76,18 @@ importers:
 
   packages/engine:
     dependencies:
+      '@mapbox/vector-tile':
+        specifier: ^3.0.0
+        version: 3.0.0
       '@protomaps/basemaps':
         specifier: ^5.7.2
         version: 5.7.2
       maplibre-gl:
         specifier: ^6.13.0
         version: 6.13.0
+      pbf:
+        specifier: ^5.1.2
+        version: 5.1.2
       pmtiles:
         specifier: ^4.5.0
         version: 4.5.0

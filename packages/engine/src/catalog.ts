@@ -1,5 +1,7 @@
+import type { AreaGeometry } from "./geo";
 import type {
   ExpressionSpecification,
+  GeoJSONSource,
   GeoJSONSourceSpecification,
   LayerSpecification,
   Map as MapLibreMap,
@@ -51,6 +53,8 @@ export interface DatapackField {
 
 export interface CatalogPick {
   datapack: DatapackManifest;
+  /** Id da feição (ex.: código IBGE do município), para buscar a geometria completa. */
+  featureId?: string | number;
   properties: Record<string, unknown>;
 }
 
@@ -60,6 +64,7 @@ export type LayerData = GeoJSONSourceSpecification["data"];
 /** Camada GeoJSON desenhada a partir de um manifesto (catálogo ou arquivo do usuário). */
 export class CatalogLayer {
   private visible = true;
+  private extruded = false;
   private readonly sourceId: string;
 
   constructor(
@@ -105,7 +110,33 @@ export class CatalogLayer {
     if (!this.visible) return null;
     const layers = this.layerIds.filter((id) => this.map.getLayer(id));
     const [feature] = this.map.queryRenderedFeatures(point, { layers });
-    return feature ? { datapack: this.manifest, properties: feature.properties } : null;
+    return feature ? { datapack: this.manifest, featureId: feature.id, properties: feature.properties } : null;
+  }
+
+  /** Polígonos como prismas 3D (altura pela mesma propriedade da cor). */
+  setExtruded(on: boolean): void {
+    if (on === this.extruded || this.manifest.render.type !== "choropleth") return;
+    this.extruded = on;
+    const fillId = `${this.sourceId}-fill`;
+    if (!this.map.getLayer(fillId)) return;
+    const before = this.map.getStyle().layers.findIndex((l) => l.id === fillId);
+    const next = this.map.getStyle().layers[before + 1]?.id;
+    this.map.removeLayer(fillId);
+    this.map.addLayer(this.fillLayer(), next);
+    this.applyVisibility();
+  }
+
+  isExtruded(): boolean {
+    return this.extruded;
+  }
+
+  /** Geometria completa de uma feição (a do clique vem recortada pelos tiles). */
+  async getGeometry(featureId: string | number): Promise<AreaGeometry | null> {
+    const source = this.map.getSource<GeoJSONSource>(this.sourceId);
+    if (!source) return null;
+    const data = (await source.getData()) as { features?: { id?: string | number; geometry: AreaGeometry }[] };
+    const found = data.features?.find((f) => f.id === featureId || String(f.id) === String(featureId));
+    return found && (found.geometry.type === "Polygon" || found.geometry.type === "MultiPolygon") ? found.geometry : null;
   }
 
   private applyVisibility(): void {
@@ -114,18 +145,40 @@ export class CatalogLayer {
     }
   }
 
+  private fillLayer(): LayerSpecification {
+    const render = this.manifest.render as ChoroplethRender;
+    const value = ["coalesce", ["get", render.property], 0];
+    const stops = render.breaks.flatMap((b, i) => [b, render.colors[i + 1] ?? render.colors.at(-1)!]);
+    const color = ["step", value, render.colors[0]!, ...stops] as unknown as ExpressionSpecification;
+    if (!this.extruded) {
+      return {
+        id: `${this.sourceId}-fill`,
+        type: "fill",
+        source: this.sourceId,
+        paint: { "fill-color": color, "fill-opacity": render.opacity ?? 0.6 },
+      };
+    }
+    // Altura pelo log do valor; encolhe ao aproximar para não virar um paredão.
+    const base = ["*", ["ln", ["+", 1, value]], 3500];
+    const height = ["interpolate", ["linear"], ["zoom"], 3, base, 7, ["*", base, 0.3], 11, ["*", base, 0.04]];
+    return {
+      id: `${this.sourceId}-fill`,
+      type: "fill-extrusion",
+      source: this.sourceId,
+      paint: {
+        "fill-extrusion-color": color,
+        "fill-extrusion-height": height as unknown as ExpressionSpecification,
+        "fill-extrusion-opacity": 0.88,
+        "fill-extrusion-vertical-gradient": true,
+      },
+    };
+  }
+
   private layers(): LayerSpecification[] {
     const render = this.manifest.render;
     if (render.type === "choropleth") {
-      const stops = render.breaks.flatMap((b, i) => [b, render.colors[i + 1] ?? render.colors.at(-1)!]);
-      const color = ["step", ["coalesce", ["get", render.property], 0], render.colors[0]!, ...stops] as unknown as ExpressionSpecification;
       return [
-        {
-          id: `${this.sourceId}-fill`,
-          type: "fill",
-          source: this.sourceId,
-          paint: { "fill-color": color, "fill-opacity": render.opacity ?? 0.6 },
-        },
+        this.fillLayer(),
         {
           id: `${this.sourceId}-line`,
           type: "line",

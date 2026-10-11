@@ -1,6 +1,8 @@
-import type { DatasetMeta, MapPick, Theme } from "@cityview/engine";
+import type { AreaSummary, BasemapLook, DatasetMeta, MapPick, Theme } from "@cityview/engine";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { areaAt, radiusArea, type Area } from "./areas";
 import { DATAPACKS, OBJECTIVES, dataUrl, type Objective } from "./catalog";
+import { DioramaPanel, type AreaChoice } from "./components/DioramaPanel";
 import { Catalog } from "./components/Catalog";
 import { PickDetails, type DatasetInfo } from "./components/PickDetails";
 import { ServerDatasets } from "./components/ServerDatasets";
@@ -34,6 +36,17 @@ const SECTORS = [
 ];
 
 const isNarrowScreen = () => window.matchMedia("(max-width: 767px)").matches;
+
+interface Diorama {
+  datasetId: string;
+  lngLat: [number, number];
+  area: Area;
+  areaChoice: AreaChoice;
+  summary: AreaSummary | null;
+  columns: boolean;
+  exaggeration: number;
+  orbiting: boolean;
+}
 const without = (set: Set<string>, id: string) => {
   const next = new Set(set);
   next.delete(id);
@@ -43,6 +56,10 @@ const without = (set: Set<string>, id: string) => {
 export function App() {
   const [sidebarOpen, setSidebarOpen] = useState(() => !isNarrowScreen());
   const [theme, setTheme] = useState<Theme>("light");
+  const [look, setLook] = useState<BasemapLook>("data");
+  const [columns3d, setColumns3d] = useState(false);
+  const [municipios3d, setMunicipios3d] = useState(false);
+  const [diorama, setDiorama] = useState<Diorama | null>(null);
   const [objective, setObjective] = useState<string | null>(null);
   const [active, setActive] = useState<Set<string>>(loadActiveLayers);
   const [demoMeta, setDemoMeta] = useState<DatasetMeta | null>(null);
@@ -58,8 +75,8 @@ export function App() {
 
   const { containerRef, map } = useCityMap({
     basemapUrl: `${location.origin}/data/brasil.pmtiles`,
-    terrainUrl: `${location.origin}/data/sao-paulo-terrain.pmtiles`,
     terrain: false,
+    look: "data",
     theme,
     camera: { ...EXPLORE.camera, pitch: 0, bearing: 0 },
     hash: true,
@@ -221,6 +238,75 @@ export function App() {
     map?.setTheme(next);
   };
 
+  const changeLook = (next: BasemapLook) => {
+    setLook(next);
+    map?.setLook(next);
+  };
+
+  const toggleColumns = (on: boolean) => {
+    setColumns3d(on);
+    map?.setDatasetsExtruded(on);
+  };
+
+  const toggleDioramaColumns = (on: boolean) => {
+    map?.setDioramaColumns(on);
+    setDiorama((d) => (d ? { ...d, columns: on } : d));
+  };
+
+  const toggleMunicipios3d = (on: boolean) => {
+    setMunicipios3d(on);
+    if (on) setActive((prev) => new Set(prev).add("municipios-populacao"));
+    map?.setCatalogExtruded("municipios-populacao", on);
+  };
+
+  // ---------- Visualização avançada (maquete) ----------
+
+  const openDiorama = async (datasetId: string, lngLat: [number, number], area: Area, areaChoice: AreaChoice) => {
+    if (!map) return;
+    const exaggeration = diorama?.exaggeration ?? 1.8;
+    setDiorama({ datasetId, lngLat, area, areaChoice, summary: null, columns: diorama?.columns ?? false, exaggeration, orbiting: false });
+    setActive((prev) => new Set(prev).add(datasetId === CLIENT_DATASET.id ? DATASET_KEY : datasetId));
+    if (isNarrowScreen()) setSidebarOpen(false);
+    await map.enterDiorama(area.geometry, {
+      datasetId,
+      exaggeration,
+      columns: diorama?.columns ?? false,
+      // Na tela larga, o painel ocupa a esquerda do mapa.
+      padding: isNarrowScreen() ? 40 : { top: 50, bottom: 50, left: 360, right: 50 },
+      onSummary: (summary) => setDiorama((d) => (d && d.area === area ? { ...d, summary } : d)),
+    });
+    map.startOrbit(4);
+    setDiorama((d) => (d && d.area === area ? { ...d, orbiting: true } : d));
+  };
+
+  const startAdvanced = async (p: MapPick) => {
+    if (!p.dataset) return;
+    const area = await areaAt(p.lngLat);
+    void openDiorama(p.dataset.datasetId, p.lngLat, area, area.kind === "municipio" ? "municipio" : 10);
+  };
+
+  const changeDioramaArea = async (choice: AreaChoice) => {
+    if (!diorama) return;
+    const area = choice === "municipio" ? await areaAt(diorama.lngLat) : radiusArea(diorama.lngLat, choice);
+    void openDiorama(diorama.datasetId, diorama.lngLat, area, choice);
+  };
+
+  const exitDiorama = () => {
+    map?.exitDiorama();
+    setDiorama(null);
+  };
+
+  const setOrbit = (on: boolean) => {
+    if (on) map?.startOrbit(4);
+    else map?.stopOrbit();
+    setDiorama((d) => (d ? { ...d, orbiting: on } : d));
+  };
+
+  const setExaggeration = (value: number) => {
+    map?.setTerrainExaggeration(value);
+    setDiorama((d) => (d ? { ...d, exaggeration: value } : d));
+  };
+
   // TODO(fase 2b): geocodificação local (Photon). Por enquanto a busca não faz nada.
   const search = (query: string) => console.info("[search]", query);
 
@@ -317,10 +403,36 @@ export function App() {
         </SidebarSection>
 
         <SidebarSection title="Neste ponto">
-          <PickDetails pick={pick} datasets={datasetInfos} />
+          <PickDetails pick={pick} datasets={datasetInfos} onAdvanced={(p) => void startAdvanced(p)} />
+        </SidebarSection>
+
+        <SidebarSection title="Visualização">
+          <label className="toggle">
+            <input type="checkbox" checked={columns3d} onChange={(e) => toggleColumns(e.target.checked)} />
+            Seus dados em colunas 3D
+          </label>
+          <label className="toggle">
+            <input type="checkbox" checked={municipios3d} onChange={(e) => toggleMunicipios3d(e.target.checked)} />
+            Municípios em 3D (densidade)
+          </label>
+          <p className="hint left">Dica: clique nos seus dados e use “Visualização avançada” para ver a área em maquete 3D.</p>
         </SidebarSection>
 
         <SidebarSection title="Aparência">
+          <div className="segmented" role="radiogroup" aria-label="Mapa base">
+            {(["data", "classic"] as const).map((l) => (
+              <button
+                key={l}
+                type="button"
+                role="radio"
+                aria-checked={look === l}
+                className={look === l ? "is-active" : ""}
+                onClick={() => changeLook(l)}
+              >
+                {l === "data" ? "Para dados" : "Clássico"}
+              </button>
+            ))}
+          </div>
           <div className="segmented" role="radiogroup" aria-label="Tema">
             {(["light", "dark"] as const).map((t) => (
               <button
@@ -341,6 +453,22 @@ export function App() {
       <main className="map-area">
         <div ref={containerRef} className="map" />
         <DropZone onFile={openImport} />
+        {diorama && (
+          <DioramaPanel
+            area={diorama.area}
+            areaChoice={diorama.areaChoice}
+            dataset={datasetInfos[diorama.datasetId]}
+            summary={diorama.summary}
+            columns={diorama.columns}
+            exaggeration={diorama.exaggeration}
+            orbiting={diorama.orbiting}
+            onAreaChoice={(c) => void changeDioramaArea(c)}
+            onColumns={toggleDioramaColumns}
+            onExaggeration={setExaggeration}
+            onOrbit={setOrbit}
+            onExit={exitDiorama}
+          />
+        )}
       </main>
 
       {importFile && (

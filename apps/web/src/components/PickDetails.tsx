@@ -50,7 +50,15 @@ function useRowDetails(url: string | null) {
   return { fields, loading };
 }
 
-export function PickDetails({ pick, datasets }: { pick: MapPick | null; datasets: Record<string, DatasetInfo> }) {
+export function PickDetails({
+  pick,
+  datasets,
+  onAdvanced,
+}: {
+  pick: MapPick | null;
+  datasets: Record<string, DatasetInfo>;
+  onAdvanced?: (pick: MapPick) => void;
+}) {
   const record = pick?.dataset?.kind === "record" ? pick.dataset : null;
   const info = pick?.dataset ? datasets[pick.dataset.datasetId] : undefined;
   const rowUrl = record && info?.rowUrl ? info.rowUrl.replace("{rowId}", String(record.id)) : null;
@@ -70,6 +78,11 @@ export function PickDetails({ pick, datasets }: { pick: MapPick | null; datasets
         {pick.lngLat[1].toFixed(5)}, {pick.lngLat[0].toFixed(5)}
       </p>
       {empty && <p className="muted">Nenhuma camada ligada tem dados aqui.</p>}
+      {pick.dataset && onAdvanced && (
+        <button type="button" className="btn btn-primary btn-block advanced" onClick={() => onAdvanced(pick)}>
+          Visualização avançada desta área
+        </button>
+      )}
 
       {record && (
         <div className="pick-card">
