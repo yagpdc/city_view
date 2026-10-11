@@ -11,5 +11,14 @@ export {
   type PointsRender,
 } from "./catalog";
 export { CityMap, type Camera, type CityMapEvent, type CityMapOptions, type MapPick } from "./cityMap";
-export { DatasetLayer, SECTOR_COLORS, type DatasetFilter, type DatasetMeta, type DatasetPick } from "./dataset";
+export {
+  CATEGORY_COLORS,
+  DatasetLayer,
+  OTHER_COLOR,
+  categoryColor,
+  type DatasetFilter,
+  type DatasetMeta,
+  type DatasetPick,
+  type WhereClause,
+} from "./dataset";
 export { buildStyle, type StyleOptions, type Theme } from "./style";

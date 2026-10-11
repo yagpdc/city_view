@@ -1,0 +1,11 @@
+{
+  "name": "Empresas (demonstração)",
+  "lat": "lat",
+  "lon": "lon",
+  "colorBy": "sector",
+  "columns": [
+    { "name": "sector", "type": "category" },
+    { "name": "size", "type": "category" },
+    { "name": "opened_year", "type": "number" }
+  ]
+}

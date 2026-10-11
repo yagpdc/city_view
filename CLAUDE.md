@@ -33,6 +33,12 @@ Especialistas em `.claude/agents/`. Delegue ao agente quando o assunto for dele:
 - Em telas < 768px a Sidebar sobrepõe o mapa e começa fechada.
 - Cores e medidas vêm dos tokens CSS em `apps/web/src/styles.css` (tema claro/escuro).
 
+## Rodando local
+
+- `pnpm dev` (plataforma, :5173) · `pnpm api` (servidor Rust, :8787; o Vite repassa `/api`) · `pnpm demo` (SDK, :5174)
+- **Windows:** rode `cargo` pelo PowerShell. No Git Bash, `/usr/bin/link.exe` esconde o linker da Microsoft.
+- Dados gerados ficam em `data/out/` e `data/workspace/` (fora do git).
+
 ## Convenções
 
 - Idioma: código e nomes em inglês; docs e conversa em português.

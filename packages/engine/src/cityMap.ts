@@ -169,6 +169,17 @@ export class CityMap {
     this.map.fitBounds([[w, s], [e, n]], { padding: 60, maxZoom, duration: 1200 });
   }
 
+  removeDataset(id: string): void {
+    const i = this.datasets.findIndex((d) => d.id === id);
+    if (i === -1) return;
+    this.datasets[i]!.detach();
+    this.datasets.splice(i, 1);
+  }
+
+  hasDataset(id: string): boolean {
+    return this.datasets.some((d) => d.id === id);
+  }
+
   setDatasetVisible(id: string, visible: boolean): void {
     this.datasets.find((d) => d.id === id)?.setVisible(visible);
   }

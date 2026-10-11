@@ -65,12 +65,16 @@ Ordem pensada por encanto/esforço (ver [PRODUCT.md](PRODUCT.md)).
   - detecta separador, codificação (UTF-8/Latin-1), lat/lon, tipos e formato numérico brasileiro por coluna
   - relatório de linhas ignoradas com motivo e número da linha; cor por categoria; clique mostra os atributos
   - 500 mil linhas: leitura ~2–3 s, revisão 0,4 s, importação 3,5 s (tudo em Web Worker)
-- [ ] Parquet/GeoJSON/Excel no wizard; arquivos acima de 2M linhas pelo motor local (Rust)
+- [x] Servidor local (`services/api`, Rust/axum): arquivos de qualquer tamanho pelo motor Rust
+  - wizard lê só uma amostra (5 mil linhas) de arquivos grandes; envio com progresso; fila com etapas
+  - 3 milhões de linhas (139 MB): 9,6 s do envio ao mapa; clique traz todas as colunas da linha original
+  - tiler genérico (colunas e categoria de cor quaisquer), mesmas regras numéricas do importador TS
+- [ ] Parquet/GeoJSON/Excel no wizard
 - [x] Datasets importados salvos no navegador (IndexedDB): voltam ao recarregar; renomear, remover, enquadrar; camadas ligadas lembradas
   - 500 mil pontos (74 MB) salvos em ~3 s em segundo plano; leitura do banco em ms
-- [ ] Sincronizar com o servidor local quando ele existir (IndexedDB vira cache)
+- [ ] Migrar datasets do navegador para o servidor (IndexedDB vira cache)
 - [ ] Geocodificação de endereços/CEP para quem não tem lat/lon (Photon/Nominatim local)
-- [ ] Esquema do dataset: quais colunas viram filtro/estilo (generalizar o tiler, hoje fixo no esquema de empresas)
+- [x] Tiler genérico: colunas numéricas/categóricas nos tiles, texto/datas pelo índice de linhas
 
 **2c. Primeira análise e colaboração**
 - [ ] "O que tem ao redor": clique/área → resumo cruzando todas as camadas

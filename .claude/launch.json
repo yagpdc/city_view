@@ -16,6 +16,17 @@
         "demo"
       ],
       "port": 5174
+    },
+    {
+      "name": "api",
+      "runtimeExecutable": "cargo",
+      "runtimeArgs": [
+        "run",
+        "--release",
+        "-p",
+        "cityview-api"
+      ],
+      "port": 8787
     }
   ]
 }

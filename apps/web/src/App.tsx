@@ -1,35 +1,60 @@
-import type { MapPick, Theme } from "@cityview/engine";
-import { useCallback, useEffect, useRef, useState } from "react";
+import type { DatasetMeta, MapPick, Theme } from "@cityview/engine";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DATAPACKS, OBJECTIVES, dataUrl, type Objective } from "./catalog";
 import { Catalog } from "./components/Catalog";
-import { PickDetails } from "./components/PickDetails";
+import { PickDetails, type DatasetInfo } from "./components/PickDetails";
+import { ServerDatasets } from "./components/ServerDatasets";
 import { Sidebar, SidebarSection } from "./components/Sidebar";
 import { TopBar } from "./components/TopBar";
 import { UserDatasets } from "./components/UserDatasets";
 import { DropZone } from "./import/DropZone";
 import "./import/import.css";
 import { ImportWizard, type ImportedDataset } from "./import/ImportWizard";
+import { serverApi, type ImportSpec, type ServerDataset } from "./server/api";
+import { useServerDatasets } from "./server/useServerDatasets";
 import { loadActiveLayers, saveActiveLayers } from "./storage/datasets";
 import { useUserDatasets, type UserDataset } from "./storage/useUserDatasets";
 import { useCityMap } from "./useCityMap";
 
-const CLIENT_DATASET = { id: "empresas", name: "Empresas (demonstração)", url: "/data/empresas.pmtiles" };
+const CLIENT_DATASET = { id: "empresas", name: "Empresas (demonstração)", url: "/data/empresas/tiles.pmtiles" };
 const DATASET_KEY = `dataset:${CLIENT_DATASET.id}`;
 const EXPLORE = OBJECTIVES.find((o) => o.id === "explorar")!;
+// Rótulos do dataset de demonstração (no produto real, vêm do mapeamento de colunas do cliente).
+const SECTORS = [
+  "Comércio varejista",
+  "Comércio atacadista",
+  "Alimentação",
+  "Serviços profissionais",
+  "Construção",
+  "Indústria",
+  "Saúde",
+  "Educação",
+  "Transporte e logística",
+  "Tecnologia e informação",
+];
 
 const isNarrowScreen = () => window.matchMedia("(max-width: 767px)").matches;
+const without = (set: Set<string>, id: string) => {
+  const next = new Set(set);
+  next.delete(id);
+  return next;
+};
 
 export function App() {
   const [sidebarOpen, setSidebarOpen] = useState(() => !isNarrowScreen());
   const [theme, setTheme] = useState<Theme>("light");
   const [objective, setObjective] = useState<string | null>(null);
   const [active, setActive] = useState<Set<string>>(loadActiveLayers);
-  const [datasetReady, setDatasetReady] = useState(false);
-  const [datasetRecords, setDatasetRecords] = useState<number | null>(null);
+  const [demoMeta, setDemoMeta] = useState<DatasetMeta | null>(null);
+  const [serverMetas, setServerMetas] = useState<Record<string, DatasetMeta>>({});
   const [pick, setPick] = useState<MapPick | null>(null);
   const [importFile, setImportFile] = useState<File | null>(null);
   const user = useUserDatasets();
+  const server = useServerDatasets();
   const fileInput = useRef<HTMLInputElement>(null);
+  const loadingServer = useRef(new Set<string>());
+  /** Datasets enviados nesta sessão: ao ficarem prontos, a câmera vai até eles. */
+  const focusWhenReady = useRef(new Set<string>());
 
   const { containerRef, map } = useCityMap({
     basemapUrl: `${location.origin}/data/brasil.pmtiles`,
@@ -40,19 +65,15 @@ export function App() {
     hash: true,
   });
 
-  // Dados do cliente: carregados uma vez, visibilidade controlada pelo conjunto ativo.
+  // Dataset de demonstração e clique: uma vez por mapa.
   useEffect(() => {
     if (!map) return;
     map.enableHoverCursor();
     let cancelled = false;
     map
       .addDataset(CLIENT_DATASET.id, `${location.origin}${CLIENT_DATASET.url}`)
-      .then((layer) => {
-        if (cancelled) return;
-        setDatasetRecords(layer.meta.records);
-        setDatasetReady(true);
-      })
-      .catch(() => setDatasetReady(false));
+      .then((layer) => !cancelled && setDemoMeta(layer.meta))
+      .catch(() => setDemoMeta(null));
     const off = map.onMapPick(setPick);
     return () => {
       cancelled = true;
@@ -60,20 +81,72 @@ export function App() {
     };
   }, [map]);
 
+  // Datasets do servidor: carrega os prontos no mapa e tira os removidos.
+  useEffect(() => {
+    if (!map) return;
+    for (const d of server.datasets) {
+      if (d.status !== "ready" || map.hasDataset(d.id) || loadingServer.current.has(d.id)) continue;
+      loadingServer.current.add(d.id);
+      map
+        .addDataset(d.id, serverApi.tilesUrl(d.id))
+        .then((layer) => {
+          setServerMetas((m) => ({ ...m, [d.id]: layer.meta }));
+          if (focusWhenReady.current.delete(d.id) && d.report) {
+            setActive((prev) => new Set(prev).add(d.id));
+            map.fitBounds(d.report.bounds);
+          }
+        })
+        .catch((e: Error) => console.warn("[server] não foi possível carregar", d.id, e))
+        .finally(() => loadingServer.current.delete(d.id));
+    }
+    for (const id of Object.keys(serverMetas)) {
+      if (server.datasets.some((d) => d.id === id)) continue;
+      map.removeDataset(id);
+      setServerMetas(({ [id]: _, ...rest }) => rest);
+    }
+  }, [map, server.datasets, serverMetas]);
+
+  // Visibilidade de tudo a partir do conjunto de camadas ligadas.
   useEffect(() => {
     if (!map) return;
     for (const d of DATAPACKS) {
       if (active.has(d.id)) map.showCatalogLayer(d, dataUrl(d.id));
       else map.hideCatalogLayer(d.id);
     }
-    if (datasetReady) map.setDatasetVisible(CLIENT_DATASET.id, active.has(DATASET_KEY));
+    if (demoMeta) map.setDatasetVisible(CLIENT_DATASET.id, active.has(DATASET_KEY));
+    for (const id of Object.keys(serverMetas)) map.setDatasetVisible(id, active.has(id));
     for (const d of user.datasets) {
       if (active.has(d.id)) map.showCatalogLayer(d.manifest, d.dataUrl);
       else map.hideCatalogLayer(d.id);
     }
-  }, [map, active, datasetReady, user.datasets]);
+  }, [map, active, demoMeta, serverMetas, user.datasets]);
 
   useEffect(() => saveActiveLayers(active), [active]);
+
+  /** O que o painel "Neste ponto" precisa saber de cada dataset vetorial. */
+  const datasetInfos = useMemo(() => {
+    const infos: Record<string, DatasetInfo> = {};
+    if (demoMeta) {
+      infos[CLIENT_DATASET.id] = {
+        name: CLIENT_DATASET.name,
+        categories: demoMeta.categories,
+        colorBy: demoMeta.colorBy,
+        label: (code) => SECTORS[Number(code)] ?? code,
+      };
+    }
+    for (const d of server.datasets) {
+      const meta = serverMetas[d.id];
+      if (!meta) continue;
+      infos[d.id] = {
+        name: d.name,
+        categories: meta.categories,
+        colorBy: meta.colorBy,
+        title: meta.title,
+        rowUrl: meta.hasRowIndex ? serverApi.rowUrl(d.id) : undefined,
+      };
+    }
+    return infos;
+  }, [demoMeta, server.datasets, serverMetas]);
 
   const openImport = useCallback((file: File) => setImportFile(file), []);
 
@@ -85,16 +158,19 @@ export function App() {
     map?.fitBounds(dataset.bounds);
   };
 
+  const sendToServer = async (file: File, spec: ImportSpec) => {
+    setImportFile(null);
+    setSidebarOpen(true);
+    const created = await server.upload(file, spec);
+    if (created) focusWhenReady.current.add(created.id);
+  };
+
   const removeUserDataset = (id: string) => {
     const target = user.datasets.find((d) => d.id === id);
     if (!target || !window.confirm(`Remover "${target.manifest.name}"? O dado salvo neste navegador será apagado.`)) return;
     map?.removeCatalogLayer(id);
     void user.remove(id);
-    setActive((prev) => {
-      const next = new Set(prev);
-      next.delete(id);
-      return next;
-    });
+    setActive((prev) => without(prev, id));
   };
 
   const renameUserDataset = (id: string) => {
@@ -106,19 +182,32 @@ export function App() {
     void user.rename(id, name);
   };
 
+  const removeServerDataset = (id: string) => {
+    const target = server.datasets.find((d) => d.id === id);
+    if (!target || !window.confirm(`Remover "${target.name}"? O arquivo e o mapa gerados no servidor serão apagados.`)) return;
+    void server.remove(id);
+    setActive((prev) => without(prev, id));
+  };
+
+  const renameServerDataset = (id: string) => {
+    const target = server.datasets.find((d) => d.id === id);
+    const name = target && window.prompt("Novo nome do dataset:", target.name)?.trim();
+    if (name && name !== target.name) void server.rename(id, name);
+  };
+
   const focusUserDataset = (d: UserDataset) => {
     setActive((prev) => new Set(prev).add(d.id));
     map?.fitBounds(d.bounds);
   };
 
+  const focusServerDataset = (d: ServerDataset) => {
+    setActive((prev) => new Set(prev).add(d.id));
+    if (d.report) map?.fitBounds(d.report.bounds);
+  };
+
   const toggle = (id: string, on: boolean) => {
     setObjective(null);
-    setActive((prev) => {
-      const next = new Set(prev);
-      if (on) next.add(id);
-      else next.delete(id);
-      return next;
-    });
+    setActive((prev) => (on ? new Set(prev).add(id) : without(prev, id)));
   };
 
   const chooseObjective = (o: Objective) => {
@@ -134,6 +223,10 @@ export function App() {
 
   // TODO(fase 2b): geocodificação local (Photon). Por enquanto a busca não faz nada.
   const search = (query: string) => console.info("[search]", query);
+
+  const errors = [user.error && { text: user.error, clear: user.clearError }, server.error && { text: server.error, clear: server.clearError }].filter(
+    (e): e is { text: string; clear: () => void } => Boolean(e),
+  );
 
   return (
     <div className={`app theme-${theme} ${sidebarOpen ? "sidebar-open" : ""}`}>
@@ -162,18 +255,23 @@ export function App() {
             <input
               type="checkbox"
               checked={active.has(DATASET_KEY)}
-              disabled={!datasetReady}
+              disabled={!demoMeta}
               onChange={(e) => toggle(DATASET_KEY, e.target.checked)}
             />
             <span>{CLIENT_DATASET.name}</span>
           </label>
           <p className="catalog-meta">
-            {datasetRecords !== null
-              ? `${new Intl.NumberFormat("pt-BR").format(datasetRecords)} registros`
-              : datasetReady
-                ? ""
-                : "Gere com pnpm synth && pnpm tiles"}
+            {demoMeta ? `${new Intl.NumberFormat("pt-BR").format(demoMeta.records)} registros` : "Gere com pnpm synth && pnpm tiles"}
           </p>
+          <ServerDatasets
+            datasets={server.datasets}
+            uploads={server.uploads}
+            active={active}
+            onToggle={toggle}
+            onRename={renameServerDataset}
+            onRemove={removeServerDataset}
+            onFocus={focusServerDataset}
+          />
           <UserDatasets
             datasets={user.datasets}
             active={active}
@@ -183,18 +281,24 @@ export function App() {
             onRemove={removeUserDataset}
             onFocus={focusUserDataset}
           />
-          {user.error && (
-            <p className="warn user-error">
-              {user.error}{" "}
-              <button type="button" className="link" onClick={user.clearError}>
+          {errors.map((e) => (
+            <p key={e.text} className="warn user-error">
+              {e.text}{" "}
+              <button type="button" className="link" onClick={e.clear}>
                 ok
               </button>
             </p>
-          )}
+          ))}
           <button type="button" className="btn btn-block" onClick={() => fileInput.current?.click()}>
             Importar arquivo…
           </button>
           <p className="hint">ou arraste um CSV para o mapa</p>
+          <p className={`server-status ${server.available ? "is-on" : ""}`}>
+            <i />
+            {server.available
+              ? "Servidor local conectado: arquivos de qualquer tamanho"
+              : "Servidor local desligado: arquivos até 2 milhões de linhas (pnpm api para ligar)"}
+          </p>
           <input
             ref={fileInput}
             type="file"
@@ -213,7 +317,7 @@ export function App() {
         </SidebarSection>
 
         <SidebarSection title="Neste ponto">
-          <PickDetails pick={pick} />
+          <PickDetails pick={pick} datasets={datasetInfos} />
         </SidebarSection>
 
         <SidebarSection title="Aparência">
@@ -239,7 +343,15 @@ export function App() {
         <DropZone onFile={openImport} />
       </main>
 
-      {importFile && <ImportWizard file={importFile} onCancel={() => setImportFile(null)} onImport={finishImport} />}
+      {importFile && (
+        <ImportWizard
+          file={importFile}
+          serverAvailable={server.available}
+          onCancel={() => setImportFile(null)}
+          onImport={finishImport}
+          onSendToServer={(file, spec) => void sendToServer(file, spec)}
+        />
+      )}
     </div>
   );
 }

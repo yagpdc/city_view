@@ -6,9 +6,16 @@ export const MAX_BROWSER_ROWS = 2_000_000;
 export type Delimiter = "," | ";" | "\t" | "|";
 export type Encoding = "utf-8" | "windows-1252";
 
+/** Acima disso, com o servidor local de pé, o arquivo vai para o motor em Rust. */
+export const SERVER_THRESHOLD_BYTES = 20e6;
+/** Linhas lidas no navegador quando o processamento é no servidor (só para detectar colunas). */
+export const SAMPLE_ROWS = 5000;
+
 export interface OpenOptions {
   delimiter?: Delimiter;
   encoding?: Encoding;
+  /** Lê só as primeiras N linhas (modo servidor). */
+  previewRows?: number;
 }
 
 export interface OpenedFile {
@@ -20,6 +27,8 @@ export interface OpenedFile {
   columns: ColumnInfo[];
   location: LocationGuess | null;
   style: { colorBy?: string; title?: string };
+  /** `true` quando só uma amostra foi lida. */
+  sampled: boolean;
 }
 
 /**

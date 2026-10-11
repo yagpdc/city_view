@@ -22,8 +22,9 @@ Requer Rust (toolchain MSVC no Windows, com o Windows SDK instalado). No Windows
 ```bash
 python data/build_sp.py --brasil   # mapa base do Brasil (~760 MB)
 pnpm synth                         # 30M de empresas sintéticas → data/out/empresas.parquet
-pnpm tiles                         # Parquet → data/out/empresas.pmtiles (~40 s)
+pnpm tiles                         # Parquet → data/out/empresas/tiles.pmtiles (~60 s)
 pnpm datapacks                     # camadas do catálogo (IBGE, NASA FIRMS) → data/out/datapacks
+pnpm api                           # servidor local (motor Rust): http://localhost:8787
 pnpm dev                           # plataforma: http://localhost:5173
 pnpm demo                          # site de cliente com o SDK: http://localhost:5174
 ```
@@ -37,7 +38,8 @@ apps/web/          app React (Vite)
 packages/engine/   API interna do mapa (CityMap) sobre MapLibre + PMTiles
 packages/sdk/      SDK público que o cliente instala (CityView.map)
 apps/embed-demo/   site de "empresa cliente" usando o SDK
-crates/tiler/      motor de dados: Parquet → H3 + pontos → PMTiles (Rust)
+crates/tiler/      motor de dados: CSV/Parquet + mapeamento → H3 + pontos → PMTiles (Rust)
+services/api/      servidor local: recebe arquivos, roda o motor, serve tiles e detalhes (Rust/axum)
 crates/synth/      gerador de datasets sintéticos (Rust)
 datapacks/         catálogo: manifestos versionados + receitas de download (build.py)
 packages/importer/ detecção de colunas/formatos e conversão de CSV em pontos (testado)

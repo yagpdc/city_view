@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use crate::mercator::EXTENT;
 
 const WIRE_VARINT: u32 = 0;
+const WIRE_FIXED64: u32 = 1;
 const WIRE_LEN: u32 = 2;
 const WIRE_FIXED32: u32 = 5;
 
@@ -19,22 +20,29 @@ const CMD_LINE_TO: u32 = 2;
 const CMD_CLOSE_PATH: u32 = 7;
 
 #[derive(Clone, Copy, Debug)]
-pub enum Value {
+pub enum Value<'a> {
     UInt(u64),
     Float(f32),
+    Double(f64),
+    Str(&'a str),
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+/// Valor já deduplicado e guardado no layer.
+#[derive(Clone, PartialEq, Eq, Hash)]
 enum ValueKey {
     UInt(u64),
     Float(u32),
+    Double(u64),
+    Str(String),
 }
 
-impl From<Value> for ValueKey {
-    fn from(v: Value) -> Self {
+impl From<Value<'_>> for ValueKey {
+    fn from(v: Value<'_>) -> Self {
         match v {
             Value::UInt(u) => ValueKey::UInt(u),
             Value::Float(f) => ValueKey::Float(f.to_bits()),
+            Value::Double(d) => ValueKey::Double(d.to_bits()),
+            Value::Str(s) => ValueKey::Str(s.to_owned()),
         }
     }
 }
@@ -73,9 +81,9 @@ fn command(id: u32, count: u32) -> u32 {
 
 pub struct LayerBuilder {
     name: &'static str,
-    keys: Vec<&'static str>,
-    key_index: HashMap<&'static str, u32>,
-    values: Vec<Value>,
+    keys: Vec<String>,
+    key_index: HashMap<String, u32>,
+    values: Vec<ValueKey>,
     value_index: HashMap<ValueKey, u32>,
     features: Vec<u8>,
     feature_count: usize,
@@ -106,7 +114,7 @@ impl LayerBuilder {
         self.feature_count == 0
     }
 
-    pub fn add_point(&mut self, id: Option<u64>, x: i32, y: i32, props: &[(&'static str, Value)]) {
+    pub fn add_point(&mut self, id: Option<u64>, x: i32, y: i32, props: &[(&str, Value<'_>)]) {
         self.geometry.clear();
         self.geometry.extend([command(CMD_MOVE_TO, 1), zigzag(x), zigzag(y)]);
         self.push_feature(id, GEOM_POINT, props);
@@ -115,7 +123,7 @@ impl LayerBuilder {
     /// Adiciona um polígono de um anel (sem repetir o primeiro vértice no fim).
     /// Remove vértices repetidos após a quantização e corrige a orientação.
     /// Retorna `false` se o polígono degenerou (menos de 3 vértices ou área zero).
-    pub fn add_polygon(&mut self, id: Option<u64>, ring: &mut Vec<(i32, i32)>, props: &[(&'static str, Value)]) -> bool {
+    pub fn add_polygon(&mut self, id: Option<u64>, ring: &mut Vec<(i32, i32)>, props: &[(&str, Value<'_>)]) -> bool {
         ring.dedup();
         while ring.len() > 1 && ring.first() == ring.last() {
             ring.pop();
@@ -151,17 +159,28 @@ impl LayerBuilder {
         true
     }
 
-    fn push_feature(&mut self, id: Option<u64>, geom_type: u32, props: &[(&'static str, Value)]) {
+    fn push_feature(&mut self, id: Option<u64>, geom_type: u32, props: &[(&str, Value<'_>)]) {
         self.tags.clear();
         for &(key, value) in props {
-            let k = *self.key_index.entry(key).or_insert_with(|| {
-                self.keys.push(key);
-                self.keys.len() as u32 - 1
-            });
-            let v = *self.value_index.entry(value.into()).or_insert_with(|| {
-                self.values.push(value);
-                self.values.len() as u32 - 1
-            });
+            let k = match self.key_index.get(key) {
+                Some(&k) => k,
+                None => {
+                    self.keys.push(key.to_owned());
+                    let k = self.keys.len() as u32 - 1;
+                    self.key_index.insert(key.to_owned(), k);
+                    k
+                }
+            };
+            let value = ValueKey::from(value);
+            let v = match self.value_index.get(&value) {
+                Some(&v) => v,
+                None => {
+                    self.values.push(value.clone());
+                    let v = self.values.len() as u32 - 1;
+                    self.value_index.insert(value, v);
+                    v
+                }
+            };
             self.tags.extend([k, v]);
         }
 
@@ -193,14 +212,19 @@ impl LayerBuilder {
         }
         for value in &self.values {
             let mut v = Vec::with_capacity(10);
-            match *value {
-                Value::Float(f) => {
+            match value {
+                ValueKey::Str(s) => write_bytes(&mut v, 1, s.as_bytes()),
+                ValueKey::Float(bits) => {
                     write_tag(&mut v, 2, WIRE_FIXED32);
-                    v.extend_from_slice(&f.to_le_bytes());
+                    v.extend_from_slice(&bits.to_le_bytes());
                 }
-                Value::UInt(u) => {
+                ValueKey::Double(bits) => {
+                    write_tag(&mut v, 3, WIRE_FIXED64);
+                    v.extend_from_slice(&bits.to_le_bytes());
+                }
+                ValueKey::UInt(u) => {
                     write_tag(&mut v, 5, WIRE_VARINT);
-                    write_varint(&mut v, u);
+                    write_varint(&mut v, *u);
                 }
             }
             write_bytes(&mut layer, 4, &v);

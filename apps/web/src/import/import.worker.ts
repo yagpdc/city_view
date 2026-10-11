@@ -32,7 +32,7 @@ async function detectEncoding(file: File): Promise<Encoding> {
   }
 }
 
-function open(file: File, delimiter: Delimiter | undefined, encoding: Encoding): Promise<Delimiter> {
+function open(file: File, delimiter: Delimiter | undefined, encoding: Encoding, previewRows?: number): Promise<Delimiter> {
   rows = [];
   let detected: Delimiter = delimiter ?? ",";
   let emptyHeaders = 0;
@@ -42,18 +42,19 @@ function open(file: File, delimiter: Delimiter | undefined, encoding: Encoding):
       skipEmptyLines: "greedy",
       delimiter: delimiter ?? "",
       encoding,
+      preview: previewRows ?? 0,
       chunkSize: 4 << 20,
       transformHeader: (h) => h.trim() || `coluna_${++emptyHeaders}`,
       chunk: (results, parser) => {
         detected = results.meta.delimiter as Delimiter;
         for (const row of results.data) rows.push(row);
         post({ type: "progress", loaded: results.meta.cursor, total: file.size });
-        if (rows.length > MAX_BROWSER_ROWS) {
+        if (!previewRows && rows.length > MAX_BROWSER_ROWS) {
           parser.abort();
           reject(
             new Error(
               `O arquivo tem mais de ${MAX_BROWSER_ROWS.toLocaleString("pt-BR")} linhas. ` +
-                "Por enquanto o navegador processa até esse limite; arquivos maiores vão usar o motor local.",
+                "O navegador processa até esse limite. Inicie o servidor local (pnpm api) para arquivos maiores.",
             ),
           );
         }
@@ -69,7 +70,7 @@ self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
   try {
     if (msg.type === "open") {
       const encoding = msg.options.encoding ?? (await detectEncoding(msg.file));
-      const delimiter = await open(msg.file, msg.options.delimiter, encoding);
+      const delimiter = await open(msg.file, msg.options.delimiter, encoding, msg.options.previewRows);
       if (rows.length === 0) throw new Error("Não encontramos linhas de dados no arquivo.");
       const headers = Object.keys(rows[0]!);
       const columns = detectColumns(headers, rows.slice(0, DETECT_ROWS));
@@ -77,7 +78,17 @@ self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
       const style = guessStyleColumns(columns, location ? [location.lat, location.lon] : []);
       post({
         type: "opened",
-        file: { headers, preview: rows.slice(0, PREVIEW_ROWS), rowCount: rows.length, delimiter, encoding, columns, location, style },
+        file: {
+          headers,
+          preview: rows.slice(0, PREVIEW_ROWS),
+          rowCount: rows.length,
+          delimiter,
+          encoding,
+          columns,
+          location,
+          style,
+          sampled: Boolean(msg.options.previewRows),
+        },
       });
     } else if (msg.type === "build") {
       lastMapping = msg.mapping;

@@ -1,41 +1,40 @@
-//! Uso: tiler <entrada.parquet> <saida.pmtiles> [--name nome]
+//! Uso: tiler <entrada.csv|parquet> <pasta-de-saída> <spec.json>
+//!
+//! O spec descreve colunas de coordenada, tipos e coluna de cor (mesmo formato do wizard).
 
-use std::{path::PathBuf, process::ExitCode, time::Instant};
+use std::{path::PathBuf, process::ExitCode, sync::Mutex, time::Instant};
 
-use tiler::{build, dataset};
-
-fn mb(bytes: usize) -> f64 {
-    bytes as f64 / 1e6
-}
+use tiler::{ImportSpec, Stage};
 
 fn main() -> ExitCode {
-    let mut args = std::env::args().skip(1);
-    let (Some(input), Some(output)) = (args.next(), args.next()) else {
-        eprintln!("uso: tiler <entrada.parquet> <saida.pmtiles> [--name nome]");
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let [input, out_dir, spec_path] = args.as_slice() else {
+        eprintln!("uso: tiler <entrada.csv|parquet> <pasta-de-saída> <spec.json>");
         return ExitCode::FAILURE;
     };
-    let name = match (args.next().as_deref(), args.next()) {
-        (Some("--name"), Some(n)) => n,
-        _ => "dataset".to_string(),
-    };
-    let (input, output) = (PathBuf::from(input), PathBuf::from(output));
-
-    let started = Instant::now();
-    eprintln!("[tiler] lendo {}", input.display());
-    let ds = match dataset::read_parquet(&input, build::FINEST_RESOLUTION) {
-        Ok(ds) => ds,
+    let spec: ImportSpec = match std::fs::read_to_string(spec_path).map_err(|e| e.to_string()).and_then(|s| serde_json::from_str(&s).map_err(|e| e.to_string())) {
+        Ok(s) => s,
         Err(e) => {
-            eprintln!("[tiler] erro ao ler: {e}");
+            eprintln!("[tiler] spec inválido: {e}");
             return ExitCode::FAILURE;
         }
     };
-    let read_secs = started.elapsed().as_secs_f64();
-    eprintln!("[tiler] {} registros ({} descartados) em {read_secs:.1}s", ds.records.len(), ds.skipped);
 
-    let report = match build::build(&ds, &output, &name) {
+    let started = Instant::now();
+    let last = Mutex::new((String::new(), 0u32));
+    let progress = |stage: Stage, f: f32| {
+        let pct = (f * 100.0) as u32;
+        let label = format!("{stage:?}");
+        let mut last = last.lock().unwrap();
+        if last.0 != label || pct >= last.1 + 10 {
+            eprintln!("[tiler] {label} {pct}%");
+            *last = (label, pct);
+        }
+    };
+    let report = match tiler::process(&PathBuf::from(input), &PathBuf::from(out_dir), &spec, &progress) {
         Ok(r) => r,
         Err(e) => {
-            eprintln!("[tiler] erro ao gerar tiles: {e}");
+            eprintln!("[tiler] erro: {e}");
             return ExitCode::FAILURE;
         }
     };
@@ -47,21 +46,27 @@ fn main() -> ExitCode {
             z.zoom,
             z.tiles,
             z.features,
-            mb(z.bytes),
+            z.bytes as f64 / 1e6,
             z.max_raw as f64 / 1e3,
             z.max_gz as f64 / 1e3
         );
     }
     println!("\netapas:");
-    println!("  {:<28} {read_secs:>6.1}s", "leitura + projeção + H3");
     for (label, secs) in &report.timings {
         println!("  {label:<28} {secs:>6.1}s");
     }
+    let s = &report.stats;
     println!(
-        "\n{} registros → {} ({:.0} MB) em {:.1}s",
-        report.records,
-        output.display(),
-        report.file_bytes as f64 / 1e6,
+        "\n{} linhas · {} válidas · {} ignoradas (sem coordenadas {}, inválidas {}, impossíveis {}) · {} fora do Brasil",
+        s.rows, report.records, s.invalid, s.sem_coordenadas, s.coordenada_invalida, s.fora_do_mundo, s.outside_brazil
+    );
+    if !report.categories.is_empty() {
+        println!("categorias de cor: {}", report.categories.join(", "));
+    }
+    println!(
+        "→ {}/tiles.pmtiles ({:.0} MB) em {:.1}s",
+        out_dir,
+        report.tiles_bytes as f64 / 1e6,
         started.elapsed().as_secs_f64()
     );
     ExitCode::SUCCESS

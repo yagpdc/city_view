@@ -1,8 +1,9 @@
 import type { DatapackManifest } from "@cityview/engine";
-import { SECTOR_COLORS } from "@cityview/engine";
+import { CATEGORY_COLORS } from "@cityview/engine";
 import { parseNumber, type ColumnInfo, type ColumnType, type ImportMapping } from "@cityview/importer";
 import { useEffect, useMemo, useState } from "react";
-import type { BuildSummary, Delimiter, Encoding, OpenedFile } from "./protocol";
+import type { ImportSpec } from "../server/api";
+import { SAMPLE_ROWS, SERVER_THRESHOLD_BYTES, type BuildSummary, type Delimiter, type Encoding, type OpenedFile } from "./protocol";
 import { useImportWorker } from "./useImportWorker";
 
 export interface ImportedDataset {
@@ -16,8 +17,11 @@ export interface ImportedDataset {
 
 interface ImportWizardProps {
   file: File;
+  /** Servidor local disponível (processa arquivos de qualquer tamanho). */
+  serverAvailable: boolean;
   onCancel: () => void;
   onImport: (dataset: ImportedDataset) => void;
+  onSendToServer: (file: File, spec: ImportSpec) => void;
 }
 
 type Step = 0 | 1 | 2 | 3;
@@ -35,7 +39,7 @@ const REASONS: Record<string, string> = {
   "coordenada-invalida": "coordenada que não é número",
   "fora-do-mundo": "coordenada impossível (ex.: 0,0)",
 };
-const MAX_COLOR_CATEGORIES = SECTOR_COLORS.length;
+const MAX_COLOR_CATEGORIES = CATEGORY_COLORS.length;
 
 const int = new Intl.NumberFormat("pt-BR");
 const formatBytes = (b: number) => (b > 1e6 ? `${(b / 1e6).toFixed(1)} MB` : `${Math.ceil(b / 1e3)} KB`);
@@ -46,8 +50,11 @@ interface ColumnChoice {
   type: ColumnType;
 }
 
-export function ImportWizard({ file, onCancel, onImport }: ImportWizardProps) {
+export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSendToServer }: ImportWizardProps) {
   const worker = useImportWorker();
+  // Arquivo grande + servidor de pé: o navegador só lê uma amostra; o motor em Rust faz o resto.
+  const [sampleOnly] = useState(() => serverAvailable && file.size > SERVER_THRESHOLD_BYTES);
+  const [useServer, setUseServer] = useState(sampleOnly);
   const [step, setStep] = useState<Step>(0);
   const [opened, setOpened] = useState<OpenedFile | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -69,7 +76,7 @@ export function ImportWizard({ file, onCancel, onImport }: ImportWizardProps) {
     setError(null);
     setOpened(null);
     worker
-      .open(file, { delimiter, encoding })
+      .open(file, { delimiter, encoding, previewRows: sampleOnly ? SAMPLE_ROWS : undefined })
       .then((o) => {
         if (cancelled) return;
         setOpened(o);
@@ -83,7 +90,7 @@ export function ImportWizard({ file, onCancel, onImport }: ImportWizardProps) {
     return () => {
       cancelled = true;
     };
-  }, [file, delimiter, encoding, worker.open]);
+  }, [file, delimiter, encoding, worker.open, sampleOnly]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onCancel();
@@ -142,7 +149,25 @@ export function ImportWizard({ file, onCancel, onImport }: ImportWizardProps) {
     [built, colorBy],
   );
 
+  const sendToServer = () => {
+    if (!mapping || !opened) return;
+    const spec: ImportSpec = {
+      name: name.trim() || file.name,
+      lat: mapping.lat,
+      lon: mapping.lon,
+      latLocale: mapping.latLocale,
+      lonLocale: mapping.lonLocale,
+      columns: mapping.columns,
+      colorBy: colorBy || undefined,
+      title: title || undefined,
+      delimiter: delimiter ?? opened.delimiter,
+      encoding: encoding ?? opened.encoding,
+    };
+    onSendToServer(file, spec);
+  };
+
   const finish = async () => {
+    if (useServer) return sendToServer();
     if (!built?.bounds || !mapping) return;
     setExporting(true);
     let blob: Blob;
@@ -173,7 +198,7 @@ export function ImportWizard({ file, onCancel, onImport }: ImportWizardProps) {
               colorBy: {
                 property: colorBy,
                 categories: categories.map(([c]) => c),
-                colors: categories.map((_, i) => SECTOR_COLORS[i]!),
+                colors: categories.map((_, i) => CATEGORY_COLORS[i]!),
               },
             }
           : {}),
@@ -244,9 +269,22 @@ export function ImportWizard({ file, onCancel, onImport }: ImportWizardProps) {
           {opened && step === 0 && (
             <>
               <p className="wizard-lead">
-                <b>{file.name}</b> · {formatBytes(file.size)} · <b>{int.format(opened.rowCount)}</b> linhas ·{" "}
-                {opened.headers.length} colunas
+                <b>{file.name}</b> · {formatBytes(file.size)} ·{" "}
+                {opened.sampled ? (
+                  <>amostra de {int.format(opened.rowCount)} linhas</>
+                ) : (
+                  <>
+                    <b>{int.format(opened.rowCount)}</b> linhas
+                  </>
+                )}{" "}
+                · {opened.headers.length} colunas
               </p>
+              {opened.sampled && (
+                <p className="wizard-ok">
+                  Arquivo grande: lemos uma amostra para você configurar, e o servidor local processa o arquivo
+                  inteiro no fim.
+                </p>
+              )}
               <div className="wizard-row">
                 <label>
                   Separador
@@ -421,8 +459,26 @@ export function ImportWizard({ file, onCancel, onImport }: ImportWizardProps) {
               {building && <p className="muted">Preparando os pontos…</p>}
               {built && (
                 <div className="review">
+                  {serverAvailable && !sampleOnly && (
+                    <label className="server-toggle">
+                      <input type="checkbox" checked={useServer} onChange={(e) => setUseServer(e.target.checked)} />
+                      <span>
+                        <b>Processar no servidor local</b> — fica disponível em qualquer navegador e aguenta arquivos de
+                        qualquer tamanho
+                      </span>
+                    </label>
+                  )}
                   <p className="wizard-ok">
-                    <b>{int.format(built.count)}</b> pontos prontos para o mapa.
+                    {opened.sampled ? (
+                      <>
+                        Na amostra, <b>{int.format(built.count)}</b> de {int.format(opened.rowCount)} linhas viram ponto.
+                        O total sai depois do processamento.
+                      </>
+                    ) : (
+                      <>
+                        <b>{int.format(built.count)}</b> pontos prontos para o mapa.
+                      </>
+                    )}
                   </p>
                   {built.invalidCount > 0 && (
                     <details className="wizard-warn">
@@ -451,7 +507,7 @@ export function ImportWizard({ file, onCancel, onImport }: ImportWizardProps) {
                       <span className="muted">Cores por {colorBy}:</span>
                       {categories.map(([c, n], i) => (
                         <span key={c} className="legend-item">
-                          <i style={{ background: SECTOR_COLORS[i] }} />
+                          <i style={{ background: CATEGORY_COLORS[i] }} />
                           {c} <span className="muted">({int.format(n)})</span>
                         </span>
                       ))}
@@ -468,7 +524,13 @@ export function ImportWizard({ file, onCancel, onImport }: ImportWizardProps) {
             {step === 0 ? "Cancelar" : "Voltar"}
           </button>
           <button type="button" className="btn btn-primary" disabled={!canContinue} onClick={next}>
-            {step === 3 ? (exporting ? "Importando…" : "Importar para o mapa") : "Continuar"}
+            {step === 3
+              ? useServer
+                ? "Enviar ao servidor"
+                : exporting
+                  ? "Importando…"
+                  : "Importar para o mapa"
+              : "Continuar"}
           </button>
         </footer>
       </div>

@@ -1,0 +1,20 @@
+{
+  "name": "Lojas (exemplo)",
+  "lat": "Latitude",
+  "lon": "Longitude",
+  "latLocale": "br",
+  "lonLocale": "br",
+  "delimiter": ";",
+  "encoding": "windows-1252",
+  "colorBy": "Categoria",
+  "title": "Nome da loja",
+  "columns": [
+    { "name": "Código", "type": "text" },
+    { "name": "Nome da loja", "type": "text" },
+    { "name": "Categoria", "type": "category" },
+    { "name": "Cidade", "type": "category" },
+    { "name": "UF", "type": "category" },
+    { "name": "Faturamento mensal (R$)", "type": "number", "locale": "br" },
+    { "name": "Abertura", "type": "date" }
+  ]
+}

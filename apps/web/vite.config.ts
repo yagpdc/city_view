@@ -4,5 +4,9 @@ import { localData } from "../../tooling/vite-local-data";
 
 export default defineConfig({
   plugins: [react(), localData()],
-  server: { port: 5173 },
+  server: {
+    port: 5173,
+    // Servidor local (services/api): mesmo domínio, sem CORS.
+    proxy: { "/api": "http://127.0.0.1:8787" },
+  },
 });

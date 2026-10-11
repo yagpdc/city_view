@@ -33,7 +33,8 @@ Decisões podem ser revistas via ADR em `docs/adr/`.
 
 | Caminho | Papel |
 |---|---|
-| `crates/tiler` | Motor de dados: ingestão → tiles (MVT) → PMTiles. Escritores de MVT e PMTiles próprios |
+| `crates/tiler` | Motor de dados: CSV/Parquet + mapeamento (spec) → H3 + pontos → PMTiles e índice de linhas. Escritores de MVT e PMTiles próprios |
+| `services/api` | Servidor local (axum): upload em streaming, fila de processamento, tiles com Range, detalhes da linha pelo índice |
 | `crates/synth` | Gerador de datasets sintéticos para testes e benchmarks |
 | `packages/engine` | Fachada interna sobre MapLibre (mapa base, relevo, câmera) |
 | `packages/sdk` | API pública que o cliente instala (`CityView.map`, filtros, eventos) |

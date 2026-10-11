@@ -7,7 +7,7 @@
  * map.on("click", (item) => console.log(item));
  * ```
  */
-import { CityMap, SECTOR_COLORS, type DatasetFilter, type DatasetLayer, type DatasetPick } from "@cityview/engine";
+import { CityMap, categoryColor, type DatasetFilter, type DatasetLayer, type DatasetPick } from "@cityview/engine";
 
 export type Theme = "light" | "dark";
 
@@ -32,9 +32,12 @@ export type Item = DatasetPick;
 
 export interface DatasetInfo {
   records: number;
-  sectors: number;
-  /** Cor usada para cada setor nos pontos individuais. */
-  sectorColors: readonly string[];
+  /** Rótulos das categorias de cor (valores da coluna de cor, mais frequentes primeiro). */
+  categories: string[];
+  /** Cor de cada categoria, no mesmo índice. */
+  categoryColors: string[];
+  /** Coluna usada para colorir. */
+  colorBy: string | null;
 }
 
 type Events = {
@@ -91,7 +94,8 @@ export function map(options: MapOptions): CityViewMap {
     dataset = layer;
     await engine.whenIdle();
     readyListeners.forEach((fn) => fn());
-    return { records: layer.meta.records, sectors: layer.meta.sectors, sectorColors: SECTOR_COLORS };
+    const { records, categories, colorBy } = layer.meta;
+    return { records, categories, categoryColors: categories.map((_, i) => categoryColor(i, categories)), colorBy: colorBy ?? null };
   });
 
   return {
