@@ -1,5 +1,7 @@
 import type { Camera, Theme } from "@cityview/engine";
 import { useEffect, useState } from "react";
+import { Sidebar, SidebarSection } from "./components/Sidebar";
+import { TopBar } from "./components/TopBar";
 import { useCityMap } from "./useCityMap";
 
 const INITIAL_CAMERA: Partial<Camera> = {
@@ -9,7 +11,10 @@ const INITIAL_CAMERA: Partial<Camera> = {
   bearing: -20,
 };
 
+const isNarrowScreen = () => window.matchMedia("(max-width: 767px)").matches;
+
 export function App() {
+  const [sidebarOpen, setSidebarOpen] = useState(() => !isNarrowScreen());
   const [theme, setTheme] = useState<Theme>("light");
   const [terrain, setTerrain] = useState(true);
   const [buildings, setBuildings] = useState(true);
@@ -40,43 +45,68 @@ export function App() {
     };
   }, [map]);
 
-  const toggleTheme = () => {
-    const next = theme === "light" ? "dark" : "light";
+  const changeTheme = (next: Theme) => {
     setTheme(next);
     map?.setTheme(next);
   };
 
+  // TODO(fase 4): geocodificação local (Photon). Por enquanto a busca não faz nada.
+  const search = (query: string) => console.info("[search]", query);
+
   return (
-    <div className={`app theme-${theme}`}>
-      <div ref={containerRef} className="map" />
-      <aside className="panel">
-        <h1>City View</h1>
-        <label>
-          <input type="checkbox" checked={terrain} onChange={(e) => setTerrain(e.target.checked)} />
-          Relevo 3D
-        </label>
-        <label>
-          <input type="checkbox" checked={buildings} onChange={(e) => setBuildings(e.target.checked)} />
-          Prédios 3D
-        </label>
-        <button type="button" onClick={toggleTheme}>
-          Tema {theme === "light" ? "escuro" : "claro"}
-        </button>
+    <div className={`app theme-${theme} ${sidebarOpen ? "sidebar-open" : ""}`}>
+      <TopBar sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen((o) => !o)} onSearch={search} />
+
+      <Sidebar open={sidebarOpen}>
+        <SidebarSection title="Camadas">
+          <label className="toggle">
+            <input type="checkbox" checked={terrain} onChange={(e) => setTerrain(e.target.checked)} />
+            Relevo 3D
+          </label>
+          <label className="toggle">
+            <input type="checkbox" checked={buildings} onChange={(e) => setBuildings(e.target.checked)} />
+            Prédios 3D
+          </label>
+        </SidebarSection>
+
+        <SidebarSection title="Aparência">
+          <div className="segmented" role="radiogroup" aria-label="Tema">
+            {(["light", "dark"] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                role="radio"
+                aria-checked={theme === t}
+                className={theme === t ? "is-active" : ""}
+                onClick={() => changeTheme(t)}
+              >
+                {t === "light" ? "Claro" : "Escuro"}
+              </button>
+            ))}
+          </div>
+        </SidebarSection>
+
         {camera && (
-          <dl className="camera">
-            <dt>Lon, Lat</dt>
-            <dd>
-              {camera.center[0].toFixed(5)}, {camera.center[1].toFixed(5)}
-            </dd>
-            <dt>Zoom</dt>
-            <dd>{camera.zoom.toFixed(2)}</dd>
-            <dt>Inclinação / Rumo</dt>
-            <dd>
-              {camera.pitch.toFixed(0)}° / {camera.bearing.toFixed(0)}°
-            </dd>
-          </dl>
+          <SidebarSection title="Câmera">
+            <dl className="camera">
+              <dt>Lon, Lat</dt>
+              <dd>
+                {camera.center[0].toFixed(5)}, {camera.center[1].toFixed(5)}
+              </dd>
+              <dt>Zoom</dt>
+              <dd>{camera.zoom.toFixed(2)}</dd>
+              <dt>Inclinação / Rumo</dt>
+              <dd>
+                {camera.pitch.toFixed(0)}° / {camera.bearing.toFixed(0)}°
+              </dd>
+            </dl>
+          </SidebarSection>
         )}
-      </aside>
+      </Sidebar>
+
+      <main className="map-area">
+        <div ref={containerRef} className="map" />
+      </main>
     </div>
   );
 }

@@ -39,6 +39,7 @@ export class CityMap {
   private terrainEnabled = true;
   private terrainExaggeration: number;
   private buildingsEnabled = true;
+  private readonly resizeObserver: ResizeObserver;
 
   constructor({ container, camera, terrainExaggeration = 1.5, ...styleOptions }: CityMapOptions) {
     initMapLibre();
@@ -59,6 +60,10 @@ export class CityMap {
     this.map.addControl(new NavigationControl({ visualizePitch: true }), "top-right");
     this.map.addControl(new ScaleControl({ unit: "metric" }), "bottom-left");
     this.map.on("style.load", () => this.applyState());
+
+    // O container muda de tamanho sem a janela mudar (ex.: sidebar abrindo/fechando).
+    this.resizeObserver = new ResizeObserver(() => this.map.resize());
+    this.resizeObserver.observe(container);
   }
 
   /** Acesso bruto ao MapLibre. Uso restrito ao pacote engine e a depuração. */
@@ -102,6 +107,7 @@ export class CityMap {
   }
 
   destroy(): void {
+    this.resizeObserver.disconnect();
     this.map.remove();
   }
 

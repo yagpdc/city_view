@@ -19,6 +19,18 @@ Especialistas em `.claude/agents/`. Delegue ao agente quando o assunto for dele:
 | Interface, ferramentas de desenho, UX, painéis | `frontend-ui` |
 | Medir/otimizar performance (bundle, memória, frame time) | `perf` |
 
+## Layout padrão da interface
+
+```
+[opções] [ busca ................ ]   TopBar (apps/web/src/components/TopBar.tsx)
+[sidebar] [         mapa          ]   Sidebar recolhível; o mapa estica quando fechada
+```
+
+- Barra superior: botão de opções/filtros à esquerda, busca ao lado.
+- Opções, filtros e camadas ficam na Sidebar, organizados em `SidebarSection`. Nada de painel flutuando sobre o mapa.
+- Em telas < 768px a Sidebar sobrepõe o mapa e começa fechada.
+- Cores e medidas vêm dos tokens CSS em `apps/web/src/styles.css` (tema claro/escuro).
+
 ## Convenções
 
 - Idioma: código e nomes em inglês; docs e conversa em português.
