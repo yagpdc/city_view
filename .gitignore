@@ -1,0 +1,21 @@
+node_modules/
+dist/
+target/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+.vite/
+
+# dados geoespaciais grandes (gerados por scripts em data/)
+*.pmtiles
+*.mbtiles
+*.osm.pbf
+*.tif
+*.tiff
+*.laz
+*.las
+*.parquet
+data/cache/
+data/out/
