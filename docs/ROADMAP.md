@@ -1,6 +1,7 @@
 # City View — Roadmap (24+ meses)
 
 > Documento vivo. Cada fase termina com algo **usável** rodando localmente.
+> Visão de produto e jornada do usuário: [PRODUCT.md](PRODUCT.md).
 
 ## Tese do produto
 
@@ -46,16 +47,26 @@ A gente cuida de todo o motor: ingestão, indexação, tiles, consultas analíti
 **Medido (navegador do app, em segundo plano):** primeiro mapa 1,37 s · filtro 58 ms · SDK 299 KB gzip (+ worker).
 **Metas:** 60 fps navegando; primeiro mapa < 1,5 s; filtro < 200 ms; geração de 30M em minutos.
 
-## Fase 2 — Dados reais e motor de análise (meses 2–6)
+## Fase 2 — Primeiros encantos do produto (meses 2–6)
 
-- [ ] Ingestão de CSV, Parquet, GeoJSON; mapeamento de colunas; validação e relatório de erros
-- [ ] Geocodificação de endereços (CEP/logradouro) para quem não tem lat/lon
-- [ ] Esquema do dataset: tipos de coluna, quais colunas viram filtro/estilo
-- [ ] API de detalhes (clique → ficha completa pelo id) e de busca
-- [ ] Filtros arbitrários: rápidos no cliente quando possível; tiles dinâmicos no servidor (DuckDB) com cache quando não
-- [ ] Motor de consultas analíticas (DuckDB): agregações por região/polígono, estatísticas, comparações
-- [ ] Primeiras análises na interface: contagem/densidade por área desenhada, por município e por raio
-- [ ] Atualização incremental do dataset (sem regerar tudo)
+Ordem pensada por encanto/esforço (ver [PRODUCT.md](PRODUCT.md)).
+
+**2a. Catálogo e pontos de partida**
+- [ ] Formato de datapack: manifesto (fonte, licença, atribuição, atualização, esquema) + receita de importação
+- [ ] 5–8 camadas brasileiras abertas (IBGE municípios/população, queimadas, rodovias, CNPJs, escolas, saúde…)
+- [ ] Painel de catálogo na plataforma, com fonte/licença/atualização visíveis
+- [ ] Pontos de partida por objetivo (varejo, logística, risco, agro)
+
+**2b. Ingestão sem atrito**
+- [ ] Upload de CSV/Parquet/GeoJSON arrastando o arquivo; mapeamento de colunas; relatório de erros
+- [ ] Geocodificação de endereços/CEP para quem não tem lat/lon (Photon/Nominatim local)
+- [ ] Esquema do dataset: quais colunas viram filtro/estilo (generalizar o tiler, hoje fixo no esquema de empresas)
+
+**2c. Primeira análise e colaboração**
+- [ ] "O que tem ao redor": clique/área → resumo cruzando todas as camadas
+- [ ] Link compartilhável com câmera, camadas, filtros e seleção
+- [ ] Widgets do viewport (contagem, categorias, histograma)
+- [ ] Motor de consultas (DuckDB) e API de detalhes; tiles dinâmicos para filtros arbitrários nos agregados
 
 ## Fase 3 — SDK completo (meses 6–10)
 
@@ -72,7 +83,6 @@ A gente cuida de todo o motor: ingestão, indexação, tiles, consultas analíti
 - [ ] Multi-cliente: isolamento de dados, tiles protegidos (URLs assinadas), cotas
 - [ ] Editor de estilo visual do mapa no painel
 - [ ] Analytics de uso do mapa embutido
-- [ ] **Catálogo de dados (datapacks):** fontes curadas (IBGE, CNPJs da Receita, OSM, Overture…) com conector, licença e receita de importação; o usuário escolhe, baixa e aplica no próprio espaço de trabalho
 
 ## Fase 5 — Recursos avançados (meses 16–24)
 
@@ -80,7 +90,10 @@ A gente cuida de todo o motor: ingestão, indexação, tiles, consultas analíti
 - [ ] Análises: buffer, raio de cobertura, vizinho mais próximo, densidade
 - [ ] Rotas e isócronas (Valhalla), geocodificação reversa
 - [ ] 3D: prédios, extrusão de dados (ex.: altura = faturamento), globo
-- [ ] Séries temporais (slider) e dados ao vivo (streaming)
+- [ ] Linha do tempo única para todas as camadas com data; dados ao vivo (streaming)
+- [ ] Histórias: sequência de visões com notas → apresentação, vídeo ou embed
+- [ ] Análises em blocos (estilo Workflows): buffer, interseção, contagem por região
+- [ ] Servidor MCP: o assistente de IA do usuário consulta dados e opera o mapa
 
 ## Fase 6 — Além (24+ meses)
 
