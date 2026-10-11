@@ -1,80 +1,77 @@
 # City View — Roadmap (24+ meses)
 
 > Documento vivo. Cada fase termina com algo **usável** rodando localmente.
-> Estimativas assumem 1 dev + agentes; ajustar conforme a realidade.
+
+## Tese do produto
+
+Uma empresa tem dados geográficos em escala (ex.: 30M de empresas). Ela **joga os dados** na City View e **instala nosso mapa** no produto dela com poucas linhas de código. A gente cuida de todo o motor: ingestão, indexação, tiles, renderização, filtros, interação.
+
+O produto principal é **SDK + motor de dados**. A plataforma web é a vitrine e o painel de controle.
 
 ## Princípios
 
-1. **Não reinventar o motor cedo.** Começamos sobre MapLibre GL + deck.gl e escondemos isso atrás da nossa própria API (`@cityview/engine`). Motor próprio (WebGPU) só se/quando medirmos um gargalo real.
-2. **Performance é feature.** Todo cálculo pesado roda fora da main thread (Web Workers) e, quando valer a pena, em Rust → WASM.
-3. **Dados abertos e formatos abertos.** PMTiles, GeoJSON, GeoParquet, 3D Tiles, COG, MVT.
-4. **Local-first.** Tudo roda na máquina, sem serviços pagos, sem chave de API.
+1. **Escala é o diferencial.** 30M+ de registros navegando a 60 fps numa GPU integrada.
+2. **Nunca mandar dado bruto ao navegador.** Agregado em zoom baixo, pontos só da área visível em zoom alto, detalhes sob demanda.
+3. **Não reinventar o render cedo.** MapLibre por baixo, escondido atrás da nossa API (`@cityview/engine` → `@cityview/sdk`).
+4. **Motor de dados em Rust.** Ingestão e geração de tiles são o coração do produto.
+5. **DX de integração.** O cliente precisa de 3 linhas para ter um mapa funcionando.
+6. **Local-first por enquanto.** Infra e multi-cliente entram depois, mas o desenho já considera.
 
 ---
 
-## Fase 0 — Fundação (semanas 1–4)
+## Fase 0 — Fundação ✅ (out/2026)
 
-- [x] Monorepo pnpm (Cargo workspace entra junto com o primeiro crate Rust)
-- [x] App web (Vite + React + TS) com mapa base vetorial servido de um arquivo **PMTiles local**
-- [x] Terreno 3D (DEM) + prédios extrudados (2.5D)
-- [x] Camada `@cityview/engine` encapsulando MapLibre (deck.gl entra na fase 2)
+- [x] Monorepo pnpm, app web (Vite + React + TS), `@cityview/engine` sobre MapLibre
+- [x] Mapa base vetorial e relevo de São Paulo em PMTiles locais; prédios 3D
+- [x] Layout padrão (topbar + sidebar recolhível + mapa)
 - [ ] Glyphs e sprites servidos localmente (hoje vêm do CDN do Protomaps)
-- [x] Typecheck e testes (Vitest) — [ ] lint/format
-- [x] Script `data/build_sp.py` gera mapa base e relevo da Grande São Paulo
+- [ ] Lint/format
 
-**Entrega:** abrir `localhost`, navegar em 3D numa cidade real, offline.
+## Fase 1 — Prova de conceito: 30M de pontos embutidos (meses 1–2)
 
-## Fase 1 — Desenho e medição (meses 2–6)
+- [ ] Gerador de dados sintéticos (30M de empresas no Brasil, distribuídas por população)
+- [ ] `crates/tiler` (Rust): Parquet → agregação H3 por zoom + pontos individuais em zoom alto → PMTiles
+- [ ] `@cityview/sdk`: `CityView.map({ container, dataset })`, filtros, eventos de clique
+- [ ] Página de "empresa cliente" embutindo o mapa com 3 linhas
+- [ ] Benchmarks: tempo de geração, tamanho, fps, tempo até primeiro mapa, latência de filtro
 
-- [ ] Ferramentas de desenho: ponto, linha, polígono, círculo, retângulo, texto
-- [ ] Edição de vértices, snapping, undo/redo (command pattern)
-- [ ] Medição **geodésica**: distância, perímetro, área, azimute
-- [ ] Perfil de elevação ao longo de uma linha (usando o DEM)
-- [ ] Painel de camadas (ordem, visibilidade, opacidade, estilo)
-- [ ] Import/export: GeoJSON, KML, GPX, CSV (lat/lon), Shapefile, GeoParquet
-- [ ] Backend (Rust/axum) + PostGIS: salvar projetos, camadas e features
+**Metas:** 60 fps navegando; primeiro mapa < 1,5 s; filtro < 200 ms; geração de 30M em minutos.
 
-**Entrega:** um "Google My Maps" local, mais preciso e rápido.
+## Fase 2 — Dados reais em produção (meses 2–6)
 
-## Fase 2 — Dados em escala (meses 6–12)
+- [ ] Ingestão de CSV, Parquet, GeoJSON; mapeamento de colunas; validação e relatório de erros
+- [ ] Geocodificação de endereços (CEP/logradouro) para quem não tem lat/lon
+- [ ] Esquema do dataset: tipos de coluna, quais colunas viram filtro/estilo
+- [ ] API de detalhes (clique → ficha completa pelo id) e de busca
+- [ ] Filtros arbitrários: rápidos no cliente quando possível; tiles dinâmicos no servidor (DuckDB) com cache quando não
+- [ ] Atualização incremental do dataset (sem regerar tudo)
 
-- [ ] Estilo orientado a dados (por atributo): choropleth, categorias, gradientes
-- [ ] Heatmap, hexbin (H3), clusters, fluxos (arcos)
-- [ ] Milhões de pontos (GeoArrow / binário direto para GPU)
-- [ ] Slider temporal (dados com tempo)
-- [ ] Consultas espaciais: buffer, interseção, contém, mais próximo
-- [ ] DuckDB (spatial) para análise local + DuckDB-WASM no navegador
-- [ ] `geo-core` em Rust → WASM para operações pesadas
-- [ ] Geração de vector tiles a partir de dados do usuário (tippecanoe / martin)
+## Fase 3 — SDK completo (meses 6–10)
 
-**Entrega:** jogar um CSV de 5M de linhas e explorar em 60 fps.
+- [ ] Estilos por atributo (cor, tamanho, ícone), legendas, tooltips customizáveis
+- [ ] Visualizações: hexbin, heatmap, cluster, choropleth por município/estado/setor censitário
+- [ ] Seleção por área (laço, raio, polígono) com contagem/estatística
+- [ ] Bundles: npm (ESM), `<script>` (UMD/CDN), wrappers React/Vue
+- [ ] Documentação, playground e exemplos; versionamento semântico; testes visuais
 
-## Fase 3 — 3D de verdade (meses 12–18)
+## Fase 4 — Plataforma (meses 10–16)
 
-- [ ] Globo (projeção globe) e transição suave para mapa
-- [ ] 3D Tiles / fotogrametria / modelos glTF posicionados
-- [ ] Nuvens de pontos (LAS/LAZ/COPC)
-- [ ] Sol e sombras por data/hora
-- [ ] Análises de terreno: declividade, aspecto, linha de visada, viewshed, volume de corte/aterro
-- [ ] Medição 3D (altura, distância no espaço, área de fachada)
+- [ ] Backend (Rust/axum) + PostgreSQL: contas, organizações, datasets, chaves de API
+- [ ] Upload pelo painel, status de processamento, pré-visualização
+- [ ] Multi-cliente: isolamento de dados, tiles protegidos (URLs assinadas), cotas
+- [ ] Editor de estilo visual do mapa no painel
+- [ ] Analytics de uso do mapa embutido
 
-**Entrega:** gêmeo digital simples de um bairro.
+## Fase 5 — Recursos avançados (meses 16–24)
 
-## Fase 4 — Serviços e análise (meses 18–24)
+- [ ] Desenho e medição geodésica (distância, área, perfil de elevação) expostos no SDK
+- [ ] Análises: buffer, raio de cobertura, vizinho mais próximo, densidade
+- [ ] Rotas e isócronas (Valhalla), geocodificação reversa
+- [ ] 3D: prédios, extrusão de dados (ex.: altura = faturamento), globo
+- [ ] Séries temporais (slider) e dados ao vivo (streaming)
 
-- [ ] Geocodificação local (Photon/Nominatim) e busca
-- [ ] Rotas e isócronas (Valhalla) sobre OSM
-- [ ] Colaboração em tempo real (CRDT / Yjs)
-- [ ] Notebooks/consultas SQL espaciais dentro do app
-- [ ] SDK público (`@cityview/sdk`) para embutir mapas em outros sites
-- [ ] Sistema de plugins (camadas, ferramentas, painéis de terceiros)
+## Fase 6 — Além (24+ meses)
 
-**Entrega:** plataforma que outras pessoas conseguem usar para construir em cima.
-
-## Fase 5 — Além (24+ meses)
-
-- [ ] Avaliar motor de render próprio em WebGPU (só com benchmarks justificando)
-- [ ] Imagens de satélite / raster analytics (COG, índices como NDVI)
-- [ ] Streaming de dados ao vivo (IoT, veículos)
-- [ ] Infra/deploy, multiusuário, permissões
-- [ ] Marketplace de plugins e datasets
+- [ ] Infra de produção, CDN de tiles, deploy
+- [ ] Motor de render próprio em WebGPU (só com benchmarks justificando)
+- [ ] Marketplace de datasets (ex.: base pública de CNPJs, censo IBGE)

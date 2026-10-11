@@ -1,65 +1,62 @@
 # Arquitetura e Stack
 
-Decisão inicial (pode ser revista via ADR em `docs/adr/`).
+Decisões podem ser revistas via ADR em `docs/adr/`.
 
 ## Visão geral
 
 ```
-┌──────────────────────── Navegador ────────────────────────┐
-│  apps/web (React + Vite + TS)                              │
-│     │ UI: painéis, ferramentas, camadas                    │
-│     ▼                                                      │
-│  packages/engine  ── API própria do mapa                   │
-│     ├─ MapLibre GL JS  (mapa base vetorial, terreno, globo)│
-│     ├─ deck.gl         (camadas de dados, 3D, GPU)         │
-│     └─ Workers ── packages/geo-wasm (Rust → WASM)          │
-└───────────────┬────────────────────────────────────────────┘
-                │ HTTP / WebSocket
-┌───────────────▼──────────── Local ─────────────────────────┐
-│  services/api (Rust + axum)                                │
-│     ├─ PostgreSQL + PostGIS   (projetos, features)         │
-│     ├─ DuckDB spatial         (análise / GeoParquet)       │
-│     └─ crates/geo-core        (mesma lógica do WASM)       │
-│  data/  PMTiles, DEM, extratos OSM/Overture                │
-└────────────────────────────────────────────────────────────┘
+ Empresa cliente                         City View
+ ───────────────                         ─────────────────────────────────────────────
+ dados (CSV/Parquet) ──upload/API──▶  crates/tiler (Rust)
+                                        ├─ lê e valida (Parquet/CSV)
+                                        ├─ projeta, indexa (H3), agrega por zoom
+                                        └─ gera vector tiles → PMTiles
+                                               │
+ produto do cliente                            ▼
+   @cityview/sdk  ◀──── tiles (HTTP Range) ── armazenamento de tiles
+     └─ @cityview/engine (MapLibre)    ◀──── API de detalhes/filtros (fase 2+)
 ```
 
-## Por que cada peça
+## Como 30M de pontos chegam a 60 fps
+
+| Zoom | O que vai no tile | Por quê |
+|---|---|---|
+| 0–13 | Hexágonos H3 com contagem total e por categoria | Poucos milhares de features por tela, independente do volume |
+| 14+ | Pontos individuais (id + poucos atributos) | Só a área visível; tiles mais profundos fazem overzoom |
+| clique | Ficha completa via API pelo id | Atributos pesados nunca trafegam nos tiles |
+
+- **Filtros por categoria** funcionam também nos agregados: cada hexágono guarda contagem por categoria, e o estilo soma só as selecionadas.
+- **Filtros arbitrários** (combinações, faixas numéricas) em zoom baixo exigem tiles dinâmicos no servidor (fase 2).
+- A escala de cor dos hexágonos usa densidade (contagem normalizada pela área da célula), com quebras calculadas pelo tiler e gravadas nos metadados do PMTiles.
+
+## Pacotes
+
+| Caminho | Papel |
+|---|---|
+| `crates/tiler` | Motor de dados: ingestão → tiles (MVT) → PMTiles. Escritores de MVT e PMTiles próprios |
+| `crates/synth` | Gerador de datasets sintéticos para testes e benchmarks |
+| `packages/engine` | Fachada interna sobre MapLibre (mapa base, relevo, câmera) |
+| `packages/sdk` | API pública que o cliente instala (`CityView.map`, filtros, eventos) |
+| `apps/web` | Plataforma / painel (por enquanto, visualizador) |
+| `apps/embed-demo` | Simula o site de uma empresa cliente usando o SDK |
+| `data/` | Scripts de dados de referência (mapa base, relevo) |
+
+## Stack
 
 | Peça | Escolha | Motivo |
 |---|---|---|
-| Linguagem front | TypeScript | Ecossistema de mapas web é todo JS/TS |
-| UI | React + Vite | Maior ecossistema; deck.gl tem integração oficial |
-| Mapa base | MapLibre GL JS | Open source (BSD), vetorial, terreno, globo, estilo |
-| Dados/3D | deck.gl | GPU, milhões de features, 3D Tiles, nuvem de pontos |
-| Cálculo geo | Turf.js → Rust/WASM | Turf para começar; Rust para desempenho e precisão |
-| Geodésia | `geographiclib` | Distância/área no elipsoide WGS84 (precisão mm) |
-| Backend | Rust + axum | Rápido, compartilha código com o WASM |
-| Banco | PostGIS | Padrão da indústria para dados espaciais |
-| Analítico | DuckDB spatial | Lê GeoParquet/CSV gigantes sem ETL |
-| Tiles | PMTiles | Arquivo único, sem servidor de tiles |
+| Motor de dados | Rust (rayon, h3o, parquet) | Desempenho, paralelismo, memória previsível |
+| Formato de tiles | MVT em PMTiles | Padrão aberto, arquivo único, servível por qualquer CDN |
+| Render | MapLibre GL JS | Open source, vetorial, rápido, 3D |
+| SDK/UI | TypeScript; React só na plataforma | O SDK não pode impor framework ao cliente |
+| Backend (fase 2+) | Rust + axum, PostgreSQL/PostGIS, DuckDB | API, contas, consultas analíticas |
 
-## Estrutura do repositório (alvo)
+## Recursos gratuitos que reaproveitamos
 
-```
-apps/web/            app principal
-packages/engine/     API do mapa (wrapper MapLibre + deck.gl)
-packages/ui/         componentes de interface
-packages/geo-wasm/   bindings WASM de crates/geo-core
-crates/geo-core/     geometria, medição, geodésia (Rust)
-services/api/        backend HTTP (Rust/axum)
-data/                scripts de download/geração de dados (gitignored os binários)
-docs/                roadmap, arquitetura, ADRs
-.claude/agents/      agentes especialistas
-```
+- **Mapa base:** Protomaps (OSM, ODbL) em PMTiles + estilos/fontes
+- **Dados:** OpenStreetMap, Overture Maps, IBGE (malhas, censo), Receita Federal (CNPJs públicos)
+- **Relevo:** Terrarium (AWS Open Data), Copernicus DEM
+- **Ferramentas:** GDAL, pmtiles CLI, DuckDB, H3
+- **Serviços self-hosted futuros:** Photon/Nominatim, Valhalla
 
-## Recursos gratuitos que vamos reaproveitar
-
-- **Mapa base:** [Protomaps](https://protomaps.com) basemap em PMTiles (dados OSM, ODbL) + estilos e fontes deles
-- **Dados vetoriais:** OpenStreetMap (Geofabrik extracts), [Overture Maps](https://overturemaps.org) (prédios com altura, lugares, endereços – GeoParquet)
-- **Terreno:** tiles Terrarium/Terrain-RGB do AWS Open Data, Copernicus DEM GLO-30
-- **Ferramentas de dados:** GDAL/ogr2ogr, tippecanoe, pmtiles CLI, martin, planetiler
-- **Serviços self-hosted (fase 4):** Photon/Nominatim (geocodificação), Valhalla/OSRM (rotas)
-- **Libs:** Turf.js, H3, loaders.gl, Yjs, geographiclib, crates `geo`/`geozero`/`h3o`
-
-⚠️ Atenção a licenças: OSM exige atribuição (ODbL). Evitar tiles de Google/Esri/Mapbox (termos proíbem uso fora dos SDKs deles).
+⚠️ OSM exige atribuição (ODbL). Não usar tiles de Google/Esri/Mapbox fora dos termos deles.

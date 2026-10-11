@@ -1,6 +1,6 @@
 # City View
 
-Plataforma web de mapas 2D/3D para visualizar, desenhar, medir e analisar dados geoespaciais. Roda localmente.
+Motor de mapas para dados em escala. Empresas jogam seus dados (ex.: 30M de registros) e embutem nosso mapa no produto delas via SDK; a gente cuida de ingestão, tiles, render e interação. Roda localmente por enquanto.
 
 - Roadmap: `docs/ROADMAP.md`
 - Arquitetura e stack: `docs/ARCHITECTURE.md`
@@ -12,6 +12,8 @@ Especialistas em `.claude/agents/`. Delegue ao agente quando o assunto for dele:
 
 | Assunto | Agente |
 |---|---|
+| Ingestão de datasets, agregação H3, MVT/PMTiles, pipeline Rust | `tiling` |
+| API pública do SDK, filtros, eventos, bundles, DX de integração | `sdk` |
 | Renderização, MapLibre, deck.gl, shaders, 3D, fps | `map-rendering` |
 | Medição, geodésia, projeções, algoritmos geométricos, Rust/WASM | `geo-compute` |
 | Tiles, OSM/Overture, DEM, formatos, importação/exportação | `geo-data` |
