@@ -60,6 +60,7 @@ export async function readDatasetMeta(pmtiles: PMTiles): Promise<DatasetMeta> {
 
 export class DatasetLayer {
   private filter: DatasetFilter = {};
+  private visible = true;
   private readonly sourceId: string;
   private readonly hexLayerId: string;
   private readonly pointsLayerId: string;
@@ -87,6 +88,7 @@ export class DatasetLayer {
     // Dados acima do mapa base, mas abaixo dos rótulos.
     const beforeId = this.map.getStyle().layers.find((l) => l.type === "symbol")?.id;
     for (const layer of this.layers()) this.map.addLayer(layer, beforeId);
+    this.setVisible(this.visible);
   }
 
   setFilter(filter: DatasetFilter): void {
@@ -98,11 +100,19 @@ export class DatasetLayer {
     this.map.setFilter(this.pointsLayerId, this.pointsFilter());
   }
 
+  setVisible(visible: boolean): void {
+    this.visible = visible;
+    for (const id of this.layerIds) {
+      if (this.map.getLayer(id)) this.map.setLayoutProperty(id, "visibility", visible ? "visible" : "none");
+    }
+  }
+
   getFilter(): DatasetFilter {
     return { ...this.filter };
   }
 
   pick(point: PointLike): DatasetPick | null {
+    if (!this.visible) return null;
     const [feature] = this.map.queryRenderedFeatures(point, { layers: this.layerIds });
     if (!feature) return null;
     const p = feature.properties as Record<string, number>;

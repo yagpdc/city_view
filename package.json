@@ -10,7 +10,8 @@
     "data:sp": "python data/build_sp.py",
     "demo": "pnpm --filter @cityview/embed-demo dev",
     "tiles": "cargo run --release -p tiler -- data/out/empresas.parquet data/out/empresas.pmtiles --name empresas",
-    "synth": "cargo run --release -p synth -- --rows 30000000 --out data/out/empresas.parquet"
+    "synth": "cargo run --release -p synth -- --rows 30000000 --out data/out/empresas.parquet",
+    "datapacks": "python datapacks/build.py"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",

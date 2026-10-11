@@ -175,3 +175,56 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .app,
   .sidebar { transition: none; }
 }
+
+/* ---------- Pontos de partida ---------- */
+.objectives { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.objective {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.objective strong { font-size: 13px; }
+.objective span { font-size: 11px; color: var(--fg-muted); }
+.objective:hover { background: var(--bg-subtle); }
+.objective.is-active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+
+/* ---------- Catálogo ---------- */
+.catalog { display: flex; flex-direction: column; gap: 10px; }
+.catalog-group h3 { margin: 0 0 4px; font-size: 12px; font-weight: 600; }
+.catalog-item { padding: 4px 0; }
+.catalog-meta { margin: 2px 0 0 24px; font-size: 11px; color: var(--fg-muted); }
+.catalog-details { margin: 6px 0 0 24px; font-size: 12px; }
+.catalog-details dt { color: var(--fg-muted); font-size: 11px; }
+.catalog-details dd { margin: 0 0 4px; }
+.catalog-details a { color: var(--accent); }
+.warn { color: #c2410c; }
+.link {
+  margin-left: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+/* ---------- Neste ponto ---------- */
+.muted { color: var(--fg-muted); }
+.pick { display: flex; flex-direction: column; gap: 8px; }
+.pick p { margin: 0; }
+.pick .coords { font-size: 11px; font-variant-numeric: tabular-nums; }
+.pick-card { padding: 8px 10px; border-radius: var(--radius); background: var(--bg-subtle); }
+.pick-card h4 { margin: 0 0 4px; font-size: 13px; }
+.pick-card dl { margin: 0; display: grid; gap: 2px; font-size: 12px; }
+.pick-card dl div { display: flex; justify-content: space-between; gap: 8px; }
+.pick-card dt { color: var(--fg-muted); }
+.pick-card dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.pick-card .source { margin-top: 6px; font-size: 11px; }

@@ -11,6 +11,7 @@ export function useCityMap(options: Omit<CityMapOptions, "container">) {
     if (!containerRef.current) return;
     const instance = new CityMap({ ...optionsRef.current, container: containerRef.current });
     setMap(instance);
+    if (import.meta.env.DEV) Object.assign(window, { cityMap: instance });
     return () => {
       instance.destroy();
       setMap(null);

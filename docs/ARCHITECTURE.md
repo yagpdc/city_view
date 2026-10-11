@@ -39,6 +39,7 @@ Decisões podem ser revistas via ADR em `docs/adr/`.
 | `packages/sdk` | API pública que o cliente instala (`CityView.map`, filtros, eventos) |
 | `apps/web` | Plataforma / painel (por enquanto, visualizador) |
 | `apps/embed-demo` | Simula o site de uma empresa cliente usando o SDK |
+| `datapacks/` | Catálogo: um manifesto por camada (fonte, licença, render, campos) + `build.py` que baixa e prepara |
 | `data/` | Scripts de dados de referência (mapa base, relevo) |
 
 ## Stack

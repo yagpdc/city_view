@@ -1,0 +1,32 @@
+{
+  "id": "municipios-populacao",
+  "name": "População por município",
+  "description": "População residente e densidade demográfica dos 5.570 municípios.",
+  "category": "Pessoas",
+  "geometry": "polygon",
+  "source": {
+    "name": "IBGE — Censo Demográfico 2022 e Malha Municipal",
+    "url": "https://www.ibge.gov.br/estatisticas/sociais/trabalho/22827-censo-demografico-2022.html"
+  },
+  "license": {
+    "name": "Uso livre com citação da fonte (IBGE)",
+    "url": "https://www.ibge.gov.br/acesso-informacao/institucional/termo-de-uso.html",
+    "commercial": true
+  },
+  "attribution": "IBGE, Censo Demográfico 2022",
+  "refresh": "A cada censo (decenal)",
+  "render": {
+    "type": "choropleth",
+    "property": "densidade",
+    "breaks": [10, 25, 50, 100, 300, 1000],
+    "colors": ["#f7fbff", "#deebf7", "#c6dbef", "#9ecae1", "#6baed6", "#3182bd", "#08519c"],
+    "opacity": 0.6
+  },
+  "fields": [
+    { "key": "nome", "label": "Município" },
+    { "key": "uf", "label": "UF" },
+    { "key": "populacao", "label": "População", "format": "int" },
+    { "key": "densidade", "label": "Densidade", "format": "decimal", "unit": "hab/km²" },
+    { "key": "area_km2", "label": "Área", "format": "int", "unit": "km²" }
+  ]
+}
