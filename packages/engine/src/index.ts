@@ -7,6 +7,7 @@ export {
   type ChoroplethRender,
   type DatapackField,
   type DatapackManifest,
+  type LayerData,
   type PointsRender,
 } from "./catalog";
 export { CityMap, type Camera, type CityMapEvent, type CityMapOptions, type MapPick } from "./cityMap";

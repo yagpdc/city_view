@@ -61,7 +61,12 @@ Ordem pensada por encanto/esforço (ver [PRODUCT.md](PRODUCT.md)).
 - [ ] Atualização automática das camadas vivas (hoje: rodar `pnpm datapacks`)
 
 **2b. Ingestão sem atrito**
-- [ ] Upload de CSV/Parquet/GeoJSON arrastando o arquivo; mapeamento de colunas; relatório de erros
+- [x] Arrastar CSV/TSV no mapa → wizard (arquivo, localização, colunas, revisão) → camada em "Seus dados"
+  - detecta separador, codificação (UTF-8/Latin-1), lat/lon, tipos e formato numérico brasileiro por coluna
+  - relatório de linhas ignoradas com motivo e número da linha; cor por categoria; clique mostra os atributos
+  - 500 mil linhas: leitura ~2–3 s, revisão 0,4 s, importação 3,5 s (tudo em Web Worker)
+- [ ] Parquet/GeoJSON/Excel no wizard; arquivos acima de 2M linhas pelo motor local (Rust)
+- [ ] Persistir datasets importados (hoje somem ao recarregar a página)
 - [ ] Geocodificação de endereços/CEP para quem não tem lat/lon (Photon/Nominatim local)
 - [ ] Esquema do dataset: quais colunas viram filtro/estilo (generalizar o tiler, hoje fixo no esquema de empresas)
 

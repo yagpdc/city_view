@@ -40,6 +40,8 @@ apps/embed-demo/   site de "empresa cliente" usando o SDK
 crates/tiler/      motor de dados: Parquet → H3 + pontos → PMTiles (Rust)
 crates/synth/      gerador de datasets sintéticos (Rust)
 datapacks/         catálogo: manifestos versionados + receitas de download (build.py)
+packages/importer/ detecção de colunas/formatos e conversão de CSV em pontos (testado)
+samples/           CSVs de exemplo para testar a importação (arraste no mapa)
 data/              scripts de dados; saída em data/out (fora do git)
 docs/              roadmap e arquitetura
 .claude/agents/    agentes especialistas

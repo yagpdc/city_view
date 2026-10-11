@@ -20,6 +20,10 @@ const SIZES = ["MEI", "ME", "EPP", "Demais"];
 
 function formatField(field: DatapackField, value: unknown): string {
   if (value === undefined || value === null) return "–";
+  if (field.format === "date" && typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [y, m, d] = value.split("-");
+    return `${d}/${m}/${y}`;
+  }
   const text =
     typeof value === "number" ? (field.format === "int" ? int.format(value) : dec.format(value)) : String(value);
   return field.unit ? `${text} ${field.unit}` : text;
@@ -64,7 +68,7 @@ export function PickDetails({ pick }: { pick: MapPick | null }) {
               </div>
             ))}
           </dl>
-          <p className="muted source">Fonte: {datapack.attribution}</p>
+          <p className="muted source">Fonte: {datapack.attribution || datapack.source.name}</p>
         </div>
       ))}
     </div>

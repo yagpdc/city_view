@@ -9,7 +9,7 @@ import {
 } from "maplibre-gl";
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import { PMTiles, Protocol } from "pmtiles";
-import { CatalogLayer, type CatalogPick, type DatapackManifest } from "./catalog";
+import { CatalogLayer, type CatalogPick, type DatapackManifest, type LayerData } from "./catalog";
 import { DatasetLayer, readDatasetMeta, type DatasetPick } from "./dataset";
 import { BUILDINGS_3D_LAYER, TERRAIN_SOURCE, buildStyle, type StyleOptions, type Theme } from "./style";
 
@@ -142,10 +142,10 @@ export class CityMap {
   }
 
   /** Adiciona (ou religa) uma camada do catálogo a partir do manifesto do datapack. */
-  showCatalogLayer(manifest: DatapackManifest, dataUrl: string): CatalogLayer {
+  showCatalogLayer(manifest: DatapackManifest, data: LayerData): CatalogLayer {
     let layer = this.catalog.get(manifest.id);
     if (!layer) {
-      layer = new CatalogLayer(this.map, manifest, dataUrl);
+      layer = new CatalogLayer(this.map, manifest, data);
       this.catalog.set(manifest.id, layer);
       const created = layer;
       this.whenStyleReady(() => this.attachCatalog(created));
@@ -156,6 +156,17 @@ export class CityMap {
 
   hideCatalogLayer(id: string): void {
     this.catalog.get(id)?.setVisible(false);
+  }
+
+  removeCatalogLayer(id: string): void {
+    this.catalog.get(id)?.detach();
+    this.catalog.delete(id);
+  }
+
+  /** Enquadra a câmera num retângulo [oeste, sul, leste, norte]. */
+  fitBounds(bounds: [number, number, number, number], maxZoom = 14): void {
+    const [w, s, e, n] = bounds;
+    this.map.fitBounds([[w, s], [e, n]], { padding: 60, maxZoom, duration: 1200 });
   }
 
   setDatasetVisible(id: string, visible: boolean): void {

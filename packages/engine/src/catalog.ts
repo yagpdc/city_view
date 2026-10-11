@@ -1,5 +1,6 @@
 import type {
   ExpressionSpecification,
+  GeoJSONSourceSpecification,
   LayerSpecification,
   Map as MapLibreMap,
   PointLike,
@@ -34,6 +35,8 @@ export interface ChoroplethRender {
 export interface PointsRender {
   type: "points";
   color: string;
+  /** Colore por uma coluna de categoria; valores fora da lista usam `color`. */
+  colorBy?: { property: string; categories: string[]; colors: string[] };
   sizeProperty?: string;
   /** [valor, raio, valor, raio, ...] */
   sizeStops?: number[];
@@ -42,7 +45,7 @@ export interface PointsRender {
 export interface DatapackField {
   key: string;
   label: string;
-  format?: "int" | "decimal";
+  format?: "int" | "decimal" | "date";
   unit?: string;
 }
 
@@ -51,7 +54,10 @@ export interface CatalogPick {
   properties: Record<string, unknown>;
 }
 
-/** Camada de catálogo (GeoJSON) desenhada a partir do manifesto. */
+/** URL de um GeoJSON ou a coleção já em memória (ex.: arquivo enviado pelo usuário). */
+export type LayerData = GeoJSONSourceSpecification["data"];
+
+/** Camada GeoJSON desenhada a partir de um manifesto (catálogo ou arquivo do usuário). */
 export class CatalogLayer {
   private visible = true;
   private readonly sourceId: string;
@@ -59,7 +65,7 @@ export class CatalogLayer {
   constructor(
     private readonly map: MapLibreMap,
     readonly manifest: DatapackManifest,
-    private readonly dataUrl: string,
+    private readonly data: LayerData,
   ) {
     this.sourceId = `cat-${manifest.id}`;
   }
@@ -74,8 +80,8 @@ export class CatalogLayer {
     if (this.map.getSource(this.sourceId)) return;
     this.map.addSource(this.sourceId, {
       type: "geojson",
-      data: this.dataUrl,
-      attribution: this.manifest.attribution,
+      data: this.data,
+      ...(this.manifest.attribution ? { attribution: this.manifest.attribution } : {}),
     });
     for (const layer of this.layers()) this.map.addLayer(layer, beforeId);
     this.applyVisibility();
@@ -132,14 +138,19 @@ export class CatalogLayer {
     const radius: ExpressionSpecification | number =
       render.sizeProperty && render.sizeStops
         ? (["interpolate", ["linear"], ["coalesce", ["get", render.sizeProperty], 0], ...render.sizeStops] as unknown as ExpressionSpecification)
-        : 4;
+        : (["interpolate", ["linear"], ["zoom"], 3, 2.5, 10, 4.5, 15, 7] as unknown as ExpressionSpecification);
+    const color: ExpressionSpecification | string = render.colorBy
+      ? (["match", ["to-string", ["get", render.colorBy.property]],
+          ...render.colorBy.categories.flatMap((c, i) => [c, render.colorBy!.colors[i] ?? render.color]),
+          render.color] as unknown as ExpressionSpecification)
+      : render.color;
     return [
       {
         id: `${this.sourceId}-points`,
         type: "circle",
         source: this.sourceId,
         paint: {
-          "circle-color": render.color,
+          "circle-color": color,
           "circle-radius": radius,
           "circle-opacity": 0.8,
           "circle-stroke-color": "#ffffff",

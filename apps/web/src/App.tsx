@@ -1,10 +1,13 @@
 import type { MapPick, Theme } from "@cityview/engine";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { DATAPACKS, OBJECTIVES, dataUrl, type Objective } from "./catalog";
 import { Catalog } from "./components/Catalog";
 import { PickDetails } from "./components/PickDetails";
 import { Sidebar, SidebarSection } from "./components/Sidebar";
 import { TopBar } from "./components/TopBar";
+import { DropZone } from "./import/DropZone";
+import "./import/import.css";
+import { ImportWizard, type ImportedDataset } from "./import/ImportWizard";
 import { useCityMap } from "./useCityMap";
 
 const CLIENT_DATASET = { id: "empresas", name: "Empresas (demonstração)", url: "/data/empresas.pmtiles" };
@@ -21,6 +24,9 @@ export function App() {
   const [datasetReady, setDatasetReady] = useState(false);
   const [datasetRecords, setDatasetRecords] = useState<number | null>(null);
   const [pick, setPick] = useState<MapPick | null>(null);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [userDatasets, setUserDatasets] = useState<ImportedDataset[]>([]);
+  const fileInput = useRef<HTMLInputElement>(null);
 
   const { containerRef, map } = useCityMap({
     basemapUrl: `${location.origin}/data/brasil.pmtiles`,
@@ -58,7 +64,33 @@ export function App() {
       else map.hideCatalogLayer(d.id);
     }
     if (datasetReady) map.setDatasetVisible(CLIENT_DATASET.id, active.has(DATASET_KEY));
-  }, [map, active, datasetReady]);
+    for (const d of userDatasets) {
+      if (active.has(d.manifest.id)) map.showCatalogLayer(d.manifest, d.dataUrl);
+      else map.hideCatalogLayer(d.manifest.id);
+    }
+  }, [map, active, datasetReady, userDatasets]);
+
+  const openImport = useCallback((file: File) => setImportFile(file), []);
+
+  const finishImport = (dataset: ImportedDataset) => {
+    setImportFile(null);
+    setUserDatasets((list) => [...list, dataset]);
+    setActive((prev) => new Set(prev).add(dataset.manifest.id));
+    setSidebarOpen(true);
+    map?.fitBounds(dataset.bounds);
+  };
+
+  const removeUserDataset = (id: string) => {
+    map?.removeCatalogLayer(id);
+    const removed = userDatasets.find((d) => d.manifest.id === id);
+    if (removed) URL.revokeObjectURL(removed.dataUrl);
+    setUserDatasets((list) => list.filter((d) => d.manifest.id !== id));
+    setActive((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  };
 
   const toggle = (id: string, on: boolean) => {
     setObjective(null);
@@ -123,6 +155,44 @@ export function App() {
                 ? ""
                 : "Gere com pnpm synth && pnpm tiles"}
           </p>
+          {userDatasets.map((d) => (
+            <div key={d.manifest.id} className="user-dataset">
+              <label className="toggle">
+                <input
+                  type="checkbox"
+                  checked={active.has(d.manifest.id)}
+                  onChange={(e) => toggle(d.manifest.id, e.target.checked)}
+                />
+                <span>{d.manifest.name}</span>
+              </label>
+              <button
+                type="button"
+                className="link"
+                onClick={() => removeUserDataset(d.manifest.id)}
+                aria-label={`Remover ${d.manifest.name}`}
+              >
+                remover
+              </button>
+              <p className="catalog-meta">
+                {new Intl.NumberFormat("pt-BR").format(d.count)} pontos · {d.fileName}
+              </p>
+            </div>
+          ))}
+          <button type="button" className="btn btn-block" onClick={() => fileInput.current?.click()}>
+            Importar arquivo…
+          </button>
+          <p className="hint">ou arraste um CSV para o mapa</p>
+          <input
+            ref={fileInput}
+            type="file"
+            accept=".csv,.tsv,.txt"
+            hidden
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) openImport(file);
+              e.target.value = "";
+            }}
+          />
         </SidebarSection>
 
         <SidebarSection title="Catálogo de dados">
@@ -153,7 +223,10 @@ export function App() {
 
       <main className="map-area">
         <div ref={containerRef} className="map" />
+        <DropZone onFile={openImport} />
       </main>
+
+      {importFile && <ImportWizard file={importFile} onCancel={() => setImportFile(null)} onImport={finishImport} />}
     </div>
   );
 }
