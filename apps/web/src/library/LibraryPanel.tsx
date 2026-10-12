@@ -3,6 +3,7 @@ import { ADAPTERS } from "./adapters";
 import { LIBRARY_SOURCES, loadAllSources } from "./load";
 import { buildMapLayer, type LibraryLayer } from "./mapLayer";
 import { FLAG, MAP_LEVELS, decodeItem, type ItemChoice, type ItemOptions, type LibraryItem, type LibrarySourceIndex, type MapData } from "./types";
+import { Icon } from "../components/Icon";
 
 const MAX_RESULTS = 200;
 const int = new Intl.NumberFormat("pt-BR");
@@ -174,7 +175,7 @@ export function LibraryPanel({ onClose, onAddLayer }: { onClose: () => void; onA
         <header className="wizard-header">
           <h2 id="library-title">Biblioteca de dados</h2>
           <button type="button" className="wizard-close" onClick={onClose} aria-label="Fechar biblioteca">
-            ×
+            <Icon name="close" />
           </button>
         </header>
         <div className="wizard-body">
@@ -305,12 +306,12 @@ export function LibraryPanel({ onClose, onAddLayer }: { onClose: () => void; onA
                         onClick={() => void toggleOptions(it)}
                         title="Escolher período, recorte e variável"
                       >
-                        Opções {itemOptions[key(it)]?.open ? "▴" : "▾"}
+                        Opções <Icon name={itemOptions[key(it)]?.open ? "chevronUp" : "chevronDown"} size={16} />
                       </button>
                     )}
                     {it.url && (
                       <a className="btn" href={it.url} target="_blank" rel="noreferrer" title="Abrir na fonte oficial">
-                        Fonte ↗
+                        Fonte <Icon name="external" size={16} />
                       </a>
                     )}
                   </div>

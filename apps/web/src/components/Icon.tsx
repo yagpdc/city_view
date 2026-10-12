@@ -1,25 +1,57 @@
-const PATHS = {
-  close: "M6 6l12 12M18 6L6 18",
-  search: "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM20 20l-4-4",
-  sliders: "M4 7h10M18 7h2M4 17h4M12 17h8M14 4v6M8 14v6",
-} as const;
+import {
+  Box,
+  Camera,
+  ChevronDown,
+  ChevronUp,
+  ExternalLink,
+  Funnel,
+  Info,
+  Layers,
+  LocateFixed,
+  MapPin,
+  Maximize2,
+  Minimize2,
+  Plus,
+  Ruler,
+  Search,
+  Share2,
+  SlidersHorizontal,
+  Star,
+  Upload,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 
-export type IconName = keyof typeof PATHS;
+/**
+ * Ícones do produto (Lucide, docs/DESIGN.md · Ícones): um ícone por ação, sempre o mesmo.
+ * Traço 1,75 (1,5 em 16 px); cor = a do texto ao lado.
+ */
+const ICONS = {
+  search: Search,
+  layers: Layers,
+  sliders: SlidersHorizontal,
+  filter: Funnel,
+  pin: MapPin,
+  locate: LocateFixed,
+  camera: Camera,
+  box3d: Box,
+  ruler: Ruler,
+  share: Share2,
+  star: Star,
+  info: Info,
+  close: X,
+  plus: Plus,
+  upload: Upload,
+  chevronDown: ChevronDown,
+  chevronUp: ChevronUp,
+  external: ExternalLink,
+  expand: Maximize2,
+  collapse: Minimize2,
+} satisfies Record<string, LucideIcon>;
 
-export function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d={PATHS[name]} />
-    </svg>
-  );
+export type IconName = keyof typeof ICONS;
+
+export function Icon({ name, size = 20 }: { name: IconName; size?: 16 | 18 | 20 | 24 }) {
+  const Glyph = ICONS[name];
+  return <Glyph size={size} strokeWidth={size <= 16 ? 1.5 : 1.75} aria-hidden="true" />;
 }

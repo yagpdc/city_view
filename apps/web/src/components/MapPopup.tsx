@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 const SUMMARY_KEYS = ["endereco", "address", "endereço", "cidade"];
 import { FieldValue, formatField, labelled, type DatasetInfo } from "./PickDetails";
 import { StreetPhoto } from "./StreetPhoto";
+import { Icon } from "./Icon";
 
 const int = new Intl.NumberFormat("pt-BR");
 const RADII = [200, 500, 1000];
@@ -85,7 +86,8 @@ export function MapPopup({
 
       <div className="map-popup-actions">
         <button type="button" className="btn" aria-expanded={expanded} onClick={() => setExpanded((x) => !x)}>
-          {expanded ? "Menos informações ▴" : "Mais informações ▾"}
+          {expanded ? "Menos informações" : "Mais informações"}
+          <Icon name={expanded ? "chevronUp" : "chevronDown"} size={16} />
         </button>
         {pick.dataset && onAdvanced && (
           <button type="button" className="btn" onClick={() => onAdvanced(pick)} title="Maquete 3D da área">

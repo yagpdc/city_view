@@ -90,7 +90,7 @@ export function TopBar({ sidebarOpen, onToggleSidebar, search, onSelect }: TopBa
         <Icon name={sidebarOpen ? "close" : "sliders"} />
       </button>
       <form className="search" role="search" onSubmit={submit}>
-        <Icon name="search" size={18} />
+        <Icon name="search" size={20} />
         <input
           type="search"
           value={query}

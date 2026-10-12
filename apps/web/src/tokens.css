@@ -1,0 +1,154 @@
+/*
+ * Tokens do design system City View (fonte: docs/DESIGN.md).
+ * Componentes usam só --cv-*; o tema escuro troca os valores em .theme-dark.
+ */
+@import "@fontsource-variable/dm-sans/index.css";
+@import "@fontsource/dm-mono/400.css";
+@import "@fontsource/dm-mono/500.css";
+
+:root {
+  /* Ação (marca: índigo suave) */
+  --cv-action: #4a50d6;
+  --cv-action-hover: #3c3fb0;
+  --cv-action-press: #33358d;
+  --cv-on-action: #ffffff;
+  --cv-action-subtle: #eef0ff;
+  --cv-action-subtle-hover: #e0e3ff;
+  --cv-action-subtle-text: #3c3fb0;
+  --cv-link: #3c3fb0;
+  --cv-focus: #7f86f7;
+  --cv-focus-ring: #c6cbff;
+  --cv-selected: #6068ee;
+
+  /* Neutros e superfícies */
+  --cv-bg: #ffffff;
+  --cv-surface: #f5f6f8;
+  --cv-surface-press: #eceef2;
+  --cv-float: #ffffff;
+  --cv-field: #fbfbfc;
+  --cv-border: #dde1e7;
+  --cv-border-strong: #c4cbd5;
+  --cv-control-border: #9aa3b2;
+  --cv-text: #151a24;
+  --cv-text-muted: #5f6878;
+  --cv-text-placeholder: #6b7485;
+  --cv-disabled-bg: #eceef2;
+  --cv-disabled-text: #9aa3b2;
+  --cv-track: #c4cbd5;
+
+  /* Estados */
+  --cv-success: #15803d;
+  --cv-success-bg: #ecfdf3;
+  --cv-warning: #b45309;
+  --cv-warning-bg: #fffbeb;
+  --cv-danger: #b91c1c;
+  --cv-danger-hover: #991b1b;
+  --cv-danger-bg: #fef2f2;
+  --cv-info: #1d4ed8;
+  --cv-info-bg: #eff4ff;
+
+  /* Dica (tooltip) e máscara */
+  --cv-tip-bg: #151a24;
+  --cv-tip-text: #ffffff;
+  --cv-scrim: rgba(10, 14, 22, 0.45);
+
+  /* Mapa base (referência; o estilo do mapa vem do Protomaps) */
+  --cv-map-ground: #f5f6f8;
+  --cv-map-point-ring: #ffffff;
+
+  /* Tipografia */
+  --cv-font-sans: "DM Sans Variable", "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --cv-font-mono: "DM Mono", ui-monospace, "SF Mono", Consolas, monospace;
+
+  /* Espaço (base 4 px) */
+  --cv-space-1: 4px;
+  --cv-space-2: 8px;
+  --cv-space-3: 12px;
+  --cv-space-4: 16px;
+  --cv-space-5: 20px;
+  --cv-space-6: 24px;
+  --cv-space-8: 32px;
+  --cv-space-10: 40px;
+
+  /* Cantos */
+  --cv-radius-xs: 4px;
+  --cv-radius-sm: 6px;
+  --cv-radius-md: 10px;
+  --cv-radius-lg: 12px;
+  --cv-radius-xl: 16px;
+  --cv-radius-full: 999px;
+
+  /* Elevação */
+  --cv-shadow-1: 0 1px 2px rgba(21, 26, 36, 0.06);
+  --cv-shadow-2: 0 4px 12px rgba(21, 26, 36, 0.1);
+  --cv-shadow-3: 0 12px 32px rgba(21, 26, 36, 0.18);
+  --cv-shadow-4: 0 24px 64px rgba(21, 26, 36, 0.28);
+
+  /* Tamanhos */
+  --cv-control-h: 44px;
+  --cv-control-h-sm: 36px;
+  --cv-ease: cubic-bezier(0.2, 0, 0, 1);
+
+  /* Nomes antigos (migração): apontam para os tokens novos */
+  --bg: var(--cv-bg);
+  --bg-subtle: var(--cv-surface);
+  --fg: var(--cv-text);
+  --fg-muted: var(--cv-text-muted);
+  --border: var(--cv-border);
+  --accent: var(--cv-action);
+  --focus: var(--cv-focus-ring);
+  --radius: var(--cv-radius-md);
+  --ease: var(--cv-ease);
+}
+
+.theme-dark {
+  --cv-action: #7f86f7;
+  --cv-action-hover: #a3a9fd;
+  --cv-action-press: #c6cbff;
+  --cv-on-action: #0b0f17;
+  --cv-action-subtle: #1c1f45;
+  --cv-action-subtle-hover: #262a5c;
+  --cv-action-subtle-text: #c6cbff;
+  --cv-link: #a3a9fd;
+  --cv-focus: #a3a9fd;
+  --cv-focus-ring: #262a5c;
+  --cv-selected: #7f86f7;
+
+  --cv-bg: #0b0f17;
+  --cv-surface: #151a24;
+  --cv-surface-press: #222936;
+  --cv-float: #1b2130;
+  --cv-field: #10141c;
+  --cv-border: #2a3240;
+  --cv-border-strong: #3a4352;
+  --cv-control-border: #6b7485;
+  --cv-text: #eceef2;
+  --cv-text-muted: #9aa3b2;
+  --cv-text-placeholder: #7d8698;
+  --cv-disabled-bg: #1b2130;
+  --cv-disabled-text: #5f6878;
+  --cv-track: #3a4352;
+
+  --cv-success: #4ade80;
+  --cv-success-bg: #0f2418;
+  --cv-warning: #fbbf24;
+  --cv-warning-bg: #2a1f08;
+  --cv-danger: #f87171;
+  --cv-danger-hover: #fca5a5;
+  --cv-danger-bg: #2b1010;
+  --cv-info: #7aa2ff;
+  --cv-info-bg: #0f1a33;
+
+  --cv-tip-bg: #eceef2;
+  --cv-tip-text: #0b0f17;
+  --cv-scrim: rgba(0, 0, 0, 0.6);
+
+  --cv-map-ground: #10141c;
+  --cv-map-point-ring: #10141c;
+
+  /* No escuro, o que flutua se separa por borda, não por sombra */
+  --cv-shadow-1: 0 0 0 1px #2a3240;
+  --cv-shadow-2: 0 0 0 1px #2a3240;
+  --cv-shadow-3: 0 0 0 1px #2a3240, 0 12px 32px rgba(0, 0, 0, 0.5);
+  --cv-shadow-4: 0 0 0 1px #2a3240, 0 24px 64px rgba(0, 0, 0, 0.6);
+}

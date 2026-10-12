@@ -2,6 +2,7 @@ import { CameraControls, Viewer, type SpatialComponent } from "mapillary-js";
 import "mapillary-js/dist/mapillary.css";
 import { useEffect, useRef, useState } from "react";
 import { MAPILLARY_TOKEN } from "../streetImagery";
+import { Icon } from "./Icon";
 
 export type StreetViewMode = "street" | "spatial" | "points";
 
@@ -116,11 +117,11 @@ export function StreetViewer({
           ))}
         </div>
         <span className="street-viewer-actions">
-          <button type="button" className="btn" onClick={() => setExpanded((x) => !x)} title={expanded ? "Reduzir" : "Ampliar"}>
-            {expanded ? "⤡" : "⤢"}
+          <button type="button" className="btn" onClick={() => setExpanded((x) => !x)} title={expanded ? "Reduzir" : "Ampliar"} aria-label={expanded ? "Reduzir" : "Ampliar"}>
+            <Icon name={expanded ? "collapse" : "expand"} size={18} />
           </button>
           <button type="button" className="btn" onClick={onClose} aria-label="Fechar foto de rua">
-            ×
+            <Icon name="close" size={18} />
           </button>
         </span>
       </div>

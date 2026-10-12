@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ImportSpec } from "../server/api";
 import { SAMPLE_ROWS, SERVER_FORMATS, SERVER_THRESHOLD_BYTES, fileFormat, type BuildSummary, type Delimiter, type Encoding, type OpenedFile } from "./protocol";
 import { useImportWorker } from "./useImportWorker";
+import { Icon } from "../components/Icon";
 
 export interface ImportedDataset {
   manifest: DatapackManifest;
@@ -250,7 +251,7 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
             ))}
           </ol>
           <button type="button" className="wizard-close" onClick={onCancel} aria-label="Cancelar importação">
-            ×
+            <Icon name="close" />
           </button>
         </header>
 
