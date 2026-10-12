@@ -1,3 +1,6 @@
 * text=auto eol=lf
 *.png binary
 *.pmtiles binary
+*.sh text eol=lf
+deploy/Caddyfile text eol=lf
+deploy/*.service text eol=lf

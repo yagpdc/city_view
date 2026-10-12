@@ -1,0 +1,40 @@
+# Gerado por deploy/install.sh (os __MARCADORES__ são trocados na instalação).
+__SITE__ {
+	encode zstd gzip
+
+	# Ler é público; enviar, renomear e apagar datasets pede usuário e senha.
+	@write {
+		path /api/*
+		method POST PUT PATCH DELETE
+	}
+	basic_auth @write {
+		__ADMIN_USER__ __ADMIN_HASH__
+	}
+
+	handle /api/* {
+		reverse_proxy 127.0.0.1:8787
+	}
+
+	# Tiles e dados públicos (PMTiles precisa de Range requests; o file_server atende).
+	handle_path /data/* {
+		root * /opt/cityview/data
+		header Cache-Control "public, max-age=3600"
+		header Access-Control-Allow-Origin "*"
+		file_server
+	}
+
+	redir /demo /demo/
+	handle_path /demo/* {
+		root * /opt/cityview/demo
+		try_files {path} /index.html
+		file_server
+	}
+
+	handle {
+		root * /opt/cityview/web
+		@hashed path /assets/*
+		header @hashed Cache-Control "public, max-age=31536000, immutable"
+		try_files {path} /index.html
+		file_server
+	}
+}
