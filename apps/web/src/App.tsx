@@ -86,6 +86,8 @@ export function App() {
 
   const { containerRef, map } = useCityMap({
     basemapUrl: `${location.origin}/data/brasil.pmtiles`,
+    // Locais com `pnpm assets`; sem eles o servidor de dev redireciona para o Protomaps.
+    assetsUrl: `${location.origin}/data/assets`,
     terrain: false,
     look: "data",
     // Prédios 3D vêm do extrato detalhado (Grande SP); o mapa do Brasil vai só até z12.

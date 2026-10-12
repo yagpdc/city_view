@@ -13,7 +13,8 @@
     "synth": "cargo run --release -p synth -- --rows 30000000 --out data/out/empresas.parquet",
     "datapacks": "python datapacks/build.py",
     "api": "cargo run --release -p cityview-api",
-    "library": "python datapacks/library/build.py"
+    "library": "python datapacks/library/build.py",
+    "assets": "python data/fetch_assets.py"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",

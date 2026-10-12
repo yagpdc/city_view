@@ -38,6 +38,7 @@ Especialistas em `.claude/agents/`. Delegue ao agente quando o assunto for dele:
 
 - `pnpm dev` (plataforma, :5173) · `pnpm api` (servidor Rust, :8787; o Vite repassa `/api`) · `pnpm demo` (SDK, :5174)
 - **Windows:** rode `cargo` pelo PowerShell. No Git Bash, `/usr/bin/link.exe` esconde o linker da Microsoft.
+- `pnpm assets` baixa fontes e ícones do mapa para `data/out/assets` (mapa sem internet; sem isso o dev server redireciona ao Protomaps).
 - Dados gerados ficam em `data/out/` e `data/workspace/` (fora do git).
 
 ## Convenções

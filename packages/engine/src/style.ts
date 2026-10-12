@@ -35,6 +35,8 @@ export interface StyleOptions {
   buildingsUrl?: string;
   /** Idioma dos rótulos. */
   lang?: string;
+  /** Base das fontes (`fonts/`) e ícones (`sprites/v4/`); padrão: GitHub Pages do Protomaps. */
+  assetsUrl?: string;
 }
 
 export const BASEMAP_SOURCE = "basemap";
@@ -46,8 +48,8 @@ export const BUILDINGS_3D_LAYER = "buildings-3d";
 /** Terrain Tiles públicos (AWS Open Data, encoding Terrarium). */
 export const PUBLIC_DEM_TILES = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png";
 
-// TODO(fase 0): servir glyphs e sprites localmente para funcionar 100% offline.
-const ASSETS_URL = "https://protomaps.github.io/basemaps-assets";
+/** Fontes e ícones do mapa base (Protomaps). Local: `pnpm assets` + `assetsUrl`. */
+export const PUBLIC_ASSETS_URL = "https://protomaps.github.io/basemaps-assets";
 
 const FLAVOR: Record<BasemapLook, Record<Theme, string>> = {
   data: { light: "white", dark: "black" },
@@ -121,6 +123,7 @@ export function buildStyle({
   globe = true,
   buildingsUrl,
   lang = "pt",
+  assetsUrl = PUBLIC_ASSETS_URL,
 }: StyleOptions): StyleSpecification {
   const baseLayers = layers(BASEMAP_SOURCE, namedFlavor(FLAVOR[look][theme]), { lang }) as LayerSpecification[];
 
@@ -137,8 +140,8 @@ export function buildStyle({
 
   return {
     version: 8,
-    glyphs: `${ASSETS_URL}/fonts/{fontstack}/{range}.pbf`,
-    sprite: `${ASSETS_URL}/sprites/v4/${theme}`,
+    glyphs: `${assetsUrl}/fonts/{fontstack}/{range}.pbf`,
+    sprite: `${assetsUrl}/sprites/v4/${theme}`,
     ...(globe ? { projection: { type: "globe" } } : {}),
     sky: SKY[theme],
     light: { anchor: "viewport", color: "#ffffff", intensity: 0.35, position: [1.2, 210, 35] },

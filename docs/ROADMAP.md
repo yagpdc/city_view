@@ -30,7 +30,7 @@ A gente cuida de todo o motor: ingestão, indexação, tiles, consultas analíti
 - [x] Monorepo pnpm, app web (Vite + React + TS), `@cityview/engine` sobre MapLibre
 - [x] Mapa base vetorial e relevo de São Paulo em PMTiles locais; prédios 3D
 - [x] Layout padrão (topbar + sidebar recolhível + mapa)
-- [ ] Glyphs e sprites servidos localmente (hoje vêm do CDN do Protomaps)
+- [x] Glyphs e sprites servidos localmente (`pnpm assets`; sem eles, redireciona ao CDN do Protomaps)
 - [ ] Lint/format
 
 ## Fase 1 — Prova de conceito: 30M de pontos embutidos (meses 1–2)
