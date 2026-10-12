@@ -296,6 +296,39 @@ pub struct BuildOptions<'a> {
 
 /// Gera `<out_dir>/tiles.pmtiles` (e `rows.idx` quando há posições de linha).
 pub fn build(t: &Table, out_dir: &Path, opts: &BuildOptions, progress: &(dyn Fn(Stage, f32) + Sync)) -> Result<Report, Error> {
+    let tiles_path = out_dir.join("tiles.pmtiles");
+    let (writer, info, metadata, mut report) = build_tiles(t, opts, progress, Writer::create(&tiles_path)?)?;
+    let clock = Instant::now();
+    writer.finish(&tiles_path, &info, &metadata)?;
+    if let Some(offsets) = &t.offsets {
+        let mut idx = BufWriter::with_capacity(1 << 20, File::create(out_dir.join("rows.idx"))?);
+        for o in offsets {
+            idx.write_all(&o.to_le_bytes())?;
+        }
+        idx.flush()?;
+    }
+    report.timings.push(("gravação", clock.elapsed().as_secs_f64()));
+    report.tiles_bytes = std::fs::metadata(&tiles_path)?.len();
+    progress(Stage::Writing, 1.0);
+    Ok(report)
+}
+
+/// O mesmo PMTiles, inteiro em memória (sem sistema de arquivos) — para rodar no navegador (WASM).
+pub fn build_in_memory(t: &Table, opts: &BuildOptions, progress: &(dyn Fn(Stage, f32) + Sync)) -> Result<(Vec<u8>, Report), Error> {
+    let (writer, info, metadata, mut report) = build_tiles(t, opts, progress, Writer::in_memory())?;
+    let bytes = writer.finish_to_vec(&info, &metadata)?;
+    report.tiles_bytes = bytes.len() as u64;
+    progress(Stage::Writing, 1.0);
+    Ok((bytes, report))
+}
+
+/// Agregação, tiles de hexágonos e de pontos e os metadados; quem chama grava (arquivo ou memória).
+fn build_tiles(
+    t: &Table,
+    opts: &BuildOptions,
+    progress: &(dyn Fn(Stage, f32) + Sync),
+    mut writer: Writer,
+) -> Result<(Writer, HeaderInfo, serde_json::Value, Report), Error> {
     let mut timings = Vec::new();
     let mut clock = Instant::now();
     let mut lap = |label: &'static str, clock: &mut Instant| {
@@ -318,8 +351,6 @@ pub fn build(t: &Table, out_dir: &Path, opts: &BuildOptions, progress: &(dyn Fn(
     let breaks = density_breaks(&levels);
     lap("agregação H3", &mut clock);
 
-    let tiles_path = out_dir.join("tiles.pmtiles");
-    let mut writer = Writer::create(&tiles_path)?;
     let mut zooms = Vec::new();
     for z in 0..=HEX_MAX_ZOOM {
         progress(Stage::Tiling, z as f32 / (POINTS_ZOOM as f32 + 1.0));
@@ -379,19 +410,9 @@ pub fn build(t: &Table, out_dir: &Path, opts: &BuildOptions, progress: &(dyn Fn(
         },
     });
     let info = HeaderInfo { min_zoom: 0, max_zoom: POINTS_ZOOM, bounds: t.bounds, center_zoom: 4 };
-    writer.finish(&tiles_path, &info, &metadata)?;
+    lap("metadados", &mut clock);
 
-    if let Some(offsets) = &t.offsets {
-        let mut idx = BufWriter::with_capacity(1 << 20, File::create(out_dir.join("rows.idx"))?);
-        for o in offsets {
-            idx.write_all(&o.to_le_bytes())?;
-        }
-        idx.flush()?;
-    }
-    lap("gravação", &mut clock);
-    progress(Stage::Writing, 1.0);
-
-    Ok(Report {
+    let report = Report {
         records: t.len(),
         stats: t.stats.clone(),
         bounds: t.bounds,
@@ -400,6 +421,7 @@ pub fn build(t: &Table, out_dir: &Path, opts: &BuildOptions, progress: &(dyn Fn(
         tile_columns,
         zooms,
         timings,
-        tiles_bytes: std::fs::metadata(&tiles_path)?.len(),
-    })
+        tiles_bytes: 0,
+    };
+    Ok((writer, info, metadata, report))
 }

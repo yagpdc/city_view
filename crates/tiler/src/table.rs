@@ -4,18 +4,9 @@
 //! colunas numéricas/categóricas). Texto livre e datas ficam no arquivo de origem e são
 //! lidos sob demanda pela posição de cada linha (`offsets`).
 
-use std::{
-    collections::HashMap,
-    fs::File,
-    io::{BufReader, BufWriter, Read, Write},
-    path::Path,
-};
+use std::collections::HashMap;
 
-use arrow_array::{Array, ArrayRef, cast::AsArray, types::*};
-use arrow_schema::DataType;
-use encoding_rs_io::DecodeReaderBytesBuilder;
 use h3o::{LatLng, Resolution};
-use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use rayon::prelude::*;
 use serde::Serialize;
 
@@ -110,13 +101,13 @@ impl Table {
 }
 
 #[derive(Default)]
-struct Interner {
+pub(crate) struct Interner {
     index: HashMap<String, u32>,
     values: Vec<String>,
 }
 
 impl Interner {
-    fn id(&mut self, v: &str) -> u32 {
+    pub(crate) fn id(&mut self, v: &str) -> u32 {
         let v = v.trim();
         if v.is_empty() {
             return u32::MAX;
@@ -134,25 +125,27 @@ impl Interner {
     }
 }
 
-enum Builder {
+#[cfg_attr(not(feature = "files"), allow(dead_code))]
+pub(crate) enum Builder {
     Number(Vec<f64>, NumberLocale),
     Category(Vec<u32>, Interner),
     Text(Vec<String>),
 }
 
 /// Acumula linhas válidas antes de projetar/indexar em paralelo.
-struct RawTable {
-    lat: Vec<f64>,
-    lon: Vec<f64>,
-    color: Vec<u32>,
-    color_dict: Interner,
-    columns: Vec<(String, Builder)>,
-    offsets: Vec<u64>,
-    stats: ReadStats,
+pub(crate) struct RawTable {
+    pub(crate) lat: Vec<f64>,
+    pub(crate) lon: Vec<f64>,
+    pub(crate) color: Vec<u32>,
+    pub(crate) color_dict: Interner,
+    pub(crate) columns: Vec<(String, Builder)>,
+    pub(crate) offsets: Vec<u64>,
+    pub(crate) stats: ReadStats,
 }
 
+#[cfg_attr(not(feature = "files"), allow(dead_code))]
 impl RawTable {
-    fn new(spec: &ImportSpec) -> Self {
+    pub(crate) fn new(spec: &ImportSpec) -> Self {
         let columns = spec
             .columns
             .iter()
@@ -178,7 +171,7 @@ impl RawTable {
     }
 
     /// Valida coordenadas em texto; devolve `true` se a linha entra.
-    fn accept(&mut self, line: u64, lat: Option<&str>, lon: Option<&str>, spec: &ImportSpec) -> bool {
+    pub(crate) fn accept(&mut self, line: u64, lat: Option<&str>, lon: Option<&str>, spec: &ImportSpec) -> bool {
         let (Some(lat), Some(lon)) = (lat.filter(|s| !s.trim().is_empty()), lon.filter(|s| !s.trim().is_empty())) else {
             return self.accept_coords(line, Err(InvalidReason::SemCoordenadas));
         };
@@ -192,7 +185,7 @@ impl RawTable {
     }
 
     /// Valida coordenadas já numéricas (ou o motivo da rejeição); devolve `true` se a linha entra.
-    fn accept_coords(&mut self, line: u64, coords: Result<(f64, f64), InvalidReason>) -> bool {
+    pub(crate) fn accept_coords(&mut self, line: u64, coords: Result<(f64, f64), InvalidReason>) -> bool {
         self.stats.rows += 1;
         let (lat, lon) = match coords {
             Ok(c) => c,
@@ -213,7 +206,7 @@ impl RawTable {
         true
     }
 
-    fn finish(self, finest: Resolution) -> Result<Table, Error> {
+    pub(crate) fn finish(self, finest: Resolution) -> Result<Table, Error> {
         if self.lat.is_empty() {
             return Err("nenhuma linha com coordenadas válidas".into());
         }
@@ -292,166 +285,58 @@ impl RawTable {
     }
 }
 
-/// Converte o arquivo enviado para UTF-8 (necessário para as posições de linha baterem).
-pub fn normalize_to_utf8(input: &Path, output: &Path, windows_1252: bool) -> Result<(), Error> {
-    if !windows_1252 {
-        std::fs::copy(input, output)?;
-        return Ok(());
-    }
-    let mut reader = DecodeReaderBytesBuilder::new()
-        .encoding(Some(encoding_rs::WINDOWS_1252))
-        .build(BufReader::with_capacity(1 << 20, File::open(input)?));
-    let mut writer = BufWriter::with_capacity(1 << 20, File::create(output)?);
-    let mut buf = vec![0u8; 1 << 20];
-    loop {
-        let n = reader.read(&mut buf)?;
-        if n == 0 {
-            break;
-        }
-        writer.write_all(&buf[..n])?;
-    }
-    writer.flush()?;
-    Ok(())
+
+/// Coluna já lida (ex.: pelo importador do navegador), na ordem das linhas.
+pub enum InputColumn {
+    /// `NaN` = vazio.
+    Number(String, Vec<f64>),
+    Category(String, Vec<String>),
+    /// Texto livre (título etc.), só nos tiles de pontos.
+    Text(String, Vec<String>),
 }
 
-fn find(headers: &[String], name: &str) -> Result<usize, Error> {
-    headers
-        .iter()
-        .position(|h| h == name.trim())
-        .ok_or_else(|| format!("coluna não encontrada no arquivo: \"{name}\"").into())
-}
-
-/// Lê um CSV já em UTF-8 conforme o mapeamento. `progress` recebe a fração lida (0..1).
-pub fn read_csv(path: &Path, spec: &ImportSpec, finest: Resolution, progress: &dyn Fn(f32)) -> Result<Table, Error> {
-    let size = std::fs::metadata(path)?.len().max(1);
-    let mut reader = csv::ReaderBuilder::new()
-        .delimiter(spec.delimiter_byte())
-        .flexible(true)
-        .buffer_capacity(1 << 20)
-        .from_path(path)?;
-
-    let mut empty = 0;
-    let headers: Vec<String> = reader
-        .headers()?
-        .iter()
-        .map(|h| {
-            let h = h.trim_start_matches('\u{feff}').trim();
-            if h.is_empty() {
-                empty += 1;
-                format!("coluna_{empty}")
-            } else {
-                h.to_owned()
-            }
-        })
-        .collect();
-    let lat_i = find(&headers, &spec.lat)?;
-    let lon_i = find(&headers, &spec.lon)?;
-    let color_i = spec.color_by.as_deref().map(|c| find(&headers, c)).transpose()?;
-
-    let mut raw = RawTable::new(spec);
-    let column_i: Vec<usize> = raw.columns.iter().map(|(name, _)| find(&headers, name)).collect::<Result<_, _>>()?;
-
-    let mut record = csv::StringRecord::new();
-    let mut line = 1u64;
-    while reader.read_record(&mut record)? {
-        line += 1;
-        let offset = record.position().map_or(0, |p| p.byte());
-        if !raw.accept(line, record.get(lat_i), record.get(lon_i), spec) {
+/// Monta a tabela a partir de colunas prontas (sem arquivo): `lat`/`lon` em graus (`NaN` = sem coordenada),
+/// `color` = rótulo da categoria de cor por linha (vazio = sem). Linhas inválidas saem, como na leitura de CSV.
+pub fn table_from_points(lat: &[f64], lon: &[f64], color: &[String], columns: Vec<InputColumn>, finest: Resolution) -> Result<Table, Error> {
+    if lat.len() != lon.len() {
+        return Err("lat e lon com tamanhos diferentes".into());
+    }
+    let mut raw = RawTable {
+        lat: Vec::with_capacity(lat.len()),
+        lon: Vec::with_capacity(lat.len()),
+        color: Vec::new(),
+        color_dict: Interner::default(),
+        columns: Vec::new(),
+        offsets: Vec::new(),
+        stats: ReadStats::default(),
+    };
+    let mut builders: Vec<(String, Builder, InputColumn)> = Vec::new();
+    for c in columns {
+        let (name, b) = match &c {
+            InputColumn::Number(n, _) => (n.clone(), Builder::Number(Vec::new(), NumberLocale::default())),
+            InputColumn::Category(n, _) => (n.clone(), Builder::Category(Vec::new(), Interner::default())),
+            InputColumn::Text(n, _) => (n.clone(), Builder::Text(Vec::new())),
+        };
+        builders.push((name, b, c));
+    }
+    for i in 0..lat.len() {
+        let coords = if lat[i].is_nan() || lon[i].is_nan() { Err(InvalidReason::SemCoordenadas) } else { Ok((lat[i], lon[i])) };
+        if !raw.accept_coords(i as u64 + 2, coords) {
             continue;
         }
-        raw.offsets.push(offset);
-        if let Some(ci) = color_i {
-            let id = raw.color_dict.id(record.get(ci).unwrap_or(""));
+        if !color.is_empty() {
+            let id = raw.color_dict.id(color.get(i).map_or("", String::as_str));
             raw.color.push(id);
         }
-        for ((_, builder), &i) in raw.columns.iter_mut().zip(&column_i) {
-            let v = record.get(i).unwrap_or("");
-            match builder {
-                Builder::Number(values, locale) => values.push(parse_number(v, *locale).unwrap_or(f64::NAN)),
-                Builder::Category(ids, dict) => ids.push(dict.id(v)),
-                Builder::Text(values) => values.push(v.trim().to_owned()),
+        for (_, builder, input) in builders.iter_mut() {
+            match (builder, &*input) {
+                (Builder::Number(v, _), InputColumn::Number(_, src)) => v.push(src.get(i).copied().unwrap_or(f64::NAN)),
+                (Builder::Category(ids, dict), InputColumn::Category(_, src)) => ids.push(dict.id(src.get(i).map_or("", String::as_str))),
+                (Builder::Text(v), InputColumn::Text(_, src)) => v.push(src.get(i).map_or_else(String::new, |s| s.trim().to_owned())),
+                _ => unreachable!("builder e coluna do mesmo tipo"),
             }
         }
-        if line % 65_536 == 0 {
-            progress(offset as f32 / size as f32);
-        }
     }
-    progress(1.0);
-    raw.finish(finest)
-}
-
-fn number_at(array: &ArrayRef, i: usize) -> Option<f64> {
-    if array.is_null(i) {
-        return None;
-    }
-    Some(match array.data_type() {
-        DataType::Float64 => array.as_primitive::<Float64Type>().value(i),
-        DataType::Float32 => array.as_primitive::<Float32Type>().value(i) as f64,
-        DataType::Int64 => array.as_primitive::<Int64Type>().value(i) as f64,
-        DataType::Int32 => array.as_primitive::<Int32Type>().value(i) as f64,
-        DataType::Int16 => array.as_primitive::<Int16Type>().value(i) as f64,
-        DataType::Int8 => array.as_primitive::<Int8Type>().value(i) as f64,
-        DataType::UInt64 => array.as_primitive::<UInt64Type>().value(i) as f64,
-        DataType::UInt32 => array.as_primitive::<UInt32Type>().value(i) as f64,
-        DataType::UInt16 => array.as_primitive::<UInt16Type>().value(i) as f64,
-        DataType::UInt8 => array.as_primitive::<UInt8Type>().value(i) as f64,
-        DataType::Utf8 => return parse_number(array.as_string::<i32>().value(i), NumberLocale::Intl),
-        _ => return None,
-    })
-}
-
-fn text_at(array: &ArrayRef, i: usize) -> String {
-    if array.is_null(i) {
-        return String::new();
-    }
-    match array.data_type() {
-        DataType::Utf8 => array.as_string::<i32>().value(i).to_owned(),
-        DataType::LargeUtf8 => array.as_string::<i64>().value(i).to_owned(),
-        _ => number_at(array, i).map(|v| if v.fract() == 0.0 { format!("{v:.0}") } else { v.to_string() }).unwrap_or_default(),
-    }
-}
-
-/// Lê um Parquet conforme o mapeamento (sem índice de linhas: os detalhes vêm dos tiles).
-pub fn read_parquet(path: &Path, spec: &ImportSpec, finest: Resolution, progress: &dyn Fn(f32)) -> Result<Table, Error> {
-    let builder = ParquetRecordBatchReaderBuilder::try_new(File::open(path)?)?;
-    let total = builder.metadata().file_metadata().num_rows().max(1) as f32;
-    let reader = builder.with_batch_size(1 << 20).build()?;
-    let mut raw = RawTable::new(spec);
-    let mut line = 1u64;
-    let mut done = 0f32;
-
-    for batch in reader {
-        let batch = batch?;
-        let col = |name: &str| -> Result<ArrayRef, Error> {
-            batch.column_by_name(name).cloned().ok_or_else(|| format!("coluna não encontrada: \"{name}\"").into())
-        };
-        let (lat, lon) = (col(&spec.lat)?, col(&spec.lon)?);
-        let color = spec.color_by.as_deref().map(col).transpose()?;
-        let columns: Vec<ArrayRef> = raw.columns.iter().map(|(name, _)| col(name)).collect::<Result<_, _>>()?;
-
-        for i in 0..batch.num_rows() {
-            line += 1;
-            let coords = match (number_at(&lat, i), number_at(&lon, i)) {
-                (Some(la), Some(lo)) => Ok((la, lo)),
-                _ => Err(InvalidReason::SemCoordenadas),
-            };
-            if !raw.accept_coords(line, coords) {
-                continue;
-            }
-            if let Some(c) = &color {
-                let id = raw.color_dict.id(&text_at(c, i));
-                raw.color.push(id);
-            }
-            for ((_, builder), array) in raw.columns.iter_mut().zip(&columns) {
-                match builder {
-                    Builder::Number(values, _) => values.push(number_at(array, i).unwrap_or(f64::NAN)),
-                    Builder::Category(ids, dict) => ids.push(dict.id(&text_at(array, i))),
-                    Builder::Text(values) => values.push(text_at(array, i).trim().to_owned()),
-                }
-            }
-        }
-        done += batch.num_rows() as f32;
-        progress(done / total);
-    }
+    raw.columns = builders.into_iter().map(|(name, b, _)| (name, b)).collect();
     raw.finish(finest)
 }
