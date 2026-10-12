@@ -1,26 +1,25 @@
 import type { AreaSummary, BasemapLook, BuildingPaintResult, DatasetMeta, MapPick, Theme } from "@cityview/engine";
-import { categoryColor, geodesicDistanceM, normalizeText } from "@cityview/engine";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CATEGORY_COLORS, categoryColor, geodesicDistanceM, normalizeText } from "@cityview/engine";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { areaAt, parseCoordinates, radiusArea, searchMunicipios, type Area } from "./areas";
-import type { SearchResult } from "./components/TopBar";
+import { SearchBox, type SearchResult } from "./components/SearchBox";
+import { CategoryLegend, LayerCard, Panel, PanelCard, Rail, ScaleLegend, type LayerAction, type PanelId } from "./components/Shell";
+import { WidgetsPanel, type ViewportWidget } from "./components/WidgetsPanel";
+import { Icon } from "./components/Icon";
+import { AddRow, DatapackMeta } from "./components/AddRow";
 import type { Comparison } from "./compare";
 import { DATAPACKS, OBJECTIVES, dataUrl, type Objective } from "./catalog";
 import { DioramaPanel, type AreaChoice } from "./components/DioramaPanel";
-import { Catalog } from "./components/Catalog";
 import { PickDetails, type DatasetInfo } from "./components/PickDetails";
 import { MapPopup, type NearbySource } from "./components/MapPopup";
 import { createPortal } from "react-dom";
-import { LibraryLayers } from "./components/LibraryLayers";
 import { LibraryPanel } from "./library/LibraryPanel";
 import { LIBRARY_SOURCES, LIBRARY_TOTAL } from "./library/load";
 import { layerFromRecipe, recipeOf, restoreMapLayer, type LibraryLayer } from "./library/mapLayer";
 import { CAMERA_PARAM, clearShared, readShared, shareUrl } from "./share";
 import { StreetViewer } from "./components/StreetViewer";
 import { coverageOverlay, nearestStreetImage, streetImageryEnabled } from "./streetImagery";
-import { ServerDatasets } from "./components/ServerDatasets";
-import { Sidebar, SidebarSection } from "./components/Sidebar";
 import { TopBar } from "./components/TopBar";
-import { UserDatasets } from "./components/UserDatasets";
 import { DropZone } from "./import/DropZone";
 import "./import/import.css";
 import { ImportWizard, type ImportedDataset } from "./import/ImportWizard";
@@ -71,6 +70,17 @@ interface Diorama {
   exaggeration: number;
   orbiting: boolean;
 }
+const HIDDEN_KEY = "cityview.hidden-layers";
+function loadHiddenLayers(): Set<string> {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(HIDDEN_KEY) ?? "[]") as string[]);
+  } catch {
+    return new Set();
+  }
+}
+const int = new Intl.NumberFormat("pt-BR");
+const compact = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1, notation: "compact" });
+
 const without = (set: Set<string>, id: string) => {
   const next = new Set(set);
   next.delete(id);
@@ -78,7 +88,13 @@ const without = (set: Set<string>, id: string) => {
 };
 
 export function App() {
-  const [sidebarOpen, setSidebarOpen] = useState(() => !isNarrowScreen());
+  /** Painel aberto pelo trilho (null = só o mapa). */
+  const [panel, setPanel] = useState<PanelId | null>(() => (isNarrowScreen() ? null : "layers"));
+  /** Camadas no projeto mas escondidas (o olho fechado); "active" são as visíveis. */
+  const [hidden, setHidden] = useState<Set<string>>(loadHiddenLayers);
+  const [widgetsOpen, setWidgetsOpen] = useState(() => window.innerWidth >= 1280);
+  const [widgets, setWidgets] = useState<ViewportWidget[]>([]);
+  const [perspective, setPerspective] = useState<"2d" | "3d">("2d");
   const [theme, setTheme] = useState<Theme>(SHARED?.theme ?? "light");
   const [look, setLook] = useState<BasemapLook>(SHARED?.look ?? "data");
   const [shareStatus, setShareStatus] = useState<string | null>(null);
@@ -246,10 +262,7 @@ export function App() {
     else map.hidePopup();
   }, [map, pick, popupEl]);
 
-  const showPickDetails = () => {
-    setSidebarOpen(true);
-    window.setTimeout(() => document.getElementById("pick-details")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
-  };
+  const showPickDetails = () => setPanel("details");
 
   const openStreetView = (imageId: string) => {
     setStreetImageId(imageId);
@@ -285,7 +298,7 @@ export function App() {
     setLibraryLayers((list) => [...list.filter((l) => l.manifest.id !== layer.manifest.id), layer]);
     setActive((prev) => new Set(prev).add(layer.manifest.id));
     setLibraryOpen(false);
-    setSidebarOpen(true);
+    setPanel("layers");
     map?.flyTo({ center: [-52, -14.5], zoom: 3.8, pitch: 0, bearing: 0 });
   };
 
@@ -297,6 +310,19 @@ export function App() {
   };
 
   useEffect(() => saveActiveLayers(active), [active]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(HIDDEN_KEY, JSON.stringify([...hidden]));
+    } catch {
+      // Modo privado: segue sem lembrar.
+    }
+  }, [hidden]);
+  // O aviso de "link copiado" some sozinho.
+  useEffect(() => {
+    if (!shareStatus) return;
+    const t = window.setTimeout(() => setShareStatus(null), 6000);
+    return () => window.clearTimeout(t);
+  }, [shareStatus]);
 
   // Prédios dos seus dados: o dataset da maquete ou o primeiro dos seus dados que estiver ligado.
   const paintTarget = diorama?.datasetId
@@ -358,6 +384,30 @@ export function App() {
     return infos;
   }, [demoMeta, places, server.datasets, serverMetas]);
 
+  useEffect(() => {
+    if (!map || !widgetsOpen) return;
+    const sources = [
+      demoMeta && active.has(DATASET_KEY) ? CLIENT_DATASET.id : null,
+      places && active.has(PLACES_KEY) ? PLACES.id : null,
+      ...Object.keys(serverMetas).filter((id) => active.has(id)),
+    ].filter((id): id is string => Boolean(id));
+    const compute = () =>
+      setWidgets(
+        sources.flatMap((id) => {
+          const info = datasetInfos[id];
+          const summary = map.viewportSummary(id);
+          if (!info || !summary) return [];
+          const bars = info.categories
+            .map((c, i) => ({ label: info.label ? info.label(c) : c, color: categoryColor(i, info.categories), n: summary.byCategory[i] ?? 0 }))
+            .filter((b) => b.n > 0)
+            .sort((a, b) => b.n - a.n);
+          return [{ key: id, title: info.name, count: summary.count, mode: summary.mode, bars }];
+        }),
+      );
+    compute();
+    return map.onViewChange(compute);
+  }, [map, widgetsOpen, active, demoMeta, places, serverMetas, datasetInfos]);
+
   const nearbySource: NearbySource | null =
     places && datasetInfos[PLACES.id] ? { datasetId: PLACES.id, name: "Lugares", info: datasetInfos[PLACES.id]! } : null;
 
@@ -368,13 +418,13 @@ export function App() {
     setImportFile(null);
     void user.add({ id: dataset.manifest.id, ...dataset, createdAt: Date.now() });
     setActive((prev) => new Set(prev).add(dataset.manifest.id));
-    setSidebarOpen(true);
+    setPanel("layers");
     map?.fitBounds(dataset.bounds);
   };
 
   const sendToServer = async (file: File, spec: ImportSpec) => {
     setImportFile(null);
-    setSidebarOpen(true);
+    setPanel("layers");
     const created = await server.upload(file, spec);
     if (created) focusWhenReady.current.add(created.id);
   };
@@ -419,9 +469,24 @@ export function App() {
     if (d.report) map?.fitBounds(d.report.bounds);
   };
 
+  /** Olho do cartão / adicionar: visível ↔ escondida (a camada continua no projeto). */
   const toggle = (id: string, on: boolean) => {
     setObjective(null);
     setActive((prev) => (on ? new Set(prev).add(id) : without(prev, id)));
+    setHidden((prev) => (on ? without(prev, id) : new Set(prev).add(id)));
+  };
+
+  /** Tira a camada do projeto (o dado em si continua disponível em "Adicionar"). */
+  const removeFromMap = (id: string) => {
+    setActive((prev) => without(prev, id));
+    setHidden((prev) => without(prev, id));
+  };
+
+  const inProject = (id: string) => active.has(id) || hidden.has(id);
+
+  const changePerspective = (mode: "2d" | "3d") => {
+    setPerspective(mode);
+    map?.setPerspective(mode);
   };
 
   const chooseObjective = (o: Objective) => {
@@ -463,7 +528,7 @@ export function App() {
     const exaggeration = diorama?.exaggeration ?? 1.8;
     setDiorama({ datasetId, lngLat, area, areaChoice, summary: null, columns: diorama?.columns ?? false, exaggeration, orbiting: false });
     setActive((prev) => new Set(prev).add(datasetKey(datasetId)));
-    if (isNarrowScreen()) setSidebarOpen(false);
+    if (isNarrowScreen()) setPanel(null);
     await map.enterDiorama(area.geometry, {
       datasetId,
       maxZoom: area.kind === "raio" && (area.radiusKm ?? 10) <= 1 ? 16.5 : 13.5,
@@ -596,244 +661,467 @@ export function App() {
     (e): e is { text: string; clear: () => void } => Boolean(e),
   );
 
-  return (
-    <div className={`app theme-${theme} ${sidebarOpen ? "sidebar-open" : ""}`}>
-      <TopBar sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen((o) => !o)} search={search} onSelect={selectSearch} />
+  // ---------- Painel "Camadas": um cartão por camada no projeto ----------
+  const datasetLegend = (id: string) => {
+    const info = datasetInfos[id];
+    if (!info) return null;
+    return (
+      <CategoryLegend
+        items={info.categories.map((c, i) => ({ label: info.label ? info.label(c) : c, color: categoryColor(i, info.categories) }))}
+      />
+    );
+  };
+  const datasetOptions = (
+    <div className="layer-options">
+      <button type="button" className={`chip-toggle ${columns3d ? "is-on" : ""}`} aria-pressed={columns3d} onClick={() => toggleColumns(!columns3d)}>
+        <Icon name="box3d" size={16} />
+        Colunas 3D
+      </button>
+      <button type="button" className={`chip-toggle ${paintBuildingsOn ? "is-on" : ""}`} aria-pressed={paintBuildingsOn} onClick={() => setPaintBuildingsOn(!paintBuildingsOn)}>
+        <Icon name="pin" size={16} />
+        Prédios acesos
+      </button>
+    </div>
+  );
+  const datapackLegend = (d: (typeof DATAPACKS)[number]) => {
+    const r = d.render;
+    if (r.type === "choropleth") {
+      return <ScaleLegend colors={r.colors} min={compact.format(r.breaks[0] ?? 0)} max={`${compact.format(r.breaks.at(-1) ?? 0)}+`} unit={d.fields.find((f) => f.key === r.property)?.unit} />;
+    }
+    if (r.colorBy) return <CategoryLegend items={r.colorBy.categories.map((c, i) => ({ label: c, color: r.colorBy!.colors[i] ?? r.color }))} />;
+    return <CategoryLegend items={[{ label: d.name, color: r.color }]} />;
+  };
 
-      <Sidebar open={sidebarOpen}>
-        <SidebarSection title="Ponto de partida">
-          <div className="objectives">
-            {OBJECTIVES.map((o) => (
-              <button
-                key={o.id}
-                type="button"
-                className={`objective ${objective === o.id ? "is-active" : ""}`}
-                onClick={() => chooseObjective(o)}
-                title={o.description}
-              >
-                <strong>{o.name}</strong>
-                <span>{o.description}</span>
+  const layerCards: { key: string; node: (badge: string, tone: string) => ReactNode }[] = [];
+  for (const u of server.uploads) {
+    layerCards.push({
+      key: `upload:${u.key}`,
+      node: (badge, tone) => <LayerCard badge={badge} tone={tone} title={u.name} meta={`enviando ao servidor… ${Math.round(u.fraction * 100)}%`} visible={false} status="working" progress={u.fraction} />,
+    });
+  }
+  for (const d of server.datasets) {
+    const working = d.status === "queued" || d.status === "processing";
+    if (!working && d.status !== "error" && !inProject(d.id)) continue;
+    const actions: LayerAction[] = [
+      ...(d.report ? [{ label: "Enquadrar no mapa", icon: "frame" as const, onClick: () => focusServerDataset(d) }] : []),
+      { label: "Renomear", icon: "rename", onClick: () => renameServerDataset(d.id) },
+      { label: "Tirar do mapa", icon: "eyeOff", onClick: () => removeFromMap(d.id) },
+      ...(!working ? [{ label: "Apagar do servidor", icon: "trash" as const, onClick: () => removeServerDataset(d.id), danger: true }] : []),
+    ];
+    const meta = working
+      ? d.status === "queued" ? "na fila do servidor…" : `processando… ${Math.round(d.progress * 100)}%`
+      : d.status === "error" ? <span className="warn">{d.error}</span>
+      : d.report ? <>Seus dados · <span className="num">{int.format(d.report.records)}</span> registros · servidor local</>
+      : "Seus dados";
+    layerCards.push({
+      key: d.id,
+      node: (badge, tone) => (
+        <LayerCard badge={badge} tone={tone} title={d.name} meta={meta} visible={active.has(d.id)} onVisible={d.status === "ready" ? (v) => toggle(d.id, v) : undefined} actions={actions} status={working ? "working" : d.status === "error" ? "error" : undefined} progress={working ? d.progress : undefined}>
+          {datasetLegend(d.id)}
+          {datasetOptions}
+        </LayerCard>
+      ),
+    });
+  }
+  for (const d of user.datasets) {
+    if (!inProject(d.id)) continue;
+    const r = d.manifest.render;
+    layerCards.push({
+      key: d.id,
+      node: (badge, tone) => (
+        <LayerCard
+          badge={badge}
+          tone={tone}
+          title={d.manifest.name}
+          meta={<>Seus dados · <span className="num">{int.format(d.count)}</span> pontos · neste navegador</>}
+          visible={active.has(d.id)}
+          onVisible={(v) => toggle(d.id, v)}
+          actions={[
+            { label: "Enquadrar no mapa", icon: "frame", onClick: () => focusUserDataset(d) },
+            { label: "Renomear", icon: "rename", onClick: () => renameUserDataset(d.id) },
+            { label: "Tirar do mapa", icon: "eyeOff", onClick: () => removeFromMap(d.id) },
+            { label: "Apagar deste navegador", icon: "trash", onClick: () => removeUserDataset(d.id), danger: true },
+          ]}
+        >
+          {r.type === "points" && r.colorBy ? (
+            <CategoryLegend items={r.colorBy.categories.map((c, i) => ({ label: c, color: r.colorBy!.colors[i] ?? r.color }))} />
+          ) : (
+            <CategoryLegend items={[{ label: "Registros", color: r.type === "points" ? r.color : "#6b7485" }]} />
+          )}
+        </LayerCard>
+      ),
+    });
+  }
+  for (const l of libraryLayers) {
+    if (!inProject(l.manifest.id)) continue;
+    layerCards.push({
+      key: l.manifest.id,
+      node: (badge, tone) => (
+        <LayerCard
+          badge={badge}
+          tone={tone}
+          title={`${l.variable} · ${l.period}`}
+          meta={<>{l.item.sourceName} · <span className="num">{int.format(l.matched)}</span> {l.level === "uf" ? "estados" : "municípios"}</>}
+          visible={active.has(l.manifest.id)}
+          onVisible={(v) => toggle(l.manifest.id, v)}
+          actions={[
+            ...(l.item.url ? [{ label: "Abrir na fonte", icon: "external" as const, onClick: () => window.open(l.item.url!, "_blank", "noreferrer") }] : []),
+            { label: "Tirar do mapa", icon: "eyeOff", onClick: () => removeFromMap(l.manifest.id) },
+            { label: "Apagar", icon: "trash", onClick: () => removeLibraryLayer(l.manifest.id), danger: true },
+          ]}
+        >
+          <ScaleLegend colors={l.colors} min={compact.format(l.breaks[0] ?? 0)} max={`${compact.format(l.breaks.at(-1) ?? 0)}+`} unit={l.unit} />
+        </LayerCard>
+      ),
+    });
+  }
+  if (places && inProject(PLACES_KEY)) {
+    layerCards.push({
+      key: PLACES_KEY,
+      node: (badge, tone) => (
+        <LayerCard
+          badge={badge}
+          tone={tone}
+          title="Lugares"
+          meta={<>Overture Maps · <span className="num">{int.format(places.meta.records)}</span> · versão {places.release}</>}
+          visible={active.has(PLACES_KEY)}
+          onVisible={(v) => toggle(PLACES_KEY, v)}
+          actions={[
+            { label: "Sobre a fonte", icon: "external", onClick: () => window.open("https://docs.overturemaps.org/attribution/", "_blank", "noreferrer") },
+            { label: "Tirar do mapa", icon: "eyeOff", onClick: () => removeFromMap(PLACES_KEY) },
+          ]}
+        >
+          {datasetLegend(PLACES.id)}
+          {datasetOptions}
+        </LayerCard>
+      ),
+    });
+  }
+  if (demoMeta && inProject(DATASET_KEY)) {
+    layerCards.push({
+      key: DATASET_KEY,
+      node: (badge, tone) => (
+        <LayerCard
+          badge={badge}
+          tone={tone}
+          title={CLIENT_DATASET.name}
+          meta={<>Exemplo sintético · <span className="num">{int.format(demoMeta.records)}</span> registros</>}
+          visible={active.has(DATASET_KEY)}
+          onVisible={(v) => toggle(DATASET_KEY, v)}
+          actions={[{ label: "Tirar do mapa", icon: "eyeOff", onClick: () => removeFromMap(DATASET_KEY) }]}
+        >
+          {datasetLegend(CLIENT_DATASET.id)}
+          {datasetOptions}
+        </LayerCard>
+      ),
+    });
+  }
+  for (const d of DATAPACKS) {
+    if (!inProject(d.id)) continue;
+    layerCards.push({
+      key: d.id,
+      node: (badge, tone) => (
+        <LayerCard
+          badge={badge}
+          tone={tone}
+          title={d.name}
+          meta={<DatapackMeta datapack={d} />}
+          visible={active.has(d.id)}
+          onVisible={(v) => toggle(d.id, v)}
+          actions={[
+            { label: "Abrir na fonte", icon: "external", onClick: () => window.open(d.source.url, "_blank", "noreferrer") },
+            { label: "Tirar do mapa", icon: "eyeOff", onClick: () => removeFromMap(d.id) },
+          ]}
+        >
+          {datapackLegend(d)}
+          {d.id === "municipios-populacao" && (
+            <div className="layer-options">
+              <button type="button" className={`chip-toggle ${municipios3d ? "is-on" : ""}`} aria-pressed={municipios3d} onClick={() => toggleMunicipios3d(!municipios3d)}>
+                <Icon name="box3d" size={16} />
+                Em 3D
               </button>
+            </div>
+          )}
+        </LayerCard>
+      ),
+    });
+  }
+  if (streetImageryEnabled && inProject(STREET_KEY)) {
+    layerCards.push({
+      key: STREET_KEY,
+      node: (badge, tone) => (
+        <LayerCard
+          badge={badge}
+          tone={tone}
+          title="Fotos de rua"
+          meta="Mapillary · CC BY-SA"
+          visible={active.has(STREET_KEY)}
+          onVisible={(v) => toggle(STREET_KEY, v)}
+          actions={[{ label: "Tirar do mapa", icon: "eyeOff", onClick: () => removeFromMap(STREET_KEY) }]}
+        >
+          <CategoryLegend items={[{ label: "Ruas com foto (clique para ver)", color: "#05cb63" }]} />
+        </LayerCard>
+      ),
+    });
+  }
+
+  const letter = (i: number) => String.fromCharCode(65 + (i % 26));
+
+  const layersPanel = (
+    <Panel
+      title="Camadas"
+      onClose={() => setPanel(null)}
+      action={
+        <button type="button" className="btn btn-ghost" onClick={() => setPanel("add")}>
+          <Icon name="plus" size={16} />
+          Adicionar
+        </button>
+      }
+      footer={
+        <button type="button" className="panel-footer-row" onClick={() => setPanel("settings")}>
+          <span className="muted">Mapa base</span>
+          <b>
+            {look === "data" ? "Para dados" : "Clássico"} · {theme === "light" ? "Claro" : "Escuro"}
+          </b>
+        </button>
+      }
+    >
+      {errors.map((e) => (
+        <div key={e.text} className="wizard-error panel-alert">
+          {e.text}{" "}
+          <button type="button" className="link" onClick={e.clear}>
+            ok
+          </button>
+        </div>
+      ))}
+      {layerCards.length === 0 ? (
+        <PanelCard>
+          <div className="empty-card">
+            <span className="empty-icon">
+              <Icon name="layers" size={24} />
+            </span>
+            <b>Nenhuma camada no mapa</b>
+            <span className="muted">Importe seus registros ou escolha dados do catálogo e da biblioteca.</span>
+            <button type="button" className="btn btn-primary" onClick={() => setPanel("add")}>
+              Adicionar dados
+            </button>
+          </div>
+        </PanelCard>
+      ) : (
+        layerCards.map((c, i) => <div key={c.key}>{c.node(letter(i), CATEGORY_COLORS[i % CATEGORY_COLORS.length]!)}</div>)
+      )}
+    </Panel>
+  );
+
+  const addPanel = (
+    <Panel title="Adicionar dados" onClose={() => setPanel(null)}>
+      <PanelCard title="Seus registros">
+        <p className="panel-text">CSV, Excel, Parquet ou GeoJSON com localização. Também dá para arrastar o arquivo direto para o mapa.</p>
+        <button type="button" className="btn btn-primary btn-block" onClick={() => fileInput.current?.click()}>
+          <Icon name="fileUp" size={18} />
+          Importar arquivo
+        </button>
+        <p className={`server-status ${server.available ? "is-on" : ""}`}>
+          <i />
+          {server.available ? "Servidor local conectado: arquivos de qualquer tamanho" : "Servidor local desligado: arquivos até 2 milhões de linhas"}
+        </p>
+        <input
+          ref={fileInput}
+          type="file"
+          accept={ACCEPTED_EXTENSIONS}
+          hidden
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) openImport(file);
+            e.target.value = "";
+          }}
+        />
+        {(user.datasets.length > 0 || server.datasets.some((d) => d.status === "ready")) && (
+          <div className="add-list">
+            {server.datasets
+              .filter((d) => d.status === "ready")
+              .map((d) => (
+                <AddRow key={d.id} title={d.name} meta={d.report ? `${int.format(d.report.records)} registros · servidor local` : "servidor local"} added={inProject(d.id)} onAdd={() => toggle(d.id, true)} />
+              ))}
+            {user.datasets.map((d) => (
+              <AddRow key={d.id} title={d.manifest.name} meta={`${int.format(d.count)} pontos · neste navegador`} added={inProject(d.id)} onAdd={() => toggle(d.id, true)} />
             ))}
           </div>
-        </SidebarSection>
+        )}
+        {user.usage && (
+          <p className="hint left">
+            {compact.format(user.usage.usedBytes / 1e6)} MB usados de {compact.format(user.usage.quotaBytes / 1e6)} MB neste navegador
+          </p>
+        )}
+      </PanelCard>
 
-        <SidebarSection title="Seus dados">
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={active.has(DATASET_KEY)}
-              disabled={!demoMeta}
-              onChange={(e) => toggle(DATASET_KEY, e.target.checked)}
-            />
-            <span>{CLIENT_DATASET.name}</span>
-          </label>
-          <p className="catalog-meta">
-            {demoMeta ? `${new Intl.NumberFormat("pt-BR").format(demoMeta.records)} registros` : "Gere com pnpm synth && pnpm tiles"}
-          </p>
-          <ServerDatasets
-            datasets={server.datasets}
-            uploads={server.uploads}
-            active={active}
-            onToggle={toggle}
-            onRename={renameServerDataset}
-            onRemove={removeServerDataset}
-            onFocus={focusServerDataset}
+      <PanelCard title="Catálogo">
+        <div className="add-list">
+          <AddRow
+            title="Lugares"
+            meta={places ? `Overture Maps · ${int.format(places.meta.records)} · comércio, serviços, saúde, turismo` : "Gere com pnpm places"}
+            added={inProject(PLACES_KEY)}
+            disabled={!places}
+            onAdd={() => toggle(PLACES_KEY, true)}
           />
-          <UserDatasets
-            datasets={user.datasets}
-            active={active}
-            usage={user.usage}
-            onToggle={toggle}
-            onRename={renameUserDataset}
-            onRemove={removeUserDataset}
-            onFocus={focusUserDataset}
-          />
-          {errors.map((e) => (
-            <p key={e.text} className="warn user-error">
-              {e.text}{" "}
-              <button type="button" className="link" onClick={e.clear}>
-                ok
-              </button>
-            </p>
-          ))}
-          <button type="button" className="btn btn-block" onClick={() => fileInput.current?.click()}>
-            Importar arquivo…
-          </button>
-          <p className="hint">ou arraste CSV, Excel, Parquet ou GeoJSON para o mapa</p>
-          <p className={`server-status ${server.available ? "is-on" : ""}`}>
-            <i />
-            {server.available
-              ? "Servidor local conectado: arquivos de qualquer tamanho"
-              : "Servidor local desligado: arquivos até 2 milhões de linhas (pnpm api para ligar)"}
-          </p>
-          <input
-            ref={fileInput}
-            type="file"
-            accept={ACCEPTED_EXTENSIONS}
-            hidden
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) openImport(file);
-              e.target.value = "";
-            }}
-          />
-        </SidebarSection>
-
-        <SidebarSection title="Catálogo de dados">
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={active.has(PLACES_KEY)}
-              disabled={!places}
-              onChange={(e) => toggle(PLACES_KEY, e.target.checked)}
-            />
-            <span>{PLACES.name}</span>
-          </label>
-          <p className="catalog-meta">
-            {places
-              ? `${new Intl.NumberFormat("pt-BR").format(places.meta.records)} lugares · ${places.area === "brasil" ? "Brasil" : "Grande SP"} · versão ${places.release} · comércio, serviços, saúde, turismo…`
-              : "Gere com pnpm places (Overture Maps, atualização mensal)"}
-          </p>
           {streetImageryEnabled && (
-            <>
-              <label className="toggle">
-                <input type="checkbox" checked={active.has(STREET_KEY)} onChange={(e) => toggle(STREET_KEY, e.target.checked)} />
-                <span>Fotos de rua (Mapillary)</span>
-              </label>
-              <p className="catalog-meta">Ruas com foto (linhas verdes). Clique no mapa para ver a foto e andar pela rua em 3D.</p>
-            </>
+            <AddRow title="Fotos de rua" meta="Mapillary · ruas com foto, andar pela rua em 3D" added={inProject(STREET_KEY)} onAdd={() => toggle(STREET_KEY, true)} />
           )}
-          <Catalog datapacks={DATAPACKS} active={active} onToggle={toggle} />
-          <LibraryLayers layers={libraryLayers} active={active} onToggle={toggle} onRemove={removeLibraryLayer} />
-          <button type="button" className="refs-entry" onClick={() => setLibraryOpen(true)}>
-            <strong>Biblioteca: {new Intl.NumberFormat("pt-BR").format(LIBRARY_TOTAL)} tabelas e séries públicas</strong>
-            <span>{LIBRARY_SOURCES.map((s) => s.name).join(" · ")} — baixe ou coloque no mapa</span>
-          </button>
-        </SidebarSection>
+          {DATAPACKS.map((d) => (
+            <AddRow key={d.id} title={d.name} meta={<DatapackMeta datapack={d} />} added={inProject(d.id)} onAdd={() => toggle(d.id, true)} />
+          ))}
+          <AddRow title={CLIENT_DATASET.name} meta={demoMeta ? "Exemplo sintético para testar volume" : "Gere com pnpm synth && pnpm tiles"} added={inProject(DATASET_KEY)} disabled={!demoMeta} onAdd={() => toggle(DATASET_KEY, true)} />
+        </div>
+      </PanelCard>
 
-        <SidebarSection title="Neste ponto">
-          <div id="pick-details" />
-          <PickDetails
-            pick={pick}
-            datasets={datasetInfos}
-            onAdvanced={(p) => void startAdvanced(p)}
-            onStreetView={streetImageryEnabled ? openStreetView : undefined}
-          />
-        </SidebarSection>
+      <PanelCard title="Biblioteca de dados públicos">
+        <p className="panel-text">
+          {int.format(LIBRARY_TOTAL)} tabelas e séries de {LIBRARY_SOURCES.map((s) => s.name).join(", ")}. Baixe direto da fonte ou ponha no mapa por município ou estado.
+        </p>
+        <button type="button" className="btn btn-block" onClick={() => setLibraryOpen(true)}>
+          <Icon name="library" size={18} />
+          Abrir biblioteca
+        </button>
+      </PanelCard>
+    </Panel>
+  );
 
-        <SidebarSection title="Visualização">
-          <label className="toggle">
-            <input type="checkbox" checked={columns3d} onChange={(e) => toggleColumns(e.target.checked)} />
-            Seus dados em colunas 3D
-          </label>
-          <label className="toggle">
-            <input type="checkbox" checked={municipios3d} onChange={(e) => toggleMunicipios3d(e.target.checked)} />
-            Municípios em 3D (densidade)
-          </label>
-          <label className="toggle">
-            <input type="checkbox" checked={paintBuildingsOn} onChange={(e) => setPaintBuildingsOn(e.target.checked)} />
-            Prédios dos seus dados (nível da rua)
-          </label>
-          {paintBuildingsOn && (
-            <p className="catalog-meta">
-              {buildingResult
-                ? `${new Intl.NumberFormat("pt-BR").format(buildingResult.features.length)} prédios acesos na tela`
-                : "Aproxime até o nível da rua (zoom 14+) — por enquanto, prédios só na Grande SP."}
-            </p>
-          )}
-          <p className="hint left">Dica: clique nos seus dados e use “Visualização avançada” para ver a área em maquete 3D.</p>
-        </SidebarSection>
+  const explorePanel = (
+    <Panel title="Explorar" onClose={() => setPanel(null)}>
+      <PanelCard title="Pontos de partida">
+        <p className="panel-text">Cada um liga as camadas certas e leva o mapa até a região.</p>
+        <div className="objectives">
+          {OBJECTIVES.map((o) => (
+            <button key={o.id} type="button" className={`objective ${objective === o.id ? "is-active" : ""}`} onClick={() => chooseObjective(o)} title={o.description}>
+              <strong>{o.name}</strong>
+              <span>{o.description}</span>
+            </button>
+          ))}
+        </div>
+      </PanelCard>
+      <PanelCard title="Visualização avançada">
+        <p className="panel-text">Clique nos seus dados no mapa e escolha "Maquete 3D" para ver a área em relevo, com colunas e prédios acesos.</p>
+      </PanelCard>
+    </Panel>
+  );
 
-        <SidebarSection title="Compartilhar">
-          <button type="button" className="btn" onClick={() => void copyShareLink()}>
-            Copiar link desta visão
-          </button>
-          <p className="catalog-meta">
-            {shareStatus ??
-              "Leva a posição do mapa, as camadas ligadas, as da biblioteca (buscadas de novo na fonte) e a aparência."}
+  const detailsPanel = (
+    <Panel title="Detalhes" onClose={() => setPanel(null)}>
+      <PanelCard>
+        <PickDetails pick={pick} datasets={datasetInfos} onAdvanced={(p) => void startAdvanced(p)} onStreetView={streetImageryEnabled ? openStreetView : undefined} />
+      </PanelCard>
+    </Panel>
+  );
+
+  const settingsPanel = (
+    <Panel title="Ajustes" onClose={() => setPanel(null)}>
+      <PanelCard title="Mapa base">
+        <div className="segmented" role="radiogroup" aria-label="Estilo do mapa">
+          {(["data", "classic"] as const).map((l) => (
+            <button key={l} type="button" role="radio" aria-checked={look === l} className={look === l ? "is-active" : ""} onClick={() => changeLook(l)}>
+              {l === "data" ? "Para dados" : "Clássico"}
+            </button>
+          ))}
+        </div>
+        <div className="segmented" role="radiogroup" aria-label="Tema">
+          {(["light", "dark"] as const).map((t) => (
+            <button key={t} type="button" role="radio" aria-checked={theme === t} className={theme === t ? "is-active" : ""} onClick={() => changeTheme(t)}>
+              <Icon name={t === "light" ? "sun" : "moon"} size={16} />
+              {t === "light" ? "Claro" : "Escuro"}
+            </button>
+          ))}
+        </div>
+      </PanelCard>
+      <PanelCard title="Visualização">
+        <label className="toggle">
+          <input type="checkbox" checked={columns3d} onChange={(e) => toggleColumns(e.target.checked)} />
+          Seus dados em colunas 3D
+        </label>
+        <label className="toggle">
+          <input type="checkbox" checked={paintBuildingsOn} onChange={(e) => setPaintBuildingsOn(e.target.checked)} />
+          Acender prédios com os seus dados
+        </label>
+        {paintBuildingsOn && (
+          <p className="hint left">
+            {buildingResult ? `${int.format(buildingResult.features.length)} prédios acesos na tela` : "Aproxime até o nível da rua (zoom 14+). Por enquanto, prédios só na Grande SP."}
           </p>
-        </SidebarSection>
+        )}
+      </PanelCard>
+      <PanelCard title="Compartilhar">
+        <p className="panel-text">O link leva a posição do mapa, as camadas visíveis, as da biblioteca (buscadas de novo na fonte) e a aparência.</p>
+        <button type="button" className="btn btn-block" onClick={() => void copyShareLink()}>
+          <Icon name="share" size={18} />
+          Copiar link desta visão
+        </button>
+      </PanelCard>
+    </Panel>
+  );
 
-        <SidebarSection title="Aparência">
-          <div className="segmented" role="radiogroup" aria-label="Mapa base">
-            {(["data", "classic"] as const).map((l) => (
-              <button
-                key={l}
-                type="button"
-                role="radio"
-                aria-checked={look === l}
-                className={look === l ? "is-active" : ""}
-                onClick={() => changeLook(l)}
-              >
-                {l === "data" ? "Para dados" : "Clássico"}
-              </button>
-            ))}
-          </div>
-          <div className="segmented" role="radiogroup" aria-label="Tema">
-            {(["light", "dark"] as const).map((t) => (
-              <button
-                key={t}
-                type="button"
-                role="radio"
-                aria-checked={theme === t}
-                className={theme === t ? "is-active" : ""}
-                onClick={() => changeTheme(t)}
-              >
-                {t === "light" ? "Claro" : "Escuro"}
-              </button>
-            ))}
-          </div>
-        </SidebarSection>
-      </Sidebar>
+  const panels: Record<PanelId, ReactNode> = { layers: layersPanel, add: addPanel, explore: explorePanel, details: detailsPanel, settings: settingsPanel };
 
-      <main className="map-area">
-        <div ref={containerRef} className="map" />
-        <DropZone onFile={openImport} />
-        {map &&
-          pick &&
-          createPortal(
-            <MapPopup
-              map={map}
-              pick={pick}
-              datasets={datasetInfos}
-              nearbySource={nearbySource}
-              onDetails={showPickDetails}
-              onStreetView={streetImageryEnabled ? openStreetView : undefined}
-              onAdvanced={(p) => void startAdvanced(p)}
-            />,
-            popupEl,
+  return (
+    <div className={`app theme-${theme}`}>
+      <TopBar perspective={perspective} onPerspective={changePerspective} onShare={() => void copyShareLink()} widgetsOpen={widgetsOpen} onToggleWidgets={() => setWidgetsOpen((o) => !o)} />
+
+      <div className="workspace">
+        <Rail panel={panel} onPanel={setPanel} badges={{ layers: [...active].length || undefined, details: pick ? 1 : undefined }} />
+        {panel && panels[panel]}
+
+        <main className="map-area">
+          <div ref={containerRef} className="map" />
+          <SearchBox search={search} onSelect={selectSearch} />
+          <DropZone onFile={openImport} />
+          {shareStatus && (
+            <div className="toast" role="status">
+              <Icon name="share" size={18} />
+              {shareStatus}
+            </div>
           )}
-        {streetImageId && (
-          <StreetViewer imageId={streetImageId} onCamera={(c) => map?.setLocationMarker(c)} onClose={closeStreetView} />
-        )}
-        {diorama && (
-          <DioramaPanel
-            area={diorama.area}
-            areaChoice={diorama.areaChoice}
-            dataset={datasetInfos[diorama.datasetId]}
-            summary={diorama.summary}
-            columns={diorama.columns}
-            exaggeration={diorama.exaggeration}
-            orbiting={diorama.orbiting}
-            comparisons={comparisons}
-            comparisonId={comparisonId}
-            onComparison={setComparisonId}
-            buildings={paintBuildingsOn}
-            buildingResult={buildingResult}
-            onBuildings={setPaintBuildingsOn}
-            onAreaChoice={(c) => {
-              // Nível da rua: liga os prédios dos dados por padrão.
-              if (c === 0.5 || c === 1) setPaintBuildingsOn(true);
-              void changeDioramaArea(c);
-            }}
-            onColumns={toggleDioramaColumns}
-            onExaggeration={setExaggeration}
-            onOrbit={setOrbit}
-            onExit={exitDiorama}
-          />
-        )}
-      </main>
+          {map &&
+            pick &&
+            createPortal(
+              <MapPopup
+                map={map}
+                pick={pick}
+                datasets={datasetInfos}
+                nearbySource={nearbySource}
+                onDetails={showPickDetails}
+                onStreetView={streetImageryEnabled ? openStreetView : undefined}
+                onAdvanced={(p) => void startAdvanced(p)}
+              />,
+              popupEl,
+            )}
+          {streetImageId && <StreetViewer imageId={streetImageId} onCamera={(c) => map?.setLocationMarker(c)} onClose={closeStreetView} />}
+          {diorama && (
+            <DioramaPanel
+              area={diorama.area}
+              areaChoice={diorama.areaChoice}
+              dataset={datasetInfos[diorama.datasetId]}
+              summary={diorama.summary}
+              columns={diorama.columns}
+              exaggeration={diorama.exaggeration}
+              orbiting={diorama.orbiting}
+              comparisons={comparisons}
+              comparisonId={comparisonId}
+              onComparison={setComparisonId}
+              buildings={paintBuildingsOn}
+              buildingResult={buildingResult}
+              onBuildings={setPaintBuildingsOn}
+              onAreaChoice={(c) => {
+                // Nível da rua: liga os prédios dos dados por padrão.
+                if (c === 0.5 || c === 1) setPaintBuildingsOn(true);
+                void changeDioramaArea(c);
+              }}
+              onColumns={toggleDioramaColumns}
+              onExaggeration={setExaggeration}
+              onOrbit={setOrbit}
+              onExit={exitDiorama}
+            />
+          )}
+        </main>
+
+        {widgetsOpen && <WidgetsPanel widgets={widgets} onClose={() => setWidgetsOpen(false)} />}
+      </div>
 
       {libraryOpen && <LibraryPanel onClose={() => setLibraryOpen(false)} onAddLayer={addLibraryLayer} />}
 

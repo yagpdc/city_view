@@ -81,3 +81,13 @@ Cada um tem prancheta própria na biblioteca, com estados (normal, passar o mous
 - Átomos: botão (principal, secundário, discreto, perigo, só ícone, redondo do mapa), campo de texto (texto, busca, seleção, número com unidade, data), chip (filtro, opção, categoria, etiqueta), checkbox/rádio/interruptor.
 - Moléculas: seletor segmentado e abas, busca com sugestões, item de camada/resultado e legendas, seção da barra lateral com filtro em árvore, mensagens (aviso, dica, vazio, esqueleto, progresso).
 - Mapa: marcadores e rótulos, cartão do lugar, controles do mapa.
+
+## Estrutura da tela
+
+Inspirada no CARTO Builder: regiões claras, uma tarefa por painel, hierarquia forte.
+
+- Barra superior: marca, perspectiva 2D/3D, botão do painel "Na tela", Compartilhar (principal).
+- Trilho de ícones (76 px): Camadas, Adicionar, Explorar, Detalhes, Ajustes.
+- Painel (360 px) sobre `--cv-surface`, com cartões `--cv-float` de cantos 12 px; cada camada é um cartão com letra, nome, fonte/quantidade, olho, menu ⋯ e legenda.
+- Mapa no centro, com a busca flutuando no canto superior esquerdo.
+- "Na tela" (320 px) à direita: contagem visível e barras por categoria de cada camada de pontos.

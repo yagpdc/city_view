@@ -26,15 +26,16 @@ Especialistas em `.claude/agents/`. Delegue ao agente quando o assunto for dele:
 ## Layout padrão da interface
 
 ```
-[opções] [ busca ................ ]   TopBar (apps/web/src/components/TopBar.tsx)
-[sidebar] [         mapa          ]   Sidebar recolhível; o mapa estica quando fechada
+[marca ............................ 2D/3D  Na tela  Compartilhar]   TopBar (components/TopBar.tsx)
+[trilho][painel][          mapa + busca flutuante          ][Na tela]
 ```
 
-- Barra superior: botão de opções/filtros à esquerda, busca ao lado.
-- Opções, filtros e camadas ficam na Sidebar, organizados em `SidebarSection`.
-- Sobre o mapa, só o que é do lugar: o cartão do clique (`MapPopup`, com o que é, foto da rua e o que tem por perto), a maquete (`DioramaPanel`) e o visualizador de rua (`StreetViewer`). Detalhes completos continuam na Sidebar ("Neste ponto").
-- Em telas < 768px a Sidebar sobrepõe o mapa e começa fechada.
-- Cores e medidas vêm dos tokens CSS em `apps/web/src/styles.css` (tema claro/escuro), seguindo `docs/DESIGN.md`.
+- **Trilho** (`components/Shell.tsx` · `Rail`): Camadas · Adicionar · Explorar · Detalhes · Ajustes. Um painel por vez (clicar de novo fecha).
+- **Painel** (`Panel` + `PanelCard`): fundo cinza, conteúdo em cartões brancos, título 18/600. Camadas = um `LayerCard` por camada no projeto (olho = visível/escondida, ⋯ = ações, legenda dentro). "Adicionar" lista o que dá para pôr no mapa.
+- **Na tela** (`WidgetsPanel`, à direita): números do que está visível, recalculados ao parar de mexer o mapa (`CityMap.viewportSummary`).
+- Sobre o mapa, só o que é do lugar: busca (`SearchBox`), cartão do clique (`MapPopup`), maquete (`DioramaPanel`), visualizador de rua (`StreetViewer`), controles do mapa.
+- Em telas < 768px o painel sobrepõe o mapa e começa fechado; "Na tela" vira gaveta abaixo de 1100px.
+- Cores e medidas vêm dos tokens `--cv-*` em `apps/web/src/tokens.css`, seguindo `docs/DESIGN.md`.
 
 ## Rodando local
 
