@@ -1,3 +1,4 @@
+import { data } from "./dataUrl";
 import type { DatapackManifest } from "@cityview/engine";
 
 /** Manifestos versionados no repositório; os dados vêm de data/out/datapacks (gerados por datapacks/build.py). */
@@ -10,7 +11,7 @@ export const DATAPACKS: DatapackManifest[] = Object.values(manifests).sort((a, b
   a.category === b.category ? a.name.localeCompare(b.name) : a.category.localeCompare(b.category),
 );
 
-export const dataUrl = (id: string) => `${location.origin}/data/datapacks/${id}.geojson`;
+export const dataUrl = (id: string) => data(`datapacks/${id}.geojson`);
 
 export interface DatapackStatus {
   updatedAt: Date;
@@ -19,7 +20,7 @@ export interface DatapackStatus {
 
 export async function fetchStatus(id: string): Promise<DatapackStatus | null> {
   try {
-    const res = await fetch(`/data/datapacks/${id}.meta.json`);
+    const res = await fetch(data(`datapacks/${id}.meta.json`));
     if (!res.ok) return null;
     const meta = (await res.json()) as { updatedAt: string; features: number };
     return { updatedAt: new Date(meta.updatedAt), features: meta.features };

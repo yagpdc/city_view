@@ -1,3 +1,4 @@
+import { data } from "./dataUrl";
 import type { BasemapLook, BuildingPaintResult, DatasetMeta, MapPick, Theme } from "@cityview/engine";
 import { CATEGORY_COLORS, categoryColor, geodesicDistanceM, normalizeText } from "@cityview/engine";
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -33,7 +34,7 @@ import { deleteLibraryLayer, listLibraryLayers, loadActiveLayers, saveActiveLaye
 import { useUserDatasets, type UserDataset } from "./storage/useUserDatasets";
 import { useCityMap } from "./useCityMap";
 
-const CLIENT_DATASET = { id: "empresas", name: "Exemplo: 30 milhões de registros", url: "/data/empresas/tiles.pmtiles" };
+const CLIENT_DATASET = { id: "empresas", name: "Exemplo: 30 milhões de registros", url: data("empresas/tiles.pmtiles") };
 const DATASET_KEY = `dataset:${CLIENT_DATASET.id}`;
 /** Lugares do Overture Maps gerados por `pnpm places` (Brasil inteiro ou só a Grande SP). */
 const PLACES = { id: "lugares", name: "Estabelecimentos (Overture Maps)", areas: ["brasil", "sao-paulo"] };
@@ -166,13 +167,13 @@ export function App() {
   const focusWhenReady = useRef(new Set<string>());
 
   const { containerRef, map } = useCityMap({
-    basemapUrl: `${location.origin}/data/brasil.pmtiles`,
+    basemapUrl: data("brasil.pmtiles"),
     // Locais com `pnpm assets`; sem eles o servidor de dev redireciona para o Protomaps.
-    assetsUrl: `${location.origin}/data/assets`,
+    assetsUrl: data("assets"),
     terrain: false,
     look,
     // Prédios 3D vêm do extrato detalhado das principais cidades (`pnpm cidades`); o mapa do Brasil vai só até z12.
-    buildingsUrl: `${location.origin}/data/cidades.pmtiles`,
+    buildingsUrl: data("cidades.pmtiles"),
     theme,
     camera: { ...START_CAMERA, pitch: 0, bearing: 0 },
     hash: CAMERA_PARAM,
@@ -191,11 +192,11 @@ export function App() {
     void (async () => {
       for (const area of PLACES.areas) {
         // Arquivo ausente: o Vite responde a página HTML com 200, então confere o tipo.
-        const info = (await fetch(`/data/places/${area}.release.json`)
+        const info = (await fetch(data(`places/${area}.release.json`))
           .then((r) => (r.ok && r.headers.get("content-type")?.includes("json") ? r.json() : null))
           .catch(() => null)) as { release: string } | null;
         if (!info) continue;
-        const layer = await map.addDataset(PLACES.id, `${location.origin}/data/places/${area}/tiles.pmtiles`, {
+        const layer = await map.addDataset(PLACES.id, data(`places/${area}/tiles.pmtiles`), {
           attribution: PLACES_ATTRIBUTION,
         });
         if (!cancelled) setPlaces({ meta: layer.meta, release: info.release, area });
