@@ -11,6 +11,8 @@ import { LibraryPanel } from "./library/LibraryPanel";
 import { LIBRARY_SOURCES, LIBRARY_TOTAL } from "./library/load";
 import { layerFromRecipe, recipeOf, restoreMapLayer, type LibraryLayer } from "./library/mapLayer";
 import { CAMERA_PARAM, clearShared, readShared, shareUrl } from "./share";
+import { StreetViewer } from "./components/StreetViewer";
+import { coverageOverlay, nearestStreetImage, streetImageryEnabled } from "./streetImagery";
 import { ServerDatasets } from "./components/ServerDatasets";
 import { Sidebar, SidebarSection } from "./components/Sidebar";
 import { TopBar } from "./components/TopBar";
@@ -30,6 +32,8 @@ const DATASET_KEY = `dataset:${CLIENT_DATASET.id}`;
 /** Lugares do Overture Maps gerados por `pnpm places` (Brasil inteiro ou só a Grande SP). */
 const PLACES = { id: "lugares", name: "Lugares (Overture Maps)", areas: ["brasil", "sao-paulo"] };
 const PLACES_KEY = `dataset:${PLACES.id}`;
+/** Camada de cobertura das fotos de rua (Mapillary). */
+const STREET_KEY = "overlay:mapillary";
 const PLACES_ATTRIBUTION = '<a href="https://docs.overturemaps.org/attribution/">Lugares: Overture Maps Foundation</a>';
 /** Chave de visibilidade de um dataset vetorial (o exemplo e os lugares usam o prefixo "dataset:"). */
 const datasetKey = (id: string) => (id === CLIENT_DATASET.id ? DATASET_KEY : id === PLACES.id ? PLACES_KEY : id);
@@ -89,6 +93,7 @@ export function App() {
   const [serverMetas, setServerMetas] = useState<Record<string, DatasetMeta>>({});
   const [pick, setPick] = useState<MapPick | null>(null);
   const [importFile, setImportFile] = useState<File | null>(null);
+  const [streetImageId, setStreetImageId] = useState<string | null>(null);
   const user = useUserDatasets();
   const server = useServerDatasets();
   const fileInput = useRef<HTMLInputElement>(null);
@@ -174,6 +179,8 @@ export function App() {
     }
     if (demoMeta) map.setDatasetVisible(CLIENT_DATASET.id, active.has(DATASET_KEY));
     if (places) map.setDatasetVisible(PLACES.id, active.has(PLACES_KEY));
+    if (streetImageryEnabled && active.has(STREET_KEY)) map.setOverlay(coverageOverlay());
+    else map.removeOverlay("mapillary");
     for (const id of Object.keys(serverMetas)) map.setDatasetVisible(id, active.has(id));
     for (const d of user.datasets) {
       if (active.has(d.id)) map.showCatalogLayer(d.manifest, d.dataUrl);
@@ -213,10 +220,34 @@ export function App() {
     );
   }, []);
 
+  // Com o visualizador aberto, clicar no mapa leva à foto mais próxima do clique.
+  useEffect(() => {
+    if (!streetImageId || !pick) return;
+    let cancelled = false;
+    void nearestStreetImage(pick.lngLat)
+      .then((img) => !cancelled && img && setStreetImageId(img.id))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- só quando o clique muda
+  }, [pick]);
+
+  const openStreetView = (imageId: string) => {
+    setStreetImageId(imageId);
+    setActive((prev) => new Set(prev).add(STREET_KEY));
+  };
+
+  const closeStreetView = () => {
+    setStreetImageId(null);
+    map?.setLocationMarker(null);
+  };
+
   const copyShareLink = async () => {
     // Só vai o que quem abrir consegue ver: catálogo, exemplo, servidor e biblioteca (os arquivos do navegador ficam de fora).
     const shareable = [...active].filter(
-      (id) => DATAPACKS.some((d) => d.id === id) || id === DATASET_KEY || id === PLACES_KEY || id in serverMetas,
+      (id) =>
+        DATAPACKS.some((d) => d.id === id) || id === DATASET_KEY || id === PLACES_KEY || id === STREET_KEY || id in serverMetas,
     );
     const lib = libraryLayers.filter((l) => active.has(l.manifest.id)).map(recipeOf);
     const url = shareUrl({ layers: shareable, lib, theme, look });
@@ -576,6 +607,15 @@ export function App() {
               ? `${new Intl.NumberFormat("pt-BR").format(places.meta.records)} lugares · ${places.area === "brasil" ? "Brasil" : "Grande SP"} · versão ${places.release} · comércio, serviços, saúde, turismo…`
               : "Gere com pnpm places (Overture Maps, atualização mensal)"}
           </p>
+          {streetImageryEnabled && (
+            <>
+              <label className="toggle">
+                <input type="checkbox" checked={active.has(STREET_KEY)} onChange={(e) => toggle(STREET_KEY, e.target.checked)} />
+                <span>Fotos de rua (Mapillary)</span>
+              </label>
+              <p className="catalog-meta">Ruas com foto (linhas verdes). Clique no mapa para ver a foto e andar pela rua em 3D.</p>
+            </>
+          )}
           <Catalog datapacks={DATAPACKS} active={active} onToggle={toggle} />
           <LibraryLayers layers={libraryLayers} active={active} onToggle={toggle} onRemove={removeLibraryLayer} />
           <button type="button" className="refs-entry" onClick={() => setLibraryOpen(true)}>
@@ -585,7 +625,12 @@ export function App() {
         </SidebarSection>
 
         <SidebarSection title="Neste ponto">
-          <PickDetails pick={pick} datasets={datasetInfos} onAdvanced={(p) => void startAdvanced(p)} />
+          <PickDetails
+            pick={pick}
+            datasets={datasetInfos}
+            onAdvanced={(p) => void startAdvanced(p)}
+            onStreetView={streetImageryEnabled ? openStreetView : undefined}
+          />
         </SidebarSection>
 
         <SidebarSection title="Visualização">
@@ -656,6 +701,9 @@ export function App() {
       <main className="map-area">
         <div ref={containerRef} className="map" />
         <DropZone onFile={openImport} />
+        {streetImageId && (
+          <StreetViewer imageId={streetImageId} onCamera={(c) => map?.setLocationMarker(c)} onClose={closeStreetView} />
+        )}
         {diorama && (
           <DioramaPanel
             area={diorama.area}

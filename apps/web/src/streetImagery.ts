@@ -5,6 +5,8 @@
  * Chave: token de cliente gratuito em VITE_MAPILLARY_TOKEN (apps/web/.env.local, fora do git).
  */
 
+import type { MapOverlay } from "@cityview/engine";
+
 const TOKEN = import.meta.env.VITE_MAPILLARY_TOKEN as string | undefined;
 const API = "https://graph.mapillary.com/images";
 /** Raio da busca (~60 m) em graus de latitude; a longitude é corrigida pela latitude. */
@@ -40,6 +42,22 @@ function haversineM([lon1, lat1]: [number, number], [lon2, lat2]: [number, numbe
 
 const cache = new Map<string, Promise<StreetImage | null>>();
 
+/**
+ * A busca por área da Mapillary às vezes volta vazia ou incompleta para a mesma consulta;
+ * tenta até 3 vezes e junta o que vier.
+ */
+async function searchImages(params: URLSearchParams): Promise<ApiImage[]> {
+  const found = new Map<string, ApiImage>();
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const res = await fetch(`${API}?${params}`, { headers: { Authorization: `OAuth ${TOKEN}` } });
+    if (!res.ok) throw new Error(`Mapillary respondeu ${res.status}`);
+    const { data } = (await res.json()) as { data: ApiImage[] };
+    for (const img of data) found.set(img.id, img);
+    if (found.size >= 5) break;
+  }
+  return [...found.values()];
+}
+
 /** Foto de rua mais próxima (até ~60 m), ou null se não houver cobertura. */
 export function nearestStreetImage([lon, lat]: [number, number]): Promise<StreetImage | null> {
   if (!TOKEN) return Promise.resolve(null);
@@ -52,26 +70,81 @@ export function nearestStreetImage([lon, lat]: [number, number]): Promise<Street
       bbox: [lon - dLon, lat - SEARCH_DEG, lon + dLon, lat + SEARCH_DEG].map((v) => v.toFixed(6)).join(","),
       limit: "50",
     });
-    pending = fetch(`${API}?${params}`, { headers: { Authorization: `OAuth ${TOKEN}` } })
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`Mapillary respondeu ${res.status}`);
-        const { data } = (await res.json()) as { data: ApiImage[] };
-        const best = data
-          .filter((img) => img.thumb_1024_url && img.geometry)
-          .map((img) => ({ img, d: haversineM([lon, lat], img.geometry!.coordinates) }))
-          .sort((a, b) => a.d - b.d)[0];
-        if (!best) return null;
-        return {
-          id: best.img.id,
-          thumbUrl: best.img.thumb_1024_url!,
-          capturedAt: best.img.captured_at ? new Date(best.img.captured_at) : null,
-          author: best.img.creator?.username ?? null,
-          distanceM: best.d,
-          pageUrl: `https://www.mapillary.com/app/?pKey=${best.img.id}`,
-        };
-      });
+    pending = searchImages(params).then((data) => {
+      const best = data
+        .filter((img) => img.thumb_1024_url && img.geometry)
+        .map((img) => ({ img, d: haversineM([lon, lat], img.geometry!.coordinates) }))
+        .sort((a, b) => a.d - b.d)[0];
+      if (!best) return null;
+      return {
+        id: best.img.id,
+        thumbUrl: best.img.thumb_1024_url!,
+        capturedAt: best.img.captured_at ? new Date(best.img.captured_at) : null,
+        author: best.img.creator?.username ?? null,
+        distanceM: best.d,
+        pageUrl: `https://www.mapillary.com/app/?pKey=${best.img.id}`,
+      };
+    });
+    // "Sem foto" não fica em cache: a busca da Mapillary oscila e outra tentativa pode achar.
+    pending.then((r) => r === null && cache.delete(key), () => {});
     pending.catch(() => cache.delete(key));
     cache.set(key, pending);
   }
   return pending;
+}
+
+/** Token para o visualizador (MapillaryJS) e para a camada de cobertura. */
+export const MAPILLARY_TOKEN = TOKEN ?? "";
+
+const COVERAGE_COLOR = "#05cb63";
+
+/** Camada "onde há foto de rua": linhas das sequências e pontos das fotos (tiles vetoriais da Mapillary). */
+export function coverageOverlay(): MapOverlay {
+  const source = "mapillary";
+  return {
+    id: source,
+    source: {
+      type: "vector",
+      tiles: [`https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${TOKEN}`],
+      minzoom: 0,
+      maxzoom: 14,
+      attribution: '<a href="https://www.mapillary.com">Fotos de rua: © Mapillary (CC BY-SA)</a>',
+    },
+    layers: [
+      {
+        id: "mapillary-overview",
+        type: "circle",
+        source,
+        "source-layer": "overview",
+        maxzoom: 6,
+        paint: { "circle-radius": 2, "circle-color": COVERAGE_COLOR, "circle-opacity": 0.6 },
+      },
+      {
+        id: "mapillary-sequences",
+        type: "line",
+        source,
+        "source-layer": "sequence",
+        minzoom: 6,
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+          "line-color": COVERAGE_COLOR,
+          "line-width": ["interpolate", ["linear"], ["zoom"], 6, 0.5, 14, 2, 18, 3],
+          "line-opacity": 0.75,
+        },
+      },
+      {
+        id: "mapillary-images",
+        type: "circle",
+        source,
+        "source-layer": "image",
+        minzoom: 15,
+        paint: {
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 15, 1.5, 18, 3.5],
+          "circle-color": COVERAGE_COLOR,
+          "circle-stroke-color": "#ffffff",
+          "circle-stroke-width": 0.5,
+        },
+      },
+    ],
+  };
 }

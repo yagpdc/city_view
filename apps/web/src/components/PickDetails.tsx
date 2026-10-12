@@ -109,10 +109,13 @@ export function PickDetails({
   pick,
   datasets,
   onAdvanced,
+  onStreetView,
 }: {
   pick: MapPick | null;
   datasets: Record<string, DatasetInfo>;
   onAdvanced?: (pick: MapPick) => void;
+  /** Abre o visualizador navegável na foto de rua escolhida. */
+  onStreetView?: (imageId: string) => void;
 }) {
   const record = pick?.dataset?.kind === "record" ? pick.dataset : null;
   const info = pick?.dataset ? datasets[pick.dataset.datasetId] : undefined;
@@ -137,7 +140,7 @@ export function PickDetails({
       <p className="muted coords">
         {pick.lngLat[1].toFixed(5)}, {pick.lngLat[0].toFixed(5)}
       </p>
-      <StreetPhoto lngLat={pick.lngLat} />
+      <StreetPhoto lngLat={pick.lngLat} onOpen={onStreetView} />
       {empty && <p className="muted">Nenhuma camada ligada tem dados aqui.</p>}
       {pick.dataset && onAdvanced && (
         <button type="button" className="btn btn-primary btn-block advanced" onClick={() => onAdvanced(pick)}>

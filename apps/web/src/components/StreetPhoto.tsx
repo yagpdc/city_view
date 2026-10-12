@@ -4,7 +4,7 @@ import { nearestStreetImage, streetImageryEnabled, type StreetImage } from "../s
 const date = new Intl.DateTimeFormat("pt-BR", { month: "short", year: "numeric" });
 
 /** Foto de rua mais próxima do ponto clicado (Mapillary), com crédito e licença. */
-export function StreetPhoto({ lngLat }: { lngLat: [number, number] }) {
+export function StreetPhoto({ lngLat, onOpen }: { lngLat: [number, number]; onOpen?: (imageId: string) => void }) {
   const [state, setState] = useState<{ image?: StreetImage | null; error?: string }>({});
   const [lon, lat] = lngLat;
 
@@ -41,6 +41,11 @@ export function StreetPhoto({ lngLat }: { lngLat: [number, number] }) {
           CC BY-SA
         </a>
       </figcaption>
+      {onOpen && (
+        <button type="button" className="btn btn-block" onClick={() => onOpen(img.id)}>
+          Andar pela rua (3D)
+        </button>
+      )}
     </figure>
   );
 }

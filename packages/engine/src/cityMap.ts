@@ -1,8 +1,11 @@
 /// <reference path="./env.d.ts" />
 import {
   type GeoJSONSource,
+  type LayerSpecification,
   Map as MapLibreMap,
+  Marker,
   NavigationControl,
+  type SourceSpecification,
   ScaleControl,
   addProtocol,
   setWorkerUrl,
@@ -74,6 +77,9 @@ export class CityMap {
   private readonly resizeObserver: ResizeObserver;
   private readonly datasets: DatasetLayer[] = [];
   private readonly catalog = new Map<string, CatalogLayer>();
+  /** Camadas externas genéricas (ex.: cobertura de fotos de rua); voltam após troca de estilo. */
+  private readonly overlays = new Map<string, MapOverlay>();
+  private locationMarker: Marker | null = null;
   /**
    * Estilo carregado (fontes e camadas podem ser adicionadas). Diferente de `isStyleLoaded()`
    * do MapLibre, que só fica verdadeiro quando todos os tiles terminaram de carregar.
@@ -604,6 +610,52 @@ export class CityMap {
     if (this.styleReady) this.applyState();
   }
 
+  /**
+   * Liga (ou troca) uma camada externa: uma fonte + camadas, acima dos dados e abaixo dos rótulos.
+   * A fonte usa o id do overlay; os ids das camadas devem ser únicos.
+   */
+  setOverlay(overlay: MapOverlay): void {
+    this.removeOverlay(overlay.id);
+    this.overlays.set(overlay.id, overlay);
+    this.whenStyleReady(() => this.attachOverlay(overlay));
+  }
+
+  removeOverlay(id: string): void {
+    const overlay = this.overlays.get(id);
+    if (!overlay) return;
+    this.overlays.delete(id);
+    for (const layer of overlay.layers) if (this.map.getLayer(layer.id)) this.map.removeLayer(layer.id);
+    if (this.map.getSource(id)) this.map.removeSource(id);
+  }
+
+  private attachOverlay(overlay: MapOverlay): void {
+    if (this.map.getSource(overlay.id)) return;
+    this.map.addSource(overlay.id, overlay.source);
+    const beforeId = this.map.getStyle().layers.find((l) => l.type === "symbol")?.id;
+    for (const layer of overlay.layers) this.map.addLayer(layer, beforeId);
+  }
+
+  /**
+   * Marcador de posição com direção (ex.: câmera da foto de rua). `bearing` em graus a partir do norte.
+   * `null` remove.
+   */
+  setLocationMarker(location: { lngLat: [number, number]; bearing?: number } | null): void {
+    if (!location) {
+      this.locationMarker?.remove();
+      this.locationMarker = null;
+      return;
+    }
+    if (!this.locationMarker) {
+      const el = document.createElement("div");
+      el.className = "cv-location-marker";
+      el.innerHTML = '<span class="cv-location-cone"></span><span class="cv-location-dot"></span>';
+      this.locationMarker = new Marker({ element: el, rotationAlignment: "map", pitchAlignment: "map" });
+      this.locationMarker.setLngLat(location.lngLat).addTo(this.map);
+    }
+    this.locationMarker.setLngLat(location.lngLat).setRotation(location.bearing ?? 0);
+    this.locationMarker.getElement().classList.toggle("has-bearing", location.bearing !== undefined);
+  }
+
   destroy(): void {
     this.stopOrbit();
     this.resizeObserver.disconnect();
@@ -621,6 +673,7 @@ export class CityMap {
       dataset.setFilter(dataset.getFilter());
     }
     for (const layer of this.catalog.values()) this.attachCatalog(layer);
+    for (const overlay of this.overlays.values()) this.attachOverlay(overlay);
     const hasTerrain = Boolean(this.map.getSource(TERRAIN_SOURCE));
     this.map.setTerrain(
       hasTerrain && this.terrainEnabled
@@ -633,4 +686,11 @@ export class CityMap {
     this.addDioramaLayers();
     if (this.buildingPaint) this.scheduleBuildingPaint();
   }
+}
+
+/** Camada externa genérica para `setOverlay`. */
+export interface MapOverlay {
+  id: string;
+  source: SourceSpecification;
+  layers: LayerSpecification[];
 }

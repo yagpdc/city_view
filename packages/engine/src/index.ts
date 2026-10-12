@@ -10,7 +10,7 @@ export {
   type LayerData,
   type PointsRender,
 } from "./catalog";
-export { CityMap, type Camera, type CityMapEvent, type CityMapOptions, type MapPick } from "./cityMap";
+export { CityMap, type Camera, type CityMapEvent, type CityMapOptions, type MapOverlay, type MapPick } from "./cityMap";
 export {
   CATEGORY_COLORS,
   DatasetLayer,

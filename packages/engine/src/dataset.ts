@@ -262,7 +262,10 @@ export class DatasetLayer {
 
   pick(point: PointLike): DatasetPick | null {
     if (!this.visible) return null;
-    const [feature] = this.map.queryRenderedFeatures(point, { layers: this.layerIds });
+    // Antes do estilo carregar (ou durante a troca de tema) as camadas ainda não existem.
+    const layers = this.layerIds.filter((id) => this.map.getLayer(id));
+    if (layers.length === 0) return null;
+    const [feature] = this.map.queryRenderedFeatures(point, { layers });
     if (!feature) return null;
     const p = feature.properties as Record<string, string | number>;
     const at = this.map.unproject(point);
