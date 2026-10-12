@@ -2,31 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "web",
+      "name": "cityview",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "dev"
-      ],
+      "runtimeArgs": ["dev"],
       "port": 5173
-    },
-    {
-      "name": "embed-demo",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "demo"
-      ],
-      "port": 5174
-    },
-    {
-      "name": "api",
-      "runtimeExecutable": "cargo",
-      "runtimeArgs": [
-        "run",
-        "--release",
-        "-p",
-        "cityview-api"
-      ],
-      "port": 8787
     }
   ]
 }
