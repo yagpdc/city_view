@@ -5,7 +5,10 @@ import { DATAPACKS, OBJECTIVES, dataUrl, type Objective } from "./catalog";
 import { DioramaPanel, type AreaChoice } from "./components/DioramaPanel";
 import { Catalog } from "./components/Catalog";
 import { PickDetails, type DatasetInfo } from "./components/PickDetails";
-import { ReferenceCatalog } from "./components/ReferenceCatalog";
+import { LibraryLayers } from "./components/LibraryLayers";
+import { LibraryPanel } from "./library/LibraryPanel";
+import { LIBRARY_SOURCES, LIBRARY_TOTAL } from "./library/load";
+import type { LibraryLayer } from "./library/mapLayer";
 import { ServerDatasets } from "./components/ServerDatasets";
 import { Sidebar, SidebarSection } from "./components/Sidebar";
 import { TopBar } from "./components/TopBar";
@@ -62,7 +65,8 @@ export function App() {
   const [municipios3d, setMunicipios3d] = useState(false);
   const [diorama, setDiorama] = useState<Diorama | null>(null);
   const [paintBuildingsOn, setPaintBuildingsOn] = useState(false);
-  const [refsOpen, setRefsOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [libraryLayers, setLibraryLayers] = useState<LibraryLayer[]>([]);
   const [buildingResult, setBuildingResult] = useState<BuildingPaintResult | null>(null);
   const [objective, setObjective] = useState<string | null>(null);
   const [active, setActive] = useState<Set<string>>(loadActiveLayers);
@@ -142,7 +146,27 @@ export function App() {
       if (active.has(d.id)) map.showCatalogLayer(d.manifest, d.dataUrl);
       else map.hideCatalogLayer(d.id);
     }
-  }, [map, active, demoMeta, serverMetas, user.datasets]);
+    for (const l of libraryLayers) {
+      if (active.has(l.manifest.id)) map.showCatalogLayer(l.manifest, l.data as never);
+      else map.hideCatalogLayer(l.manifest.id);
+    }
+  }, [map, active, demoMeta, serverMetas, user.datasets, libraryLayers]);
+
+  const addLibraryLayer = (layer: LibraryLayer) => {
+    // A mesma variável de novo substitui a anterior (ex.: outro período).
+    map?.removeCatalogLayer(layer.manifest.id);
+    setLibraryLayers((list) => [...list.filter((l) => l.manifest.id !== layer.manifest.id), layer]);
+    setActive((prev) => new Set(prev).add(layer.manifest.id));
+    setLibraryOpen(false);
+    setSidebarOpen(true);
+    map?.flyTo({ center: [-52, -14.5], zoom: 3.8, pitch: 0, bearing: 0 });
+  };
+
+  const removeLibraryLayer = (id: string) => {
+    map?.removeCatalogLayer(id);
+    setLibraryLayers((list) => list.filter((l) => l.manifest.id !== id));
+    setActive((prev) => without(prev, id));
+  };
 
   useEffect(() => saveActiveLayers(active), [active]);
 
@@ -419,9 +443,10 @@ export function App() {
 
         <SidebarSection title="Catálogo de dados">
           <Catalog datapacks={DATAPACKS} active={active} onToggle={toggle} />
-          <button type="button" className="refs-entry" onClick={() => setRefsOpen(true)}>
-            <strong>Referências: 9.336 tabelas do IBGE (SIDRA)</strong>
-            <span>Busque por tema e baixe no site oficial ↗</span>
+          <LibraryLayers layers={libraryLayers} active={active} onToggle={toggle} onRemove={removeLibraryLayer} />
+          <button type="button" className="refs-entry" onClick={() => setLibraryOpen(true)}>
+            <strong>Biblioteca: {new Intl.NumberFormat("pt-BR").format(LIBRARY_TOTAL)} tabelas e séries públicas</strong>
+            <span>{LIBRARY_SOURCES.map((s) => s.name).join(" · ")} — baixe ou coloque no mapa</span>
           </button>
         </SidebarSection>
 
@@ -512,7 +537,7 @@ export function App() {
         )}
       </main>
 
-      {refsOpen && <ReferenceCatalog onClose={() => setRefsOpen(false)} />}
+      {libraryOpen && <LibraryPanel onClose={() => setLibraryOpen(false)} onAddLayer={addLibraryLayer} />}
 
       {importFile && (
         <ImportWizard

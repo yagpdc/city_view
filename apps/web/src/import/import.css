@@ -336,3 +336,25 @@
 .refs-actions .btn { font-size: 12px; white-space: nowrap; text-decoration: none; }
 .refs-ok { font-size: 11px !important; color: #15803d; }
 .refs-error { font-size: 11px !important; color: #b91c1c; }
+
+/* ---------- Biblioteca ---------- */
+.library-sources { display: flex; flex-wrap: wrap; gap: 6px; }
+.library-sources button {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.library-sources button span { color: var(--fg-muted); font-size: 11px; margin-left: 4px; }
+.library-sources button.is-active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--bg)); }
+.refs-badges { display: flex; gap: 4px; }
+.refs-badge.regional { background: color-mix(in srgb, #f59e0b 16%, var(--bg)); color: #b45309; }
+.library-choose { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12px !important; color: var(--fg); }
+.library-layers { margin-top: 10px; }
+.legend-scale { display: flex; height: 8px; margin: 4px 0 0 24px; border-radius: 4px; overflow: hidden; }
+.legend-scale span { flex: 1; }
+.legend-labels { display: flex; justify-content: space-between; margin: 2px 0 0 24px; font-size: 10px; color: var(--fg-muted); }

@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "sources": [
+    {
+      "id": "ibge-sidra",
+      "name": "IBGE · SIDRA",
+      "publisher": "IBGE",
+      "country": "BR",
+      "description": "Sistema IBGE de Recuperação Automática: tabelas do Censo, PNAD, PIB dos municípios, pesquisas agropecuárias e muitas outras.",
+      "homepage": "https://sidra.ibge.gov.br",
+      "license": "Dados públicos do IBGE: uso livre com citação da fonte",
+      "adapter": "sidra",
+      "updatedAt": "2026-10-12T01:46:31+00:00",
+      "items": 9336,
+      "municipal": 4448,
+      "bytes": 2016262
+    },
+    {
+      "id": "ipeadata",
+      "name": "Ipeadata",
+      "publisher": "IPEA",
+      "country": "BR",
+      "description": "Séries do Instituto de Pesquisa Econômica Aplicada: macroeconomia, indicadores sociais e dados regionais por estado e município.",
+      "homepage": "https://www.ipeadata.gov.br",
+      "license": "Dados públicos do IPEA: uso livre com citação da fonte (e da fonte primária de cada série)",
+      "adapter": "ipeadata",
+      "updatedAt": "2026-10-12T01:43:36+00:00",
+      "items": 3285,
+      "municipal": 0,
+      "bytes": 373194
+    }
+  ]
+}

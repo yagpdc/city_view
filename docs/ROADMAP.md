@@ -57,8 +57,12 @@ Ordem pensada por encanto/esforço (ver [PRODUCT.md](PRODUCT.md)).
   - próximas: rodovias federais (DNIT, 336 mil segmentos — exige tiler de linhas), escolas (INEP), saúde (CNES), CNPJs
 - [x] Painel de catálogo na plataforma, com fonte/licença/atualização visíveis e aviso de desatualizado
 - [x] Pontos de partida por objetivo (varejo, agro, risco, explorar)
-- [x] Catálogo de referências: 9.336 tabelas do IBGE SIDRA (busca por tema, ano, sinônimos; selo "por município"), com link para baixar no site oficial — só índice, sem hospedar dado
-- [ ] Mais referências (dados.gov.br, INPE, DATASUS…) e importar uma tabela SIDRA municipal direto como camada
+- [x] Biblioteca de dados multi-fonte ([LIBRARY.md](LIBRARY.md)): índice comum + adaptador por fonte
+  - IBGE SIDRA (9.336 tabelas, 4.448 por município) e Ipeadata (3.285 séries)
+  - busca sem acento, sinônimos, anos, relevância; filtros por fonte, grupo e "por município"
+  - "Baixar CSV" direto da fonte (Excel BR) e "Ver no mapa": valores por município cruzados com a malha IBGE, legenda por quantis
+- [ ] Próximas fontes: INPE, DATASUS, INEP, ANATEL, ANP, TSE, Banco Central (SGS), dados.gov.br, MapBiomas; depois internacionais
+- [ ] Escolher período/recorte/classificação antes de baixar ou mapear; salvar camadas da biblioteca
 - [x] Clique cruzando camadas: dado do cliente + todas as camadas do catálogo no mesmo ponto
 - [ ] Atualização automática das camadas vivas (hoje: rodar `pnpm datapacks`)
 

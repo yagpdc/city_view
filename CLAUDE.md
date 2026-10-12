@@ -3,6 +3,7 @@
 Super interface para dados no mapa: empresas e pessoas trazem os próprios registros (lojas, prédios, garagens, clientes, ativos… às vezes milhões), localizam e entendem esses dados no mapa e geram análises sobre eles na plataforma, e pode embutir mapas/análises no produto dele via SDK. A gente cuida de ingestão, tiles, consultas, render e interação. Roda localmente por enquanto.
 
 - Roadmap: `docs/ROADMAP.md`
+- Biblioteca de dados (fontes públicas): `docs/LIBRARY.md`
 - Arquitetura e stack: `docs/ARCHITECTURE.md`
 - Decisões: `docs/adr/`
 

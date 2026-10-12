@@ -24,7 +24,7 @@ python data/build_sp.py --brasil   # mapa base do Brasil (~760 MB)
 pnpm synth                         # 30M de empresas sintéticas → data/out/empresas.parquet
 pnpm tiles                         # Parquet → data/out/empresas/tiles.pmtiles (~60 s)
 pnpm datapacks                     # camadas do catálogo (IBGE, NASA FIRMS) → data/out/datapacks
-python datapacks/references/build_sidra.py   # (opcional) atualiza o índice SIDRA versionado
+pnpm library                       # (opcional) atualiza os índices da biblioteca (SIDRA, Ipeadata)
 pnpm api                           # servidor local (motor Rust): http://localhost:8787
 pnpm dev                           # plataforma: http://localhost:5173
 pnpm demo                          # site de cliente com o SDK: http://localhost:5174
@@ -43,6 +43,7 @@ crates/tiler/      motor de dados: CSV/Parquet + mapeamento → H3 + pontos → 
 services/api/      servidor local: recebe arquivos, roda o motor, serve tiles e detalhes (Rust/axum)
 crates/synth/      gerador de datasets sintéticos (Rust)
 datapacks/         catálogo: manifestos versionados + receitas de download (build.py)
+datapacks/library/ biblioteca: índices de fontes públicas (docs/LIBRARY.md)
 packages/importer/ detecção de colunas/formatos e conversão de CSV em pontos (testado)
 samples/           CSVs de exemplo para testar a importação (arraste no mapa)
 data/              scripts de dados; saída em data/out (fora do git)

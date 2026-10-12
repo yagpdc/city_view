@@ -12,7 +12,8 @@
     "tiles": "cargo run --release -p tiler -- data/out/empresas.parquet data/out/empresas data/specs/empresas.json",
     "synth": "cargo run --release -p synth -- --rows 30000000 --out data/out/empresas.parquet",
     "datapacks": "python datapacks/build.py",
-    "api": "cargo run --release -p cityview-api"
+    "api": "cargo run --release -p cityview-api",
+    "library": "python datapacks/library/build.py"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",
