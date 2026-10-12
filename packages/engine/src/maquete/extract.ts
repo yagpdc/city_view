@@ -20,6 +20,8 @@ export interface MaqueteBuilding {
   base: number;
   /** Cor de destaque (categoria predominante dos pontos dentro dele) ou null. */
   color: string | null;
+  /** Índices (em `points`) dos seus registros que caem neste prédio. */
+  records: number[];
 }
 
 export interface MaquetePoint {
@@ -28,6 +30,11 @@ export interface MaquetePoint {
   color: string;
   /** Altura do prédio onde o ponto está (0 = na rua). */
   ground: number;
+  /** Índice do prédio onde o ponto cai, ou -1 (na rua). */
+  building: number;
+  datasetId: string;
+  category: number | null;
+  properties: Record<string, string | number>;
   title?: string;
 }
 
@@ -45,6 +52,9 @@ export interface MaqueteData {
 export interface MaqueteInputPoint {
   lngLat: Position;
   color: string;
+  datasetId: string;
+  category: number | null;
+  properties: Record<string, string | number>;
   title?: string;
 }
 
@@ -197,7 +207,7 @@ export async function loadMaqueteData(
         const c = centroid(local[0]!);
         if (c[0] * c[0] + c[1] * c[1] > radiusM * radiusM || !ownTile(toLngLat(c))) continue;
         const height = Number(props.height ?? 0);
-        buildings.push({ rings: local, lngLat: rings, height: height > 0 ? height : 0, base: Number(props.min_height ?? 0) || 0, color: null });
+        buildings.push({ rings: local, lngLat: rings, height: height > 0 ? height : 0, base: Number(props.min_height ?? 0) || 0, color: null, records: [] });
       }
       for (const { rings } of polygons("water", () => true)) {
         const clipped = rings.map((r) => clipPolygon(r.map(toXY), circle)).filter((r) => r.length > 2);
@@ -227,21 +237,59 @@ export async function loadMaqueteData(
     else b.height = 6 + (Math.abs(Math.sin(b.rings[0]![0]![0] * 12.9898 + b.rings[0]![0]![1] * 78.233)) % 1) * 6;
   }
 
-  // Seus dados: acendem o prédio onde caem (cor predominante) e viram feixes.
+  // Seus dados: acendem o prédio onde caem (cor predominante); os da rua viram alfinetes.
+  // Como no "Prédios acesos" do mapa, um ponto fora de qualquer contorno (endereço na calçada) vai para o
+  // prédio mais próximo até SNAP_M — senão a maquete vira uma floresta de alfinetes.
+  const SNAP_M = 25;
+  const boxes = buildings.map((b) => {
+    let [w, s, e, n] = [Infinity, Infinity, -Infinity, -Infinity];
+    for (const [px, py] of b.rings[0]!) [w, s, e, n] = [Math.min(w, px), Math.min(s, py), Math.max(e, px), Math.max(n, py)];
+    return [w - SNAP_M, s - SNAP_M, e + SNAP_M, n + SNAP_M] as const;
+  });
+  /** Distância do ponto à parede mais próxima do prédio (contorno externo, metros locais). */
+  const wallDistance = (ring: XY[], x: number, y: number) => {
+    let best = Infinity;
+    for (let i = 1; i < ring.length; i++) {
+      const [ax, ay] = ring[i - 1]!, [bx, by] = ring[i]!;
+      const dx = bx - ax, dy = by - ay;
+      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy || 1)));
+      best = Math.min(best, Math.hypot(ax + t * dx - x, ay + t * dy - y));
+    }
+    return best;
+  };
   const points: MaquetePoint[] = [];
   const tally = new Map<number, Map<string, number>>();
   for (const p of options.points ?? []) {
     const [x, y] = toXY(p.lngLat);
     if (x * x + y * y > radiusM * radiusM) continue;
     let ground = 0;
-    const bi = buildings.findIndex((b) => pointInArea(p.lngLat, { type: "Polygon", coordinates: b.lngLat } as AreaGeometry));
+    let bi = buildings.findIndex((b) => pointInArea(p.lngLat, { type: "Polygon", coordinates: b.lngLat } as AreaGeometry));
+    if (bi === -1) {
+      let best = SNAP_M;
+      boxes.forEach(([w, s, e, n], i) => {
+        if (x < w || x > e || y < s || y > n) return;
+        const d = wallDistance(buildings[i]!.rings[0]!, x, y);
+        if (d < best) [best, bi] = [d, i];
+      });
+    }
     if (bi !== -1) {
       ground = buildings[bi]!.height;
       const t = tally.get(bi) ?? new Map<string, number>();
       t.set(p.color, (t.get(p.color) ?? 0) + 1);
       tally.set(bi, t);
+      buildings[bi]!.records.push(points.length);
     }
-    points.push({ x, y, color: p.color, ground, ...(p.title && { title: p.title }) });
+    points.push({
+      x,
+      y,
+      color: p.color,
+      ground,
+      building: bi,
+      datasetId: p.datasetId,
+      category: p.category,
+      properties: p.properties,
+      ...(p.title && { title: p.title }),
+    });
   }
   for (const [bi, t] of tally) buildings[bi]!.color = [...t.entries()].sort((a, b) => b[1] - a[1])[0]![0];
 

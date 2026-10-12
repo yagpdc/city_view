@@ -334,7 +334,14 @@ export class CityMap {
       const title = dataset.meta.title ?? undefined;
       for (const p of near?.points ?? []) {
         const color = p.category !== null && p.category < dataset.meta.categories.length ? categoryColor(p.category, dataset.meta.categories) : OTHER_COLOR;
-        points.push({ lngLat: p.lngLat, color, ...(title && p.properties[title] ? { title: String(p.properties[title]) } : {}) });
+        points.push({
+          lngLat: p.lngLat,
+          color,
+          datasetId: id,
+          category: p.category,
+          properties: p.properties,
+          ...(title && p.properties[title] ? { title: String(p.properties[title]) } : {}),
+        });
       }
     }
     return loadMaqueteData(this.maqueteTiles, { center, radiusM, points });

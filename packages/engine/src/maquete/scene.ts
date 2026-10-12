@@ -44,6 +44,9 @@ export interface MaquetePalette {
 
 const SLAB_DEPTH = 18;
 
+/** O que foi clicado na maquete: um prédio ou um dos seus pontos na rua (índices em `MaqueteData`). */
+export type MaqueteSelection = { kind: "building"; index: number } | { kind: "point"; index: number } | null;
+
 /** Layout das vistas técnicas: coluna à direita (ou embaixo, em tela estreita). */
 function insetRects(w: number, h: number): { x: number; y: number; w: number; h: number }[] {
   const narrow = w < 760;
@@ -69,6 +72,16 @@ export class MaqueteScene {
   private readonly ortho = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 20000);
   private pulse: THREE.Mesh | null = null;
   private palette: MaquetePalette;
+  private data: MaqueteData | null = null;
+  /** Faixas de vértices de cada prédio no mesh único (para saber qual foi clicado). */
+  private buildingRanges: { start: number; index: number }[] = [];
+  private body: THREE.Mesh | null = null;
+  private pins: { mesh: THREE.InstancedMesh; head: THREE.InstancedMesh; indices: number[] } | null = null;
+  private highlight: THREE.Group | null = null;
+  private readonly raycaster = new THREE.Raycaster();
+  private down: { x: number; y: number } | null = null;
+  /** Chamado quando o usuário clica num prédio, num ponto ou no vazio. */
+  onSelect: ((selection: MaqueteSelection) => void) | null = null;
   private radius = 300;
   private top = 60;
   private frame = 0;
@@ -105,6 +118,11 @@ export class MaqueteScene {
     this.controls.autoRotate = true;
     this.controls.autoRotateSpeed = 0.6;
     this.controls.maxPolarAngle = Math.PI * 0.47;
+    // Clique (sem arrastar) seleciona prédio ou ponto.
+    const el = this.renderer.domElement;
+    el.addEventListener("pointerdown", this.onPointerDown);
+    el.addEventListener("pointerup", this.onPointerUp);
+    el.addEventListener("pointermove", this.onPointerMove);
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(container);
     this.resize();
@@ -142,6 +160,7 @@ export class MaqueteScene {
 
   setData(data: MaqueteData): void {
     this.clear();
+    this.data = data;
     const R = data.radiusM;
     this.radius = R;
     this.top = Math.max(40, ...data.buildings.map((b) => b.height));
@@ -177,6 +196,10 @@ export class MaqueteScene {
     cancelAnimationFrame(this.frame);
     this.resizeObserver.disconnect();
     this.controls.dispose();
+    const el = this.renderer.domElement;
+    el.removeEventListener("pointerdown", this.onPointerDown);
+    el.removeEventListener("pointerup", this.onPointerUp);
+    el.removeEventListener("pointermove", this.onPointerMove);
     this.clear();
     this.renderer.dispose();
     this.renderer.domElement.remove();
@@ -196,6 +219,10 @@ export class MaqueteScene {
     });
     this.root.clear();
     this.pulse = null;
+    this.body = null;
+    this.pins = null;
+    this.highlight = null;
+    this.buildingRanges = [];
   }
 
   /** Disco da área: chão desenhado (ruas, água, verde) num canvas e laterais em degradê. */
@@ -282,7 +309,8 @@ export class MaqueteScene {
     const geoms: THREE.BufferGeometry[] = [];
     const edges: THREE.BufferGeometry[] = [];
     const neutral = new THREE.Color(this.palette.building);
-    for (const b of data.buildings) {
+    let vertex = 0;
+    for (const [index, b] of data.buildings.entries()) {
       const [outer, ...holes] = b.rings;
       if (!outer || outer.length < 4) continue;
       const shape = new THREE.Shape(outer.map(([x, y]) => new THREE.Vector2(x, y)));
@@ -299,6 +327,8 @@ export class MaqueteScene {
       g.setAttribute("color", new THREE.BufferAttribute(colors, 3));
       // Sem uv/normal diferentes entre partes: o merge exige os mesmos atributos.
       g.deleteAttribute("uv");
+      this.buildingRanges.push({ start: vertex, index });
+      vertex += n;
       geoms.push(g);
       edges.push(new THREE.EdgesGeometry(g, 30));
     }
@@ -312,25 +342,28 @@ export class MaqueteScene {
       new THREE.LineBasicMaterial({ color: this.palette.buildingEdge, transparent: true, opacity: 0.7 }),
     );
     for (const g of [...geoms, ...edges]) g.dispose();
+    this.body = body;
     return [body, lines];
   }
 
-  /** Seus dados: alfinetes da cor da categoria, saindo do topo do prédio (ou da rua). */
+  /**
+   * Seus dados na rua: alfinetes da cor da categoria. Os que caem num prédio não viram alfinete — o prédio
+   * já está pintado com eles (e o clique no prédio mostra os registros).
+   */
   private pointBeams(data: MaqueteData): THREE.Object3D {
     const group = new THREE.Group();
-    const dense = data.points.length > 600;
+    const indices = data.points.flatMap((p, i) => (p.building === -1 ? [i] : []));
+    if (indices.length === 0) return group;
+    const dense = indices.length > 600;
     const beamH = dense ? Math.max(10, this.top * 0.1) : Math.max(24, this.top * 0.25);
     const beam = new THREE.CylinderGeometry(dense ? 0.5 : 0.9, dense ? 0.5 : 0.9, beamH, 6, 1, true);
     beam.translate(0, beamH / 2, 0);
-    const mesh = new THREE.InstancedMesh(
-      beam,
-      new THREE.MeshBasicMaterial(),
-      data.points.length,
-    );
-    const dot = new THREE.InstancedMesh(new THREE.SphereGeometry(dense ? 1.8 : 3, 10, 6), new THREE.MeshBasicMaterial(), data.points.length);
+    const mesh = new THREE.InstancedMesh(beam, new THREE.MeshBasicMaterial(), indices.length);
+    const dot = new THREE.InstancedMesh(new THREE.SphereGeometry(dense ? 1.8 : 3, 10, 6), new THREE.MeshBasicMaterial(), indices.length);
     const m = new THREE.Matrix4();
     const c = new THREE.Color();
-    data.points.forEach((p, i) => {
+    indices.forEach((pi, i) => {
+      const p = data.points[pi]!;
       m.makeTranslation(p.x, p.ground + 0.5, -p.y);
       mesh.setMatrixAt(i, m);
       m.makeTranslation(p.x, p.ground + beamH, -p.y);
@@ -339,8 +372,104 @@ export class MaqueteScene {
       mesh.setColorAt(i, c);
       dot.setColorAt(i, c);
     });
+    this.pins = { mesh, head: dot, indices };
     group.add(mesh, dot);
     return group;
+  }
+
+  // ---------- Seleção ----------
+
+  /** Destaca um prédio ou ponto (contorno e véu na cor de ação); null limpa. */
+  select(selection: MaqueteSelection): void {
+    if (this.highlight) {
+      this.highlight.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        mesh.geometry?.dispose();
+        (mesh.material as THREE.Material | undefined)?.dispose();
+      });
+      this.root.remove(this.highlight);
+      this.highlight = null;
+    }
+    const data = this.data;
+    if (!selection || !data) return;
+    const accent = this.palette.accent;
+    const group = new THREE.Group();
+    if (selection.kind === "building") {
+      const b = data.buildings[selection.index];
+      if (!b) return;
+      const [outer, ...holes] = b.rings;
+      const shape = new THREE.Shape(outer!.map(([x, y]) => new THREE.Vector2(x, y)));
+      for (const h of holes) if (h.length >= 4) shape.holes.push(new THREE.Path(h.map(([x, y]) => new THREE.Vector2(x, y))));
+      const g = new THREE.ExtrudeGeometry(shape, { depth: Math.max(1, b.height - b.base) + 0.6, bevelEnabled: false });
+      g.rotateX(-Math.PI / 2);
+      g.translate(0, b.base, 0);
+      group.add(
+        new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.28, depthWrite: false })),
+        new THREE.LineSegments(new THREE.EdgesGeometry(g, 30), new THREE.LineBasicMaterial({ color: accent })),
+      );
+    } else {
+      const p = data.points[selection.index];
+      if (!p) return;
+      const ring = new THREE.Mesh(
+        new THREE.RingGeometry(4, 6.5, 32),
+        new THREE.MeshBasicMaterial({ color: accent, side: THREE.DoubleSide, depthWrite: false }),
+      );
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.set(p.x, p.ground + 0.7, -p.y);
+      group.add(ring);
+    }
+    this.highlight = group;
+    this.root.add(group);
+  }
+
+  private readonly onPointerDown = (e: PointerEvent) => {
+    this.down = { x: e.clientX, y: e.clientY };
+  };
+
+  private readonly onPointerMove = (e: PointerEvent) => {
+    if (this.down || !this.data) return;
+    this.renderer.domElement.style.cursor = this.pick(e) ? "pointer" : "";
+  };
+
+  private readonly onPointerUp = (e: PointerEvent) => {
+    const down = this.down;
+    this.down = null;
+    // Arrastou (girou a câmera): não é clique.
+    if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 5) return;
+    const selection = this.pick(e);
+    this.select(selection);
+    this.onSelect?.(selection);
+  };
+
+  /** O que está sob o cursor na vista principal (as vistas técnicas não respondem a clique). */
+  private pick(e: PointerEvent): MaqueteSelection {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    for (const r of this.viewRects()) if (x >= r.left && x <= r.left + r.width && y >= r.top && y <= r.top + r.height) return null;
+    this.raycaster.setFromCamera(new THREE.Vector2((x / rect.width) * 2 - 1, -(y / rect.height) * 2 + 1), this.camera);
+    const targets: THREE.Object3D[] = [];
+    if (this.pins) targets.push(this.pins.head, this.pins.mesh);
+    if (this.body) targets.push(this.body);
+    const [hit] = this.raycaster.intersectObjects(targets, false);
+    if (!hit) return null;
+    if (this.pins && (hit.object === this.pins.head || hit.object === this.pins.mesh) && hit.instanceId !== undefined) {
+      return { kind: "point", index: this.pins.indices[hit.instanceId]! };
+    }
+    if (hit.object === this.body && hit.faceIndex !== undefined && hit.faceIndex !== null) {
+      const v = hit.faceIndex * 3;
+      // Busca binária na faixa de vértices.
+      let lo = 0;
+      let hi = this.buildingRanges.length - 1;
+      while (lo < hi) {
+        const mid = (lo + hi + 1) >> 1;
+        if (this.buildingRanges[mid]!.start <= v) lo = mid;
+        else hi = mid - 1;
+      }
+      const r = this.buildingRanges[lo];
+      return r ? { kind: "building", index: r.index } : null;
+    }
+    return null;
   }
 
   /** Anel na borda, anel externo com marcas a cada 10° e o norte. */

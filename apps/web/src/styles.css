@@ -657,9 +657,27 @@ a { color: var(--cv-link); }
 .maquete-status { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; align-items: center; gap: 10px; max-width: 420px; padding: 12px 16px; border: 1px solid var(--cv-border); border-radius: var(--cv-radius-lg, 10px); background: var(--cv-float); box-shadow: var(--cv-shadow-2); text-align: center; font-size: 14px; }
 .maquete-spinner { width: 16px; height: 16px; border: 2px solid var(--cv-border); border-top-color: var(--cv-action); border-radius: 50%; animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+.maquete-details { display: flex; flex-direction: column; gap: 10px; width: 300px; max-height: calc(100cqh - 200px); overflow: auto; padding: 12px 14px; border: 1px solid var(--cv-border); border-radius: var(--cv-radius-lg, 10px); background: var(--cv-float); box-shadow: var(--cv-shadow-2); pointer-events: auto; }
+.maquete-details header { display: flex; align-items: flex-start; gap: 8px; }
+.maquete-details-title { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; font-size: 13px; }
+.maquete-details-title b { font-size: 16px; line-height: 22px; }
+.maquete-details-title .link-button { align-self: flex-start; margin-bottom: 2px; }
+.maquete-details-category { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.maquete-details-category i, .maquete-details-list i { flex: none; width: 10px; height: 10px; border-radius: 50%; }
+.maquete-details-count { margin: 0; font-size: 13px; }
+.maquete-details dl { display: grid; gap: 6px; margin: 0; }
+.maquete-details dl div { display: grid; grid-template-columns: 104px 1fr; gap: 8px; font-size: 13px; }
+.maquete-details dt { color: var(--cv-text-muted); }
+.maquete-details dd { margin: 0; overflow-wrap: anywhere; }
+.maquete-details-list { display: flex; flex-direction: column; margin: 0 -6px; padding: 0; list-style: none; }
+.maquete-details-list button { display: grid; grid-template-columns: 10px 1fr auto; align-items: center; gap: 8px; width: 100%; padding: 6px; border: 0; border-radius: var(--cv-radius-sm); background: none; color: inherit; font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.maquete-details-list button:hover { background: var(--cv-surface); }
+.maquete-details-list span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.maquete-details-list .muted { font-size: 12px; white-space: nowrap; }
 @container (max-width: 760px) {
   .maquete-side { top: 96px; right: 16px; max-width: none; }
   .maquete-stats { flex-direction: row; flex-wrap: wrap; gap: 6px; }
   .maquete-stats div { min-width: 0; flex: 1 1 28%; padding: 6px 8px; }
   .maquete-stats dd { font-size: 16px; }
+  .maquete-details { width: auto; max-height: calc(100cqh - 340px); }
 }

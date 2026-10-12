@@ -1,6 +1,8 @@
-import { MaqueteScene, formatArea, type CityMap, type MaqueteData } from "@cityview/engine";
+import { MaqueteScene, formatArea, type CityMap, type MaqueteData, type MaqueteSelection } from "@cityview/engine";
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "./Icon";
+import { MaqueteDetails } from "./MaqueteDetails";
+import type { DatasetInfo } from "./PickDetails";
 
 const RADII = [150, 300, 500] as const;
 const int = new Intl.NumberFormat("pt-BR");
@@ -16,6 +18,7 @@ export function MaqueteView({
   title,
   datasetIds,
   theme,
+  datasets,
   onClose,
 }: {
   map: CityMap;
@@ -24,6 +27,8 @@ export function MaqueteView({
   datasetIds: string[];
   /** Tema/estilo do app (troca as cores da maquete junto). */
   theme: string;
+  /** Rótulos e títulos dos datasets, para os detalhes dos registros. */
+  datasets: Record<string, DatasetInfo>;
   onClose: () => void;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -33,12 +38,14 @@ export function MaqueteView({
   const [rotating, setRotating] = useState(true);
   const [views, setViews] = useState(true);
   const [rects, setRects] = useState<ReturnType<MaqueteScene["viewRects"]>>([]);
+  const [selection, setSelection] = useState<MaqueteSelection>(null);
 
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
     const scene = new MaqueteScene(host, map.maquetePalette());
     sceneRef.current = scene;
+    scene.onSelect = setSelection;
     const update = () => setRects(scene.viewRects());
     const ro = new ResizeObserver(update);
     ro.observe(host);
@@ -58,6 +65,7 @@ export function MaqueteView({
       .maqueteData(center, radius, ids ? ids.split(",") : [])
       .then((data) => {
         if (cancelled) return;
+        setSelection(null);
         sceneRef.current?.setData(data);
         setState({ data, loading: false });
       })
@@ -73,6 +81,7 @@ export function MaqueteView({
     if (!scene) return;
     scene.setPalette(map.maquetePalette());
     if (state.data) scene.setData(state.data);
+    scene.select(selection);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- só quando o tema muda
   }, [theme]);
   useEffect(() => {
@@ -83,11 +92,20 @@ export function MaqueteView({
     sceneRef.current.showViews = views;
     setRects(sceneRef.current.viewRects());
   }, [views]);
+  const clearSelection = () => {
+    sceneRef.current?.select(null);
+    setSelection(null);
+  };
   useEffect(() => {
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    // Esc fecha primeiro o detalhe, depois a maquete.
+    const esc = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (selection) clearSelection();
+      else onClose();
+    };
     window.addEventListener("keydown", esc);
     return () => window.removeEventListener("keydown", esc);
-  }, [onClose]);
+  }, [onClose, selection]);
 
   const download = () => {
     const url = sceneRef.current?.snapshot();
@@ -117,7 +135,12 @@ export function MaqueteView({
         </button>
       </header>
 
-      {data && !empty && (
+      {data && selection && (
+        <div className="maquete-side">
+          <MaqueteDetails key={`${selection.kind}:${selection.index}`} data={data} selection={selection} datasets={datasets} onClose={clearSelection} />
+        </div>
+      )}
+      {data && !empty && !selection && (
         <div className="maquete-side">
         <dl className="maquete-stats">
           <div>
@@ -143,6 +166,7 @@ export function MaqueteView({
             </div>
           )}
         </dl>
+        <p className="maquete-note">Clique num prédio ou alfinete para ver os dados.</p>
         {data.stats.withHeight < data.stats.buildings && (
           <p className="maquete-note">
             {int.format(data.stats.buildings - data.stats.withHeight)} prédios sem altura no OpenStreetMap aparecem com altura estimada.
