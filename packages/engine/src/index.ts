@@ -27,7 +27,8 @@ export {
   type WhereClause,
 } from "./dataset";
 export { cleanWhere, matchesWhere, whereExpressions, type Where } from "./filter";
-export { MAQUETE_VIEWS, MaqueteScene, type MaquetePalette, type MaqueteSelection, type MaqueteView } from "./maquete/scene";
+// A cena da maquete (three.js) fica em "@cityview/engine/maquete", para carregar só quando abrir.
+export type { MaquetePalette, MaqueteSelection, MaqueteView } from "./maquete/scene";
 export type { MaqueteData } from "./maquete/extract";
 export { pickZoom, type HexFeature } from "./areaHexes";
 export { type BuildingPaintResult, type BuildingRecord } from "./buildingPaint";

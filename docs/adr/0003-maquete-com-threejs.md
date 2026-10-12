@@ -32,6 +32,9 @@ Uma cena própria em **three.js** (`packages/engine/src/maquete/`), separada do 
 
 ## Consequências
 
-- +~600 KB de JS (three) — carregar sob demanda quando a maquete abrir é o próximo passo de performance.
-- Cobertura = a do mapa base detalhado (hoje Grande SP). Fora dela, a maquete avisa.
-- A maquete antiga (`DioramaPanel`, `CityMap.openDiorama`) fica sem uso e deve ser removida.
+- three.js (~560 KB, ~145 KB gzip) fica num pedaço separado: `@cityview/engine/maquete` + `React.lazy`,
+  baixado só quando a maquete abre.
+- Cobertura = a do mapa base detalhado (hoje Grande SP). Fora dela, a maquete usa o mapa base (ruas e
+  água) e avisa que não há prédios.
+- A maquete antiga (mapa inclinado com máscara, `DioramaPanel`, `CityMap.enterDiorama`) foi removida.
+  As comparações por município (`apps/web/src/compare.ts`) ficaram guardadas para voltar na maquete nova.

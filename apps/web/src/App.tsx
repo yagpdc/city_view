@@ -1,7 +1,7 @@
-import type { AreaSummary, BasemapLook, BuildingPaintResult, DatasetMeta, MapPick, Theme } from "@cityview/engine";
+import type { BasemapLook, BuildingPaintResult, DatasetMeta, MapPick, Theme } from "@cityview/engine";
 import { CATEGORY_COLORS, categoryColor, geodesicDistanceM, normalizeText } from "@cityview/engine";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { areaAt, parseCoordinates, radiusArea, searchMunicipios, type Area } from "./areas";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { parseCoordinates, searchMunicipios } from "./areas";
 import { SearchBox, type SearchResult } from "./components/SearchBox";
 import { CategoryLegend, LayerCard, Panel, PanelCard, Rail, ScaleLegend, type LayerAction, type PanelId } from "./components/Shell";
 import { WidgetsPanel, type ViewportWidget } from "./components/WidgetsPanel";
@@ -10,11 +10,8 @@ import { placeIcon, placeIconSvgs } from "./placeIcons";
 import { Icon } from "./components/Icon";
 import { AddRow, DatapackMeta } from "./components/AddRow";
 import { MeasurePanel } from "./components/MeasurePanel";
-import { MaqueteView } from "./components/MaqueteView";
 import type { DatasetFilter, MeasureMode, MeasureState, Where } from "@cityview/engine";
-import type { Comparison } from "./compare";
 import { DATAPACKS, dataUrl } from "./catalog";
-import { DioramaPanel, type AreaChoice } from "./components/DioramaPanel";
 import { PickDetails, type DatasetInfo } from "./components/PickDetails";
 import { MapPopup, type NearbySource } from "./components/MapPopup";
 import { createPortal } from "react-dom";
@@ -72,18 +69,11 @@ const isChoropleth = (id: string) => id.startsWith("lib-") || DATAPACKS.some((d)
 /** Abrem ligadas por padrão: fotos de rua e estabelecimentos (Lugares). */
 const RESTORED = loadActiveLayers([PLACES_KEY, STREET_KEY]);
 
+/** Maquete 3D (three.js) só é baixada quando abre. */
+const MaqueteView = lazy(() => import("./components/MaqueteView").then((m) => ({ default: m.MaqueteView })));
+
 const isNarrowScreen = () => window.matchMedia("(max-width: 767px)").matches;
 
-interface Diorama {
-  datasetId: string;
-  lngLat: [number, number];
-  area: Area;
-  areaChoice: AreaChoice;
-  summary: AreaSummary | null;
-  columns: boolean;
-  exaggeration: number;
-  orbiting: boolean;
-}
 const HIDDEN_KEY = "cityview.hidden-layers";
 function loadHiddenLayers(): Set<string> {
   try {
@@ -145,8 +135,6 @@ export function App() {
   const [shareStatus, setShareStatus] = useState<string | null>(null);
   const [columns3d, setColumns3d] = useState(false);
   const [municipios3d, setMunicipios3d] = useState(false);
-  const [diorama, setDiorama] = useState<Diorama | null>(null);
-  const [comparisonId, setComparisonId] = useState("populacao");
   /** Camada (id no mapa) que acende os prédios; null = desligado. */
   const [paintDataset, setPaintDataset] = useState<string | null>(null);
   const paintBuildingsOn = paintDataset !== null;
@@ -407,9 +395,9 @@ export function App() {
     active.has(DATASET_KEY) && demoMeta
       ? CLIENT_DATASET.id
       : (Object.keys(serverMetas).find((id) => active.has(id)) ?? (active.has(PLACES_KEY) && places ? PLACES.id : undefined));
-  const paintTarget = diorama?.datasetId ?? paintDataset ?? undefined;
+  const paintTarget = paintDataset ?? undefined;
   /** Liga/desliga sem escolher camada (Ajustes, maquete): usa a da maquete ou a primeira ligada. */
-  const setPaintBuildingsOn = (on: boolean) => setPaintDataset(on ? (paintDataset ?? diorama?.datasetId ?? firstDataset ?? null) : null);
+  const setPaintBuildingsOn = (on: boolean) => setPaintDataset(on ? (paintDataset ?? firstDataset ?? null) : null);
   useEffect(() => {
     if (!map) return;
     map.setBuildingPaint(paintBuildingsOn && paintTarget ? paintTarget : null, setBuildingResult);
@@ -603,11 +591,6 @@ export function App() {
     map?.setDatasetsExtruded(on);
   };
 
-  const toggleDioramaColumns = (on: boolean) => {
-    map?.setDioramaColumns(on);
-    setDiorama((d) => (d ? { ...d, columns: on } : d));
-  };
-
   const toggleMunicipios3d = (on: boolean) => {
     setMunicipios3d(on);
     if (on) setActive((prev) => new Set(prev).add("municipios-populacao"));
@@ -615,29 +598,6 @@ export function App() {
   };
 
   // ---------- Visualização avançada (maquete) ----------
-
-  const openDiorama = async (datasetId: string, lngLat: [number, number], area: Area, areaChoice: AreaChoice) => {
-    if (!map) return;
-    if (measuring) stopMeasure();
-    const exaggeration = diorama?.exaggeration ?? 1.8;
-    setDiorama({ datasetId, lngLat, area, areaChoice, summary: null, columns: diorama?.columns ?? false, exaggeration, orbiting: false });
-    setActive((prev) => new Set(prev).add(datasetKey(datasetId)));
-    if (isNarrowScreen()) setPanel(null);
-    await map.enterDiorama(area.geometry, {
-      datasetId,
-      maxZoom: area.kind === "raio" && (area.radiusKm ?? 10) <= 1 ? 16.5 : 13.5,
-      exaggeration,
-      columns: diorama?.columns ?? false,
-      // Na tela larga, o painel ocupa a esquerda do mapa.
-      padding: isNarrowScreen() ? 40 : { top: 50, bottom: 50, left: 360, right: 50 },
-      onSummary: (summary) => setDiorama((d) => (d && d.area === area ? { ...d, summary } : d)),
-    });
-    map.startOrbit(4, orbitStopped);
-    setDiorama((d) => (d && d.area === area ? { ...d, orbiting: true } : d));
-  };
-
-  /** A pessoa mexeu no mapa: a câmera para de girar e o controle desmarca. */
-  const orbitStopped = () => setDiorama((d) => (d ? { ...d, orbiting: false } : d));
 
   /** Maquete do ponto clicado, com os pontos das camadas de dados ligadas. */
   const startAdvanced = async (p: MapPick) => {
@@ -656,43 +616,6 @@ export function App() {
     setWidgetsOpen(false);
     setMaquete({ center: p.dataset?.lngLat ?? p.lngLat, title, datasetIds });
   };
-
-  const changeDioramaArea = async (choice: AreaChoice) => {
-    if (!diorama) return;
-    const area = choice === "municipio" ? await areaAt(diorama.lngLat) : radiusArea(diorama.lngLat, choice);
-    void openDiorama(diorama.datasetId, diorama.lngLat, area, choice);
-  };
-
-  const exitDiorama = () => {
-    map?.exitDiorama();
-    setDiorama(null);
-  };
-
-  const setOrbit = (on: boolean) => {
-    if (on) map?.startOrbit(4, orbitStopped);
-    else map?.stopOrbit();
-    setDiorama((d) => (d ? { ...d, orbiting: on } : d));
-  };
-
-  const setExaggeration = (value: number) => {
-    map?.setTerrainExaggeration(value);
-    setDiorama((d) => (d ? { ...d, exaggeration: value } : d));
-  };
-
-  /** Grandezas do município da maquete: população (IBGE) + camadas da biblioteca no mapa. */
-  const comparisons = useMemo<Comparison[]>(() => {
-    const area = diorama?.area;
-    if (!area || area.kind !== "municipio" || !area.code) return [];
-    const list: Comparison[] = [];
-    if (area.population) list.push({ id: "populacao", label: "População (IBGE 2022)", unit: "pessoas", value: area.population });
-    for (const layer of libraryLayers) {
-      const feature = (layer.data.features as { properties: { codigo: string | number; valor: number } }[]).find(
-        (f) => String(f.properties.codigo) === area.code,
-      );
-      if (feature) list.push({ id: layer.manifest.id, label: `${layer.variable} · ${layer.period}`, unit: layer.unit, value: feature.properties.valor });
-    }
-    return list;
-  }, [diorama?.area, libraryLayers]);
 
   // TODO(fase 2b): geocodificação local (Photon). Por enquanto a busca não faz nada.
   /** O que cada resultado da busca faz ao ser escolhido. */
@@ -1252,7 +1175,9 @@ export function App() {
               popupEl,
             )}
           {maquete && map && (
+            <Suspense fallback={null}>
             <MaqueteView map={map} center={maquete.center} title={maquete.title} datasetIds={maquete.datasetIds} theme={`${theme}-${look}`} datasets={datasetInfos} onClose={() => setMaquete(null)} />
+            </Suspense>
           )}
           {measuring && (
             <MeasurePanel
@@ -1265,32 +1190,6 @@ export function App() {
             />
           )}
           {streetImageId && <StreetViewer imageId={streetImageId} onCamera={(c) => map?.setLocationMarker(c)} onClose={closeStreetView} />}
-          {diorama && (
-            <DioramaPanel
-              area={diorama.area}
-              areaChoice={diorama.areaChoice}
-              dataset={datasetInfos[diorama.datasetId]}
-              summary={diorama.summary}
-              columns={diorama.columns}
-              exaggeration={diorama.exaggeration}
-              orbiting={diorama.orbiting}
-              comparisons={comparisons}
-              comparisonId={comparisonId}
-              onComparison={setComparisonId}
-              buildings={paintBuildingsOn}
-              buildingResult={buildingResult}
-              onBuildings={setPaintBuildingsOn}
-              onAreaChoice={(c) => {
-                // Nível da rua: liga os prédios dos dados por padrão.
-                if (c === 0.5 || c === 1) setPaintBuildingsOn(true);
-                void changeDioramaArea(c);
-              }}
-              onColumns={toggleDioramaColumns}
-              onExaggeration={setExaggeration}
-              onOrbit={setOrbit}
-              onExit={exitDiorama}
-            />
-          )}
         </main>
 
         {widgetsOpen && <WidgetsPanel widgets={widgets} onClose={() => setWidgetsOpen(false)} />}

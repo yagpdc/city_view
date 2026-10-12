@@ -1,4 +1,5 @@
-import { MaqueteScene, formatArea, type CityMap, type MaqueteData, type MaqueteSelection } from "@cityview/engine";
+import { formatArea, type CityMap, type MaqueteData, type MaqueteSelection } from "@cityview/engine";
+import { MaqueteScene } from "@cityview/engine/maquete";
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "./Icon";
 import { MaqueteDetails } from "./MaqueteDetails";
