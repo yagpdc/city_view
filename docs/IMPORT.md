@@ -9,6 +9,14 @@ que quer ver). Quem não quiser, **sobe direto** e ajusta depois.
 
 Princípios:
 
+- **Tudo no navegador do usuário.** O servidor não recebe nem guarda o que ele sobe (ADR 0002). Arquivo,
+  receita e camadas ficam no armazenamento do navegador (IndexedDB/OPFS) e somem se ele limpar os dados do
+  site, usar janela anônima ou trocar de computador. Isso aparece **com clareza** na importação, no painel de
+  camadas ("neste navegador") e antes de qualquer ação que apague. Saída: **Baixar cópia** do projeto
+  (arquivo `.cityview` com dados + receitas + mapa) e **Abrir cópia** para restaurar — ou levar a outro computador.
+- **Planilha incompatível não é beco sem saída.** Se faltar algo (localização, colunas, formato), o assistente
+  diz o que falta em português, mostra onde, e oferece como resolver ali mesmo: escolher outra coluna, criar
+  uma coluna nova, corrigir valores, ou **juntar com outra planilha** que tenha o que falta.
 - **Nada é destrutivo.** O arquivo original fica intacto (no navegador, ADR 0002); o que o usuário faz é uma
   **receita** — uma lista de passos aplicados em ordem — que pode ser desfeita, reordenada e **reaplicada**
   quando ele subir a versão do mês que vem da mesma planilha.
@@ -70,6 +78,12 @@ grande"*, senão … · condições E/OU sobre qualquer coluna · várias regras
 
 **Linhas** — filtrar (manter só/remover as que…) · amostra · ordenar (só para a visualização).
 
+**Juntar com outra planilha** — completar a planilha atual (ou uma camada já no mapa) com colunas de outro
+arquivo, casando por uma coluna-chave (CNPJ, código, nome normalizado): "as empresas estão nesta, as
+localizações naquela". Mostra quantas linhas casaram, quantas não, e as que bateram mais de uma vez (escolher
+a primeira, somar, contar…). Também **acrescentar linhas** de outro arquivo com as mesmas colunas (ex.: as lojas
+de outra região), alinhando colunas de nomes diferentes.
+
 **Datas** — reconhecer formatos (inclusive número de série do Excel) · extrair ano, mês, dia da semana.
 
 **Localização** — escolher as colunas · trocar lat/lon invertidas · corrigir escala (−2356000 → −23,56) ·
@@ -99,7 +113,8 @@ fora do Brasil (avisar, não bloquear) · repetidas (vários registros no mesmo 
 1. **Pré-montagem + Subir direto + relatório de qualidade** (linhas que ficam de fora e por quê, download) +
    perfil da coluna + passos básicos de coluna e limpeza + os casos difíceis de arquivo e coordenada.
 2. **Transformações**: arredondar, faixas, recodificar, regras/tags, filtros de linhas, coluna calculada;
-   receita salva com a camada; **Editar dados** e **Atualizar com nova planilha**.
+   receita salva com a camada; **Editar dados** e **Atualizar com nova planilha**; **juntar com outra
+   planilha** e **acrescentar linhas**; **Baixar/Abrir cópia** do projeto.
 3. **Localização sem coordenada**: planilha de território (município/UF/código IBGE), CEP e endereço (CNEFE).
 4. **Inteligência**: sugestões automáticas melhores (unificar grafias, detectar "é uma faixa", "é moeda"),
    descrever a regra em português ("transforme 'sim' em verdadeiro") e virar passo.
