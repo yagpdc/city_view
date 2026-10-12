@@ -125,7 +125,7 @@ export class CityMap {
   } | null = null;
   private orbitFrame = 0;
   /** Prédios pintados pelos pontos de um dataset (no nível da rua). */
-  private buildingPaint: { datasetId: string; onResult?: (r: BuildingPaintResult | null) => void; timer: number } | null = null;
+  private buildingPaint: { datasetId: string; onResult?: (r: BuildingPaintResult | null) => void; timer: number; signature?: string } | null = null;
   private readonly repaintBuildings = () => this.scheduleBuildingPaint();
   /** Tiles novos de pontos ou prédios: repinta (ignora a própria fonte dos prédios pintados). */
   private readonly repaintOnTiles = (e: { sourceId?: string; isSourceLoaded?: boolean; tile?: unknown }) => {
@@ -355,9 +355,14 @@ export class CityMap {
     }
     const result = paintBuildings(this.map, {
       pointsSource: `cv-${dataset.id}`,
+      pointsLayer: `cv-${dataset.id}-points`,
       categoryProperty: dataset.meta.categoryProperty,
       buildingsSource,
+      buildingsLayer: BUILDINGS_3D_LAYER,
     });
+    // Tiles chegando disparam nova pintura; se o resultado é o mesmo, não redesenha (evita piscar).
+    if (result.signature === paint.signature && this.map.getSource("client-buildings")) return;
+    paint.signature = result.signature;
     const data = { type: "FeatureCollection" as const, features: result.features };
     const source = this.map.getSource<GeoJSONSource>("client-buildings");
     if (source) source.setData(data);

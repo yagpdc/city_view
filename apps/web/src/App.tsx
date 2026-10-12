@@ -144,7 +144,9 @@ export function App() {
   const [municipios3d, setMunicipios3d] = useState(false);
   const [diorama, setDiorama] = useState<Diorama | null>(null);
   const [comparisonId, setComparisonId] = useState("populacao");
-  const [paintBuildingsOn, setPaintBuildingsOn] = useState(false);
+  /** Camada (id no mapa) que acende os prédios; null = desligado. */
+  const [paintDataset, setPaintDataset] = useState<string | null>(null);
+  const paintBuildingsOn = paintDataset !== null;
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [libraryLayers, setLibraryLayers] = useState<LibraryLayer[]>([]);
   const [buildingResult, setBuildingResult] = useState<BuildingPaintResult | null>(null);
@@ -397,11 +399,14 @@ export function App() {
     return () => window.clearTimeout(t);
   }, [shareStatus]);
 
-  // Prédios dos seus dados: o dataset da maquete ou o primeiro dos seus dados que estiver ligado.
-  const paintTarget = diorama?.datasetId
-    ?? (active.has(DATASET_KEY) && demoMeta
+  // Prédios acesos: pela camada escolhida no cartão; na maquete, pelo dataset dela.
+  const firstDataset =
+    active.has(DATASET_KEY) && demoMeta
       ? CLIENT_DATASET.id
-      : (Object.keys(serverMetas).find((id) => active.has(id)) ?? (active.has(PLACES_KEY) && places ? PLACES.id : undefined)));
+      : (Object.keys(serverMetas).find((id) => active.has(id)) ?? (active.has(PLACES_KEY) && places ? PLACES.id : undefined));
+  const paintTarget = diorama?.datasetId ?? paintDataset ?? undefined;
+  /** Liga/desliga sem escolher camada (Ajustes, maquete): usa a da maquete ou a primeira ligada. */
+  const setPaintBuildingsOn = (on: boolean) => setPaintDataset(on ? (paintDataset ?? diorama?.datasetId ?? firstDataset ?? null) : null);
   useEffect(() => {
     if (!map) return;
     map.setBuildingPaint(paintBuildingsOn && paintTarget ? paintTarget : null, setBuildingResult);
@@ -786,18 +791,36 @@ export function App() {
       />
     );
   };
-  const datasetOptions = (
-    <div className="layer-options">
-      <button type="button" className={`chip-toggle ${columns3d ? "is-on" : ""}`} aria-pressed={columns3d} onClick={() => toggleColumns(!columns3d)}>
-        <Icon name="box3d" size={16} />
-        Colunas 3D
-      </button>
-      <button type="button" className={`chip-toggle ${paintBuildingsOn ? "is-on" : ""}`} aria-pressed={paintBuildingsOn} onClick={() => setPaintBuildingsOn(!paintBuildingsOn)}>
-        <Icon name="pin" size={16} />
-        Prédios acesos
-      </button>
-    </div>
-  );
+  const datasetOptions = (id: string) => {
+    const painting = paintDataset === id;
+    return (
+      <>
+        <div className="layer-options">
+          <button type="button" className={`chip-toggle ${columns3d ? "is-on" : ""}`} aria-pressed={columns3d} onClick={() => toggleColumns(!columns3d)}>
+            <Icon name="box3d" size={16} />
+            Colunas 3D
+          </button>
+          <button
+            type="button"
+            className={`chip-toggle ${painting ? "is-on" : ""}`}
+            aria-pressed={painting}
+            onClick={() => setPaintDataset(painting ? null : id)}
+            title="Pinta cada prédio com a categoria que mais aparece nele"
+          >
+            <Icon name="pin" size={16} />
+            Prédios acesos
+          </button>
+        </div>
+        {painting && (
+          <p className="layer-hint muted">
+            {buildingResult
+              ? `${int.format(buildingResult.features.length)} prédios acesos na tela`
+              : "Aproxime até o nível da rua (zoom 14+) para ver os prédios. Por enquanto, prédios em 3D só na Grande SP."}
+          </p>
+        )}
+      </>
+    );
+  };
   const datapackLegend = (d: (typeof DATAPACKS)[number]) => {
     const r = d.render;
     if (r.type === "choropleth") {
@@ -834,7 +857,7 @@ export function App() {
         <LayerCard badge={badge} tone={tone} title={d.name} origin="user" meta={meta} visible={active.has(d.id)} onVisible={d.status === "ready" ? (v) => toggle(d.id, v) : undefined} actions={actions} status={working ? "working" : d.status === "error" ? "error" : undefined} progress={working ? d.progress : undefined}>
           {datasetLegend(d.id)}
           {datasetValueFilter(d.id)}
-          {datasetOptions}
+          {datasetOptions(d.id)}
         </LayerCard>
       ),
     });
@@ -922,7 +945,7 @@ export function App() {
         >
           {datasetLegend(PLACES.id)}
           {datasetValueFilter(PLACES.id)}
-          {datasetOptions}
+          {datasetOptions(PLACES.id)}
         </LayerCard>
       ),
     });
@@ -943,7 +966,7 @@ export function App() {
         >
           {datasetLegend(CLIENT_DATASET.id)}
           {datasetValueFilter(CLIENT_DATASET.id)}
-          {datasetOptions}
+          {datasetOptions(CLIENT_DATASET.id)}
         </LayerCard>
       ),
     });

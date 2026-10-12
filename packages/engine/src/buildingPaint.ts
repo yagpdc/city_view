@@ -30,6 +30,8 @@ export interface BuildingPaintResult {
   points: number;
   matchedPoints: number;
   buildings: number;
+  /** Identidade do resultado: igual = nada mudou. */
+  signature: string;
 }
 
 interface ClientPoint {
@@ -71,6 +73,10 @@ export function paintBuildings(
     pointsSource: string;
     categoryProperty: string;
     buildingsSource: string;
+    /** Camada de prédios desenhada: se existir, usa só o que está na tela (sem cópias de outros zooms). */
+    buildingsLayer?: string;
+    /** Camada de pontos desenhada: respeita filtros e visibilidade. */
+    pointsLayer?: string;
     maxDistanceM?: number;
   },
 ): BuildingPaintResult {
@@ -79,7 +85,11 @@ export function paintBuildings(
   // Pontos do cliente carregados na tela (um por id: o mesmo ponto pode vir de mais de um tile).
   const seen = new Set<string | number>();
   const points: ClientPoint[] = [];
-  for (const f of map.querySourceFeatures(opts.pointsSource, { sourceLayer: "points" })) {
+  const pointFeatures =
+    opts.pointsLayer && map.getLayer(opts.pointsLayer)
+      ? map.queryRenderedFeatures({ layers: [opts.pointsLayer] })
+      : map.querySourceFeatures(opts.pointsSource, { sourceLayer: "points" });
+  for (const f of pointFeatures) {
     if (f.geometry.type !== "Point") continue;
     const key = f.id ?? `${f.geometry.coordinates.join(",")}`;
     if (seen.has(key)) continue;
@@ -96,14 +106,23 @@ export function paintBuildings(
     else grid.set(k, [i]);
   });
 
-  // Prédios na tela.
-  const buildings: { geometry: AreaGeometry; props: Record<string, unknown>; center: Position; box: [number, number, number, number] }[] = [];
-  for (const f of map.querySourceFeatures(opts.buildingsSource, { sourceLayer: "buildings" })) {
+  // Prédios na tela. Os desenhados vêm só dos tiles visíveis; os da fonte incluem tiles de outros zooms
+  // ainda em memória (o mesmo prédio duas vezes, recortado diferente), o que fazia as cores piscarem.
+  const buildingFeatures =
+    opts.buildingsLayer && map.getLayer(opts.buildingsLayer) && map.getLayoutProperty(opts.buildingsLayer, "visibility") !== "none"
+      ? map.queryRenderedFeatures({ layers: [opts.buildingsLayer] })
+      : map.querySourceFeatures(opts.buildingsSource, { sourceLayer: "buildings" });
+  const buildings: { key: string; geometry: AreaGeometry; props: Record<string, unknown>; center: Position; box: [number, number, number, number] }[] = [];
+  const seenBuildings = new Set<string>();
+  for (const f of buildingFeatures) {
     if (f.geometry.type !== "Polygon" && f.geometry.type !== "MultiPolygon") continue;
     const geometry = f.geometry as AreaGeometry;
     const outer = geometry.type === "Polygon" ? geometry.coordinates[0] : geometry.coordinates[0]?.[0];
     if (!outer || outer.length < 3) continue;
-    buildings.push({ geometry, props: f.properties ?? {}, center: ringCentroid(outer), box: bbox(geometry) });
+    const key = `${f.id ?? ""}:${outer.length}:${outer[0]![0]!.toFixed(6)},${outer[0]![1]!.toFixed(6)}`;
+    if (seenBuildings.has(key)) continue;
+    seenBuildings.add(key);
+    buildings.push({ key, geometry, props: f.properties ?? {}, center: ringCentroid(outer), box: bbox(geometry) });
   }
 
   // 1) Pontos dentro de prédios.
@@ -164,22 +183,29 @@ export function paintBuildings(
     if (recs.length < MAX_RECORDS) recs.push({ id: p.id, category: p.category, properties: p.properties });
   });
 
-  const features: PaintedBuilding[] = [];
+  const painted: { key: string; feature: PaintedBuilding }[] = [];
   for (const [bi, counts] of perBuilding) {
     const b = buildings[bi]!;
     const n = [...counts.values()].reduce((a, v) => a + v, 0);
     const h = Number(b.props.height ?? 0) || 6;
-    features.push({
-      type: "Feature",
-      geometry: b.geometry,
-      properties: {
-        c: dominant(counts),
-        n,
-        h,
-        mh: Number(b.props.min_height ?? 0) || 0,
-        recs: JSON.stringify(recordsPerBuilding.get(bi) ?? []),
+    painted.push({
+      key: b.key,
+      feature: {
+        type: "Feature",
+        geometry: b.geometry,
+        properties: {
+          c: dominant(counts),
+          n,
+          h,
+          mh: Number(b.props.min_height ?? 0) || 0,
+          recs: JSON.stringify(recordsPerBuilding.get(bi) ?? []),
+        },
       },
     });
   }
-  return { features, points: points.length, matchedPoints, buildings: buildings.length };
+  // Ordem estável: a mesma tela dá a mesma assinatura (e não redesenha à toa).
+  painted.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+  const features = painted.map((p) => p.feature);
+  const signature = painted.map((p) => `${p.key}=${p.feature.properties.c}/${p.feature.properties.n}`).join("|");
+  return { features, points: points.length, matchedPoints, buildings: buildings.length, signature };
 }
