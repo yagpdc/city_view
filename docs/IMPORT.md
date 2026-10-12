@@ -108,6 +108,75 @@ espaços invisíveis.
 Coordenadas: invertidas · zeradas (0,0) · sem ponto decimal · numa coluna só ("lat, lon") · em graus/minutos ·
 fora do Brasil (avisar, não bloquear) · repetidas (vários registros no mesmo ponto: agrupar/espalhar).
 
+## Riscos: o que pode quebrar na mão do cliente
+
+Análise de 2026-10-12. Impacto: **perda silenciosa** (o dado entra errado e ninguém percebe) é pior que erro
+explícito. Estado: ✅ tratado · ◐ parcial · ❌ não tratado. A ordem de ataque segue a coluna "prioridade".
+
+### Perda silenciosa de dado (prioridade máxima)
+
+| Caso | Por que acontece | Estado |
+|---|---|---|
+| **CNPJ, CPF, telefone, código de barras como número** | Detectados como "Número" → viram float: zeros à esquerda somem e acima de 15 dígitos os últimos mudam (`12345678000195` ok, `7891234567890123` não) | ❌ detectar identificadores (nome da coluna, tamanho fixo, máscara) e manter como texto |
+| **Excel já estragou o valor**: `1,23457E+13`, CEP `1310200`, IBGE `350950` | O Excel converteu antes de chegar a nós | ◐ CEP ✅; avisar quando um ID estiver em notação científica (não dá para recuperar) |
+| **Linha de total/subtotal** no fim ("Total", "Soma") | Vira um registro com valor gigante | ❌ detectar linhas com texto "total" e números ≈ soma das demais |
+| **Cabeçalho repetido no meio** (relatório paginado) e rodapé ("Fonte: …") | Viram registros | ❌ remover linhas iguais ao cabeçalho; detectar rodapé de texto livre |
+| **Cabeçalho em duas linhas** (célula mesclada "Endereço" sobre "Rua / Número") | Nomes de coluna errados | ❌ detectar e combinar ("Endereço · Rua") |
+| **Excel com porcentagem guardada como 0,12** (mostra 12%) | Lemos o valor real 0,12 | ❌ ler o formato da célula; perguntar ×100 |
+| **Erros de fórmula** `#N/D`, `#REF!`, `#DIV/0!`, `#VALOR!` | Viram texto, estragam a coluna numérica | ❌ tratar como vazio e contar |
+| **Marcadores de vazio**: "-", "N/A", "n/d", "NULL", "nan", "sem informação", "0" usado como vazio | Viram categorias ou números | ❌ reconhecer e sugerir "tratar como vazio" |
+| **Coordenadas em UTM** (ex.: 333000; 7395000 — exportação de GIS, SIRGAS 2000 23S) | Fora de qualquer faixa: tudo é rejeitado ou cai no oceano | ❌ detectar (valores de 6–7 dígitos) e reprojetar, perguntando o fuso |
+| **Coordenadas em metros (Web Mercator)** | Idem | ❌ detectar e reprojetar |
+| **Um ponto absurdo** (erro de digitação: 0,5; 0,5) | Enquadramento mostra o mundo inteiro; parece que "não carregou" | ◐ (0,0) ✅; usar enquadramento robusto (ignorar 1% extremo) e listar os pontos isolados |
+| **Precisão baixa** (coordenadas inteiras ou 1 casa) | Centenas de registros empilhados num ponto | ❌ avisar "N registros no mesmo lugar" e oferecer espalhar/agrupar |
+| **Categoria com mais de 65 mil valores** em arquivo grande | Excedente fica vazio | ◐ avisar quando acontecer |
+| **Coluna chamada `_c`** (ou outros nomes internos) | Sobrescreve a categoria interna nos tiles | ❌ reservar/renomear nomes internos |
+| **Dois formatos de número na mesma coluna** ("1.234,5" e "1,234.5") | Metade lida errada | ◐ avisar quando o formato da coluna for ambíguo |
+
+### Arquivo que não abre ou abre errado
+
+| Caso | Estado |
+|---|---|
+| CSV em **UTF-16** (Excel "Texto Unicode", com tab) — comum no Windows | ❌ detectar BOM UTF-16 e decodificar |
+| `.xls` antigo, `.ods`, `.xlsb`, `.numbers` | ❌ mensagem clara ("salve como .xlsx ou .csv") |
+| Excel protegido por senha | ❌ mensagem clara |
+| Excel grande (> ~100 MB) — a biblioteca carrega tudo na memória | ❌ avisar e sugerir CSV; leitura em fluxo depois |
+| Aspas não fechadas no CSV (uma linha "come" o resto) | ❌ detectar campos gigantes e apontar a linha |
+| Separador dentro do valor sem aspas ("Rua A, 10") | ◐ linhas com colunas a mais: apontar |
+| Delimitador no fim da linha (coluna vazia extra) | ✅ coluna vazia some |
+| Arquivo só com cabeçalho / vazio | ✅ mensagem |
+| JSON que não é GeoJSON, GeoJSON com CRS antigo (não WGS84) | ◐ JSON inválido ✅; CRS ❌ |
+| Shapefile (.zip), KML/KMZ, GPX | ❌ fase 1 (KML/SHP) |
+| Arquivo arrastado do e-mail/OneDrive ainda baixando (0 bytes) | ❌ mensagem |
+
+### Navegador e escala
+
+| Caso | Estado |
+|---|---|
+| **Espaço do navegador acabou** (cota do IndexedDB; Safari ~1 GB; janela anônima menor) | ◐ erro genérico → mensagem clara + quanto ocupa + apagar camadas antigas |
+| **Navegador apaga os dados** (Safari após 7 dias sem uso; limpeza) | ◐ pedimos armazenamento persistente; falta avisar e oferecer "Baixar cópia" |
+| Celular/tablet: pouca memória, sem arrastar arquivo | ❌ limite por aparelho; botão de escolher arquivo sempre visível |
+| Importação longa sem **cancelar** | ❌ botão cancelar (encerra o worker) |
+| Aba fechada no meio | ✅ nada fica pela metade (grava no fim) |
+| Mesmo arquivo importado duas vezes | ❌ perguntar "substituir ou criar outra camada?" |
+| Duas abas do app abertas | ◐ ver as mesmas camadas; recarregar ao mudar |
+| Centenas de colunas (UI lenta) | ❌ busca e virtualização na lista de colunas |
+| Mensagens técnicas (erro do motor em Rust/WASM) chegando ao usuário | ◐ traduzir para o que fazer |
+
+### Dados sensíveis
+
+| Caso | Estado |
+|---|---|
+| Colunas de CPF, e-mail, telefone de pessoas | ◐ ficam no navegador (ADR 0002); avisar ao compartilhar mapa/imagem e sugerir esconder a coluna |
+
+### Como garantir
+
+- **Corpus de planilhas-problema** (`samples/import-corpus/`): um arquivo pequeno por caso acima, com o resultado
+  esperado (linhas, tipos, avisos) — vira teste automático do importador e regressão a cada mudança.
+- **Teste de fumaça no navegador** com os 5 piores casos (UTF-16, total no fim, CNPJ, UTM, Excel com 2 abas).
+- **Nada de perda silenciosa**: cada transformação automática aparece como passo na receita (dá para ver e desfazer)
+  e cada linha descartada entra no relatório com o motivo.
+
 ## Fases
 
 1. **Pré-montagem + Subir direto + relatório de qualidade** (linhas que ficam de fora e por quê, download) +
