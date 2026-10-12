@@ -165,8 +165,8 @@ export function App() {
     assetsUrl: `${location.origin}/data/assets`,
     terrain: false,
     look,
-    // Prédios 3D vêm do extrato detalhado (Grande SP); o mapa do Brasil vai só até z12.
-    buildingsUrl: `${location.origin}/data/sao-paulo.pmtiles`,
+    // Prédios 3D vêm do extrato detalhado das principais cidades (`pnpm cidades`); o mapa do Brasil vai só até z12.
+    buildingsUrl: `${location.origin}/data/cidades.pmtiles`,
     theme,
     camera: { ...START_CAMERA, pitch: 0, bearing: 0 },
     hash: CAMERA_PARAM,
@@ -753,7 +753,7 @@ export function App() {
           <p className="layer-hint muted">
             {buildingResult
               ? `${int.format(buildingResult.features.length)} prédios acesos na tela`
-              : "Aproxime até o nível da rua (zoom 14+) para ver os prédios. Por enquanto, prédios em 3D só na Grande SP."}
+              : "Aproxime até o nível da rua (zoom 14+) para ver os prédios. Por enquanto, prédios em 3D nas principais cidades."}
           </p>
         )}
       </>
@@ -1126,7 +1126,7 @@ export function App() {
         </label>
         {paintBuildingsOn && (
           <p className="hint left">
-            {buildingResult ? `${int.format(buildingResult.features.length)} prédios acesos na tela` : "Aproxime até o nível da rua (zoom 14+). Por enquanto, prédios só na Grande SP."}
+            {buildingResult ? `${int.format(buildingResult.features.length)} prédios acesos na tela` : "Aproxime até o nível da rua (zoom 14+). Por enquanto, prédios em 3D nas principais cidades."}
           </p>
         )}
       </PanelCard>

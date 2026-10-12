@@ -213,7 +213,7 @@ export function MaqueteView({
       )}
       {!state.loading && (state.error || empty) && (
         <div className="maquete-status">
-          {state.error ? `Não deu para montar: ${state.error}` : "Sem prédios em 3D aqui ainda. Por enquanto, a maquete cobre a Grande São Paulo."}
+          {state.error ? `Não deu para montar: ${state.error}` : "Sem prédios em 3D aqui ainda. Por enquanto, a maquete cobre as principais cidades (capitais e grandes regiões metropolitanas)."}
         </div>
       )}
     </section>

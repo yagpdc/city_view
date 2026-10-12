@@ -1,0 +1,32 @@
+{
+  "_doc": "Áreas do mapa detalhado (prédios 3D, z15) — data/build_cidades.py. center [lon, lat]; half = meia largura em graus (~111 km por grau).",
+  "areas": [
+    { "name": "São Paulo (RM)", "bbox": [-47.10, -24.05, -46.15, -23.35] },
+    { "name": "Campinas", "center": [-47.06, -22.90], "half": 0.18 },
+    { "name": "Santos / Baixada", "center": [-46.33, -23.96], "half": 0.14 },
+    { "name": "Rio de Janeiro (RM)", "bbox": [-43.80, -23.10, -42.95, -22.60] },
+    { "name": "Belo Horizonte (RM)", "center": [-43.95, -19.90], "half": 0.22 },
+    { "name": "Brasília", "center": [-47.93, -15.80], "half": 0.25 },
+    { "name": "Curitiba (RM)", "center": [-49.27, -25.45], "half": 0.2 },
+    { "name": "Porto Alegre (RM)", "center": [-51.18, -30.00], "half": 0.22 },
+    { "name": "Florianópolis", "center": [-48.55, -27.60], "half": 0.16 },
+    { "name": "Salvador", "center": [-38.47, -12.95], "half": 0.18 },
+    { "name": "Recife (RM)", "center": [-34.93, -8.06], "half": 0.16 },
+    { "name": "Fortaleza", "center": [-38.53, -3.77], "half": 0.16 },
+    { "name": "Goiânia", "center": [-49.27, -16.68], "half": 0.16 },
+    { "name": "Manaus", "center": [-60.02, -3.07], "half": 0.14 },
+    { "name": "Belém", "center": [-48.47, -1.40], "half": 0.14 },
+    { "name": "Vitória (RM)", "center": [-40.32, -20.30], "half": 0.14 },
+    { "name": "Natal", "center": [-35.22, -5.82], "half": 0.12 },
+    { "name": "João Pessoa", "center": [-34.86, -7.13], "half": 0.1 },
+    { "name": "Maceió", "center": [-35.73, -9.62], "half": 0.1 },
+    { "name": "Aracaju", "center": [-37.07, -10.93], "half": 0.08 },
+    { "name": "São Luís", "center": [-44.25, -2.55], "half": 0.12 },
+    { "name": "Teresina", "center": [-42.80, -5.08], "half": 0.1 },
+    { "name": "Campo Grande", "center": [-54.62, -20.46], "half": 0.1 },
+    { "name": "Cuiabá", "center": [-56.08, -15.60], "half": 0.12 },
+    { "name": "Ribeirão Preto", "center": [-47.81, -21.18], "half": 0.08 },
+    { "name": "Sorocaba", "center": [-47.46, -23.50], "half": 0.08 },
+    { "name": "São José dos Campos", "center": [-45.89, -23.20], "half": 0.08 }
+  ]
+}

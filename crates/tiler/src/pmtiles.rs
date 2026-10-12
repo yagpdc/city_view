@@ -114,22 +114,31 @@ pub struct HeaderInfo {
     pub center_zoom: u8,
 }
 
+/// Onde os tiles ficam até o fim: arquivo temporário (servidor) ou memória (navegador/WASM).
+enum Sink {
+    File { path: PathBuf, buf: BufWriter<File> },
+    Memory(Vec<u8>),
+}
+
 pub struct Writer {
-    tmp_path: PathBuf,
-    tmp: BufWriter<File>,
+    sink: Sink,
     entries: Vec<Entry>,
     offset: u64,
 }
 
 impl Writer {
     pub fn create(out: &Path) -> io::Result<Self> {
-        let tmp_path = out.with_extension("pmtiles.tmp");
+        let path = out.with_extension("pmtiles.tmp");
         Ok(Self {
-            tmp: BufWriter::with_capacity(8 << 20, File::create(&tmp_path)?),
-            tmp_path,
+            sink: Sink::File { buf: BufWriter::with_capacity(8 << 20, File::create(&path)?), path },
             entries: Vec::new(),
             offset: 0,
         })
+    }
+
+    /// Tudo em memória (sem sistema de arquivos), para rodar no navegador.
+    pub fn in_memory() -> Self {
+        Self { sink: Sink::Memory(Vec::new()), entries: Vec::new(), offset: 0 }
     }
 
     /// Adiciona um tile já comprimido (gzip). Os ids precisam vir em ordem crescente.
@@ -137,7 +146,10 @@ impl Writer {
         if let Some(last) = self.entries.last() {
             assert!(tile_id > last.tile_id, "tiles fora de ordem: {tile_id} <= {}", last.tile_id);
         }
-        self.tmp.write_all(data)?;
+        match &mut self.sink {
+            Sink::File { buf, .. } => buf.write_all(data)?,
+            Sink::Memory(v) => v.extend_from_slice(data),
+        }
         self.entries.push(Entry { tile_id, offset: self.offset, length: data.len() as u32, run_length: 1 });
         self.offset += data.len() as u64;
         Ok(())
@@ -147,10 +159,8 @@ impl Writer {
         self.entries.len()
     }
 
-    pub fn finish(mut self, out: &Path, info: &HeaderInfo, metadata: &serde_json::Value) -> io::Result<()> {
-        self.tmp.flush()?;
-        drop(self.tmp);
-
+    /// Cabeçalho + diretório raiz + metadados + folhas (tudo o que vem antes dos tiles).
+    fn prefix(&self, info: &HeaderInfo, metadata: &serde_json::Value) -> io::Result<Vec<u8>> {
         let (root, leaves) = build_directories(&self.entries);
         let meta = gzip(serde_json::to_vec(metadata)?.as_slice());
 
@@ -160,7 +170,7 @@ impl Writer {
         let data_offset = leaves_offset + leaves.len() as u64;
 
         let e7 = |deg: f64| ((deg * 1e7).round() as i32).to_le_bytes();
-        let mut h = Vec::with_capacity(HEADER_LEN);
+        let mut h = Vec::with_capacity(HEADER_LEN + root.len() + meta.len() + leaves.len());
         h.extend_from_slice(b"PMTiles");
         h.push(3);
         for v in [
@@ -187,24 +197,44 @@ impl Writer {
         h.extend_from_slice(&e7((w + e) / 2.0));
         h.extend_from_slice(&e7((s + n) / 2.0));
         debug_assert_eq!(h.len(), HEADER_LEN);
+        h.extend_from_slice(&root);
+        h.extend_from_slice(&meta);
+        h.extend_from_slice(&leaves);
+        Ok(h)
+    }
 
+    /// Grava o PMTiles em `out` (modo arquivo).
+    pub fn finish(self, out: &Path, info: &HeaderInfo, metadata: &serde_json::Value) -> io::Result<()> {
+        let prefix = self.prefix(info, metadata)?;
+        let Sink::File { path, mut buf } = self.sink else {
+            return Err(io::Error::other("writer em memória: use finish_to_vec"));
+        };
+        buf.flush()?;
+        drop(buf);
         let mut file = BufWriter::with_capacity(8 << 20, File::create(out)?);
-        file.write_all(&h)?;
-        file.write_all(&root)?;
-        file.write_all(&meta)?;
-        file.write_all(&leaves)?;
-        let mut tmp = File::open(&self.tmp_path)?;
-        let mut buf = vec![0u8; 8 << 20];
+        file.write_all(&prefix)?;
+        let mut tmp = File::open(&path)?;
+        let mut chunk = vec![0u8; 8 << 20];
         loop {
-            let n = tmp.read(&mut buf)?;
+            let n = tmp.read(&mut chunk)?;
             if n == 0 {
                 break;
             }
-            file.write_all(&buf[..n])?;
+            file.write_all(&chunk[..n])?;
         }
         file.flush()?;
         drop(tmp);
-        std::fs::remove_file(&self.tmp_path)
+        std::fs::remove_file(&path)
+    }
+
+    /// Devolve o PMTiles inteiro em memória (modo `in_memory`).
+    pub fn finish_to_vec(self, info: &HeaderInfo, metadata: &serde_json::Value) -> io::Result<Vec<u8>> {
+        let mut out = self.prefix(info, metadata)?;
+        match self.sink {
+            Sink::Memory(data) => out.extend_from_slice(&data),
+            Sink::File { .. } => return Err(io::Error::other("writer em arquivo: use finish")),
+        }
+        Ok(out)
     }
 }
 

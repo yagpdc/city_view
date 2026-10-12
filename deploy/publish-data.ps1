@@ -22,7 +22,7 @@ $Ssh = @("-i", $Key, "-o", "StrictHostKeyChecking=accept-new")
 
 # O que vai para o servidor (o resto de data/out, como os .parquet de origem, fica só aqui).
 $Parts = [ordered]@{
-  basemap   = @("brasil.pmtiles", "sao-paulo.pmtiles", "sao-paulo-terrain.pmtiles")
+  basemap   = @("brasil.pmtiles", "cidades.pmtiles", "sao-paulo-terrain.pmtiles")
   assets    = @("assets")
   datapacks = @("datapacks")
   places    = @("places/brasil", "places/brasil.release.json", "places/sao-paulo", "places/sao-paulo.release.json")
