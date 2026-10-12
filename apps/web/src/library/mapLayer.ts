@@ -1,7 +1,10 @@
 import type { DatapackManifest } from "@cityview/engine";
 import { dataUrl } from "../catalog";
 import type { SavedLibraryLayer } from "../storage/datasets";
-import { MAP_LEVELS, type LibraryItem, type MapData, type MapLevel, type MapVariable } from "./types";
+import { ADAPTERS } from "./adapters";
+import { loadSource } from "./load";
+import type { LibraryRecipe } from "../share";
+import { MAP_LEVELS, decodeItem, type ItemChoice, type LibraryItem, type MapData, type MapLevel, type MapVariable } from "./types";
 
 /** Camada do mapa criada a partir de um item da biblioteca. */
 export interface LibraryLayer {
@@ -56,7 +59,7 @@ function quantileBreaks(values: number[], classes: number): number[] {
   return [...new Set(breaks)].sort((a, b) => a - b);
 }
 
-export async function buildMapLayer(item: LibraryItem, data: MapData, variable: MapVariable): Promise<LibraryLayer> {
+export async function buildMapLayer(item: LibraryItem, data: MapData, variable: MapVariable, choice: ItemChoice = {}): Promise<LibraryLayer> {
   const features = await loadMesh(data.level);
   const joined: MeshFeature[] = [];
   for (const f of features) {
@@ -98,6 +101,7 @@ export async function buildMapLayer(item: LibraryItem, data: MapData, variable: 
       title: data.title,
       period: data.period,
       level: data.level,
+      choice: { ...choice, period: data.periodId ?? choice.period, mapLevel: data.level },
       variable: { id: variable.id, name: variable.name, unit: variable.unit },
       values: [...variable.values],
     },
@@ -129,8 +133,27 @@ export function restoreMapLayer(saved: SavedLibraryLayer): Promise<LibraryLayer>
     url: saved.item.url,
   };
   const variable = { ...saved.variable, values: new Map(saved.values) };
-  return buildMapLayer(item, { title: saved.title, period: saved.period, level: saved.level ?? "municipio", variables: [variable] }, variable).then((layer) => ({
+  return buildMapLayer(item, { title: saved.title, period: saved.period, level: saved.level ?? "municipio", variables: [variable] }, variable, saved.choice).then((layer) => ({
     ...layer,
     saved: { ...layer.saved, savedAt: saved.savedAt },
   }));
+}
+
+/** Receita de uma camada (vai no link compartilhado). */
+export function recipeOf(layer: LibraryLayer): LibraryRecipe {
+  const { saved } = layer;
+  return { s: saved.source.id, i: saved.item.id, v: saved.variable.id, c: saved.choice ?? { mapLevel: layer.level } };
+}
+
+/** Refaz uma camada a partir da receita, consultando a fonte oficial de novo. */
+export async function layerFromRecipe(recipe: LibraryRecipe): Promise<LibraryLayer> {
+  const index = await loadSource(recipe.s);
+  const raw = index.items.find((it) => it[0] === recipe.i);
+  if (!raw) throw new Error(`item ${recipe.i} não está mais no índice de ${recipe.s}`);
+  const item = decodeItem(index, raw);
+  const adapter = ADAPTERS[item.source.adapter];
+  if (!adapter?.mapData) throw new Error(`a fonte ${item.source.name} não sabe pôr dados no mapa`);
+  const data = await adapter.mapData(item, recipe.c);
+  const variable = data.variables.find((v) => v.id === recipe.v) ?? data.variables[0]!;
+  return buildMapLayer(item, data, variable, recipe.c);
 }

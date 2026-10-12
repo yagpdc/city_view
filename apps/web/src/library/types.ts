@@ -74,6 +74,8 @@ export interface MapVariable {
 export interface MapData {
   title: string;
   period: string;
+  /** Código do período na fonte (para refazer a mesma consulta depois). */
+  periodId?: string;
   level: MapLevel;
   variables: MapVariable[];
 }

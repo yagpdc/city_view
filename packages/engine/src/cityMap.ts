@@ -29,8 +29,11 @@ export interface CityMapOptions extends StyleOptions {
   camera?: Partial<Camera>;
   /** Exagero vertical do relevo (1 = real). */
   terrainExaggeration?: number;
-  /** Sincroniza a câmera com o hash da URL. Desligado quando embutido no site de terceiros. */
-  hash?: boolean;
+  /**
+   * Sincroniza a câmera com o hash da URL. Desligado quando embutido no site de terceiros.
+   * Uma string vira o nome do parâmetro (`#map=…`), deixando o resto do hash livre.
+   */
+  hash?: boolean | string;
   /** Relevo começa ligado (quando há fonte de relevo). */
   terrain?: boolean;
 }
@@ -604,7 +607,11 @@ export class CityMap {
   destroy(): void {
     this.stopOrbit();
     this.resizeObserver.disconnect();
+    // O MapLibre apaga a câmera do hash ao remover o mapa. Quem recria o mapa logo em seguida
+    // (React StrictMode, troca de container) perderia a posição de um link; o hash fica como estava.
+    const url = typeof location === "undefined" ? null : location.href;
     this.map.remove();
+    if (url && url !== location.href) history.replaceState(history.state, "", url);
   }
 
   private applyState(): void {

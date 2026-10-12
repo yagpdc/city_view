@@ -84,6 +84,6 @@ export const ipeadataAdapter: LibraryAdapter = {
     for (const v of values) if (day(v.VALDATA) === target) map.set(v.TERCODIGO!, v.VALVALOR!);
     if (map.size === 0) throw new Error("não há valores nesse recorte e período");
     const unit = /\(([^()]+)\)$/.exec(item.title)?.[1] ?? "";
-    return { title: item.title, period: periodLabeler(all)(target), level, variables: [{ id: item.id, name: item.title, unit, values: map }] };
+    return { title: item.title, period: periodLabeler(all)(target), periodId: target, level, variables: [{ id: item.id, name: item.title, unit, values: map }] };
   },
 };

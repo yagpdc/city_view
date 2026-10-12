@@ -83,9 +83,19 @@ async function values(
 
 const keyByLabel = (labels: Row, test: (label: string) => boolean) => Object.keys(labels).find((k) => test(labels[k] ?? ""));
 
+function periodKey(labels: Row): string | undefined {
+  return Object.keys(labels).find((k) => /^D\dN$/.test(k) && /ano|mês|trimestre|período/i.test(labels[k] ?? ""));
+}
+
 function periodOf(labels: Row, rows: Row[]): string {
-  const key = Object.keys(labels).find((k) => /^D\dN$/.test(k) && /ano|mês|trimestre|período/i.test(labels[k] ?? ""));
+  const key = periodKey(labels);
   return key ? (rows[0]?.[key] ?? "último") : "último";
+}
+
+/** Código do período (coluna D?C ao lado do nome D?N). */
+function periodIdOf(labels: Row, rows: Row[]): string | undefined {
+  const key = periodKey(labels);
+  return key ? rows[0]?.[key.replace(/N$/, "C")] : undefined;
 }
 
 export const sidraAdapter: LibraryAdapter = {
@@ -163,6 +173,6 @@ export const sidraAdapter: LibraryAdapter = {
     }
     const variables = [...byVariable.values()].filter((v) => v.values.size > 0);
     if (variables.length === 0) throw new Error("a tabela não tem valores numéricos nesse recorte e período");
-    return { title: item.title, period: periodOf(labels, rows), level, variables };
+    return { title: item.title, period: periodOf(labels, rows), periodId: periodIdOf(labels, rows), level, variables };
   },
 };

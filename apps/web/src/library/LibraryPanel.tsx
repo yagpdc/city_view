@@ -40,7 +40,7 @@ interface Entry {
   title: string;
 }
 
-type ActionState = { busy?: "download" | "map"; ok?: string; error?: string; choose?: MapData };
+type ActionState = { busy?: "download" | "map"; ok?: string; error?: string; choose?: MapData; chooseChoice?: ItemChoice };
 
 /** Painel "Opções" de um item: opções carregadas da fonte e escolhas do usuário. */
 type OptionsState = { open: boolean; loading?: boolean; error?: string; options?: ItemOptions; choice: ItemChoice };
@@ -157,9 +157,9 @@ export function LibraryPanel({ onClose, onAddLayer }: { onClose: () => void; onA
     try {
       const d = data ?? (await adapter.mapData(it, choice));
       variableId ??= choice?.variable;
-      if (d.variables.length > 1 && !variableId) return setAction(it, { choose: d });
+      if (d.variables.length > 1 && !variableId) return setAction(it, { choose: d, chooseChoice: choice });
       const variable = d.variables.find((v) => v.id === variableId) ?? d.variables[0]!;
-      onAddLayer(await buildMapLayer(it, d, variable));
+      onAddLayer(await buildMapLayer(it, d, variable, choice));
       setAction(it, { ok: `No mapa: ${variable.name} · ${d.period} · ${MAP_LEVELS[d.level].name.toLowerCase()}` });
     } catch (e) {
       setAction(it, { error: `Não deu para pôr no mapa: ${(e as Error).message}` });
@@ -265,7 +265,7 @@ export function LibraryPanel({ onClose, onAddLayer }: { onClose: () => void; onA
                       <span className="library-choose">
                         Qual variável colocar no mapa?
                         {state.choose.variables.map((v) => (
-                          <button key={v.id} type="button" className="link" onClick={() => void showOnMap(it, state.choose, v.id)}>
+                          <button key={v.id} type="button" className="link" onClick={() => void showOnMap(it, state.choose, v.id, state.chooseChoice)}>
                             {v.name}
                             {v.unit ? ` (${v.unit})` : ""}
                           </button>

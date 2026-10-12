@@ -86,7 +86,8 @@ Ordem pensada por encanto/esforço (ver [PRODUCT.md](PRODUCT.md)).
 
 **2c. Primeira análise e colaboração**
 - [ ] "O que tem ao redor": clique/área → resumo cruzando todas as camadas
-- [ ] Link compartilhável com câmera, camadas, filtros e seleção
+- [x] Link compartilhável com câmera, camadas, camadas da biblioteca (refeitas na fonte) e aparência
+- [ ] Link: filtros do dataset, seleção e maquete (visualização avançada)
 - [ ] Widgets do viewport (contagem, categorias, histograma)
 - [ ] Motor de consultas (DuckDB) e API de detalhes; tiles dinâmicos para filtros arbitrários nos agregados
 

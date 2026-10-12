@@ -9,7 +9,8 @@ import { PickDetails, type DatasetInfo } from "./components/PickDetails";
 import { LibraryLayers } from "./components/LibraryLayers";
 import { LibraryPanel } from "./library/LibraryPanel";
 import { LIBRARY_SOURCES, LIBRARY_TOTAL } from "./library/load";
-import { restoreMapLayer, type LibraryLayer } from "./library/mapLayer";
+import { layerFromRecipe, recipeOf, restoreMapLayer, type LibraryLayer } from "./library/mapLayer";
+import { CAMERA_PARAM, clearShared, readShared, shareUrl } from "./share";
 import { ServerDatasets } from "./components/ServerDatasets";
 import { Sidebar, SidebarSection } from "./components/Sidebar";
 import { TopBar } from "./components/TopBar";
@@ -41,6 +42,9 @@ const SECTORS = [
   "Tecnologia e informação",
 ];
 
+/** Estado de um link compartilhado, lido uma vez ao abrir. */
+const SHARED = readShared();
+
 const isNarrowScreen = () => window.matchMedia("(max-width: 767px)").matches;
 
 interface Diorama {
@@ -61,8 +65,9 @@ const without = (set: Set<string>, id: string) => {
 
 export function App() {
   const [sidebarOpen, setSidebarOpen] = useState(() => !isNarrowScreen());
-  const [theme, setTheme] = useState<Theme>("light");
-  const [look, setLook] = useState<BasemapLook>("data");
+  const [theme, setTheme] = useState<Theme>(SHARED?.theme ?? "light");
+  const [look, setLook] = useState<BasemapLook>(SHARED?.look ?? "data");
+  const [shareStatus, setShareStatus] = useState<string | null>(null);
   const [columns3d, setColumns3d] = useState(false);
   const [municipios3d, setMunicipios3d] = useState(false);
   const [diorama, setDiorama] = useState<Diorama | null>(null);
@@ -72,7 +77,7 @@ export function App() {
   const [libraryLayers, setLibraryLayers] = useState<LibraryLayer[]>([]);
   const [buildingResult, setBuildingResult] = useState<BuildingPaintResult | null>(null);
   const [objective, setObjective] = useState<string | null>(null);
-  const [active, setActive] = useState<Set<string>>(loadActiveLayers);
+  const [active, setActive] = useState<Set<string>>(() => (SHARED?.layers ? new Set(SHARED.layers) : loadActiveLayers()));
   const [demoMeta, setDemoMeta] = useState<DatasetMeta | null>(null);
   const [serverMetas, setServerMetas] = useState<Record<string, DatasetMeta>>({});
   const [pick, setPick] = useState<MapPick | null>(null);
@@ -89,12 +94,12 @@ export function App() {
     // Locais com `pnpm assets`; sem eles o servidor de dev redireciona para o Protomaps.
     assetsUrl: `${location.origin}/data/assets`,
     terrain: false,
-    look: "data",
+    look,
     // Prédios 3D vêm do extrato detalhado (Grande SP); o mapa do Brasil vai só até z12.
     buildingsUrl: `${location.origin}/data/sao-paulo.pmtiles`,
     theme,
     camera: { ...EXPLORE.camera, pitch: 0, bearing: 0 },
-    hash: true,
+    hash: CAMERA_PARAM,
   });
 
   // Dataset de demonstração e clique: uma vez por mapa.
@@ -170,6 +175,36 @@ export function App() {
       cancelled = true;
     };
   }, []);
+
+  // Link compartilhado: refaz as camadas da biblioteca na fonte e limpa o estado do hash.
+  useEffect(() => {
+    clearShared();
+    if (!SHARED?.lib?.length) return;
+    void Promise.all(SHARED.lib.map((r) => layerFromRecipe(r).catch((e: Error) => (console.warn("[share]", e.message), null)))).then(
+      (layers) => {
+        const ok = layers.filter((l): l is LibraryLayer => l !== null);
+        for (const l of ok) void saveLibraryLayer(l.saved);
+        setLibraryLayers((list) => [...list.filter((x) => !ok.some((l) => l.manifest.id === x.manifest.id)), ...ok]);
+        setActive((prev) => new Set([...prev, ...ok.map((l) => l.manifest.id)]));
+      },
+    );
+  }, []);
+
+  const copyShareLink = async () => {
+    // Só vai o que quem abrir consegue ver: catálogo, exemplo, servidor e biblioteca (os arquivos do navegador ficam de fora).
+    const shareable = [...active].filter(
+      (id) => DATAPACKS.some((d) => d.id === id) || id === DATASET_KEY || id in serverMetas,
+    );
+    const lib = libraryLayers.filter((l) => active.has(l.manifest.id)).map(recipeOf);
+    const url = shareUrl({ layers: shareable, lib, theme, look });
+    const local = user.datasets.filter((d) => active.has(d.id)).length;
+    try {
+      await navigator.clipboard.writeText(url);
+      setShareStatus(local ? `Link copiado. ${local} camada(s) importada(s) neste navegador não vão junto.` : "Link copiado.");
+    } catch {
+      window.prompt("Copie o link:", url);
+    }
+  };
 
   const addLibraryLayer = (layer: LibraryLayer) => {
     void saveLibraryLayer(layer.saved);
@@ -511,6 +546,16 @@ export function App() {
             </p>
           )}
           <p className="hint left">Dica: clique nos seus dados e use “Visualização avançada” para ver a área em maquete 3D.</p>
+        </SidebarSection>
+
+        <SidebarSection title="Compartilhar">
+          <button type="button" className="btn" onClick={() => void copyShareLink()}>
+            Copiar link desta visão
+          </button>
+          <p className="catalog-meta">
+            {shareStatus ??
+              "Leva a posição do mapa, as camadas ligadas, as da biblioteca (buscadas de novo na fonte) e a aparência."}
+          </p>
         </SidebarSection>
 
         <SidebarSection title="Aparência">

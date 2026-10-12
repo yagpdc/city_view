@@ -84,6 +84,8 @@ export interface SavedLibraryLayer {
   period: string;
   /** Ausente nas camadas salvas antes do recorte por estado = município. */
   level?: import("../library/types").MapLevel;
+  /** Escolhas usadas na consulta (período fixado), para refazer a camada a partir de um link. */
+  choice?: import("../library/types").ItemChoice;
   variable: { id: string; name: string; unit: string };
   values: [string, number][];
 }
