@@ -68,6 +68,23 @@ interface LibraryAdapter {
 
 INPE (queimadas, desmatamento PRODES/DETER), DATASUS (CNES, mortalidade), INEP (censo escolar), ANATEL, ANP, TSE (eleições por seção), Banco Central (SGS), dados.gov.br (CKAN), MapBiomas. Depois: fontes internacionais (Banco Mundial, Eurostat, US Census).
 
+## Coleta educada (regras no código: `datapacks/library/common.py`)
+
+- Só APIs oficiais e documentadas; só **metadados** para o índice (os dados o usuário baixa da fonte quando pede).
+- Lê o `robots.txt` de cada host e **recusa** caminhos proibidos; respeita `Crawl-delay`.
+- Sem intervalo declarado: no máximo 4 consultas simultâneas, com pausa entre elas.
+- Bloqueio (401/403/429 ou página HTML no lugar de JSON) **interrompe** a coleta — nunca contornar (trocar User-Agent, IP etc.).
+- User-Agent identifica o projeto; cache local evita repetir consultas.
+
+### Situação das fontes
+
+| Fonte | Acesso automatizado | Status |
+|---|---|---|
+| IBGE (servicodados, apisidra) | permitido (sem restrições no robots) | ✅ na biblioteca |
+| Ipeadata (OData) | permitido | ✅ na biblioteca |
+| Portais CKAN do BCB, TSE, ANEEL | **robots.txt proíbe `/api/`** e pede 10 s entre acessos; sem catálogo DCAT público | ❌ não indexar por robô |
+| dados.gov.br (agrega muitos órgãos federais) | API oficial **com chave gratuita** (cadastro) | ⏳ próximo passo, com a chave do usuário |
+
 ## Princípios
 
 - Só índice e links/consultas à fonte oficial; licença e atribuição sempre visíveis.

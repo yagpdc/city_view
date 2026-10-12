@@ -2,6 +2,7 @@
 
 Uso: python datapacks/library/build.py [fonte ...]   (sem argumentos: todas)
 Fontes: ibge-sidra, ipeadata
+Regras de coleta educada: ver common.py (robots.txt, intervalo, parar ao ser bloqueado).
 """
 
 from __future__ import annotations
@@ -14,7 +15,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "sources"))
 import ibge_sidra  # noqa: E402
 import ipeadata  # noqa: E402
 
-BUILDERS = {"ibge-sidra": ibge_sidra.build, "ipeadata": ipeadata.build}
+BUILDERS = {
+    "ibge-sidra": ibge_sidra.build,
+    "ipeadata": ipeadata.build,
+}
 
 
 def main() -> None:

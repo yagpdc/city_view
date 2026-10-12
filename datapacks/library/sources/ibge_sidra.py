@@ -12,11 +12,11 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from common import CACHE, DOWNLOAD, MUNICIPAL, REGIONAL, Interner, get_json, write_source, year  # noqa: E402
+from common import CACHE, DOWNLOAD, Blocked, MUNICIPAL, POLITE_WORKERS, REGIONAL, Interner, get_json, write_source, year  # noqa: E402
 
 API = "https://servicodados.ibge.gov.br/api/v3/agregados"
 CACHE_DIR = CACHE / "ibge-sidra"
-WORKERS = 10  # a API é pública: poucas consultas simultâneas
+WORKERS = POLITE_WORKERS  # coleta educada (ver common.py)
 # Mesmos recortes que o adaptador do front sabe baixar.
 ADMIN_LEVELS = {"N6", "N3", "N2", "N1"}
 
@@ -27,8 +27,10 @@ def metadata(table_id: int) -> dict | None:
         return json.loads(cached.read_text(encoding="utf-8"))
     try:
         meta = get_json(f"{API}/{table_id}/metadados", timeout=60)
+    except Blocked:
+        raise  # a fonte pediu para parar: interrompe a coleta inteira
     except Exception:
-        return None
+        return None  # falha pontual de uma tabela: segue sem os detalhes dela
     levels = meta.get("nivelTerritorial") or {}
     period = meta.get("periodicidade") or {}
     slim = {
