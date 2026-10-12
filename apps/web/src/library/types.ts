@@ -55,18 +55,27 @@ export interface DownloadResult {
   fileName: string;
 }
 
-export interface MunicipalVariable {
+/** Recortes que sabemos desenhar no mapa (malhas do IBGE geradas por datapacks/build.py). */
+export type MapLevel = "municipio" | "uf";
+
+export const MAP_LEVELS: Record<MapLevel, { name: string; datapack: string }> = {
+  municipio: { name: "Municípios", datapack: "municipios-populacao" },
+  uf: { name: "Estados", datapack: "estados-populacao" },
+};
+
+export interface MapVariable {
   id: string;
   name: string;
   unit: string;
-  /** Código IBGE do município (7 dígitos) → valor. */
+  /** Código IBGE do território (7 dígitos p/ município, 2 p/ UF) → valor. */
   values: Map<string, number>;
 }
 
-export interface MunicipalData {
+export interface MapData {
   title: string;
   period: string;
-  variables: MunicipalVariable[];
+  level: MapLevel;
+  variables: MapVariable[];
 }
 
 /** Opções de um item: períodos (mais recente primeiro), recortes e variáveis. */
@@ -74,8 +83,8 @@ export interface ItemOptions {
   periods: { id: string; label: string }[];
   levels: { code: string; name: string }[];
   variables: { id: string; name: string; unit: string }[];
-  /** Há recorte municipal (dá para pôr no mapa). */
-  municipal: boolean;
+  /** Recortes que dá para pôr no mapa, do mais detalhado ao menos. */
+  mapLevels: MapLevel[];
 }
 
 /** Escolhas do usuário; campos ausentes = padrão (mais recente, mais detalhado, todas). */
@@ -83,14 +92,16 @@ export interface ItemChoice {
   period?: string;
   level?: string;
   variable?: string;
+  /** Recorte do mapa (padrão: o mais detalhado disponível). */
+  mapLevel?: MapLevel;
 }
 
 /** O que cada fonte sabe fazer, direto do navegador para a fonte oficial. */
 export interface LibraryAdapter {
   options?(item: LibraryItem): Promise<ItemOptions>;
   download(item: LibraryItem, choice?: ItemChoice): Promise<DownloadResult>;
-  /** Valores por município (período escolhido ou o mais recente), para o mapa. */
-  municipal?(item: LibraryItem, choice?: ItemChoice): Promise<MunicipalData>;
+  /** Valores por território (recorte e período escolhidos ou os padrões), para o mapa. */
+  mapData?(item: LibraryItem, choice?: ItemChoice): Promise<MapData>;
 }
 
 export function decodeItem(index: LibrarySourceIndex, raw: RawItem): LibraryItem {

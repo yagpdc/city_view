@@ -82,6 +82,8 @@ export interface SavedLibraryLayer {
   item: { id: string; title: string; url: string | null; group: string; subject: string };
   title: string;
   period: string;
+  /** Ausente nas camadas salvas antes do recorte por estado = município. */
+  level?: import("../library/types").MapLevel;
   variable: { id: string; name: string; unit: string };
   values: [string, number][];
 }

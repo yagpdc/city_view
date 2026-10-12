@@ -111,6 +111,58 @@ def municipios_populacao() -> dict:
     return {"type": "FeatureCollection", "features": features}
 
 
+UF_SIGLAS = {
+    "11": "RO", "12": "AC", "13": "AM", "14": "RR", "15": "PA", "16": "AP", "17": "TO",
+    "21": "MA", "22": "PI", "23": "CE", "24": "RN", "25": "PB", "26": "PE", "27": "AL", "28": "SE", "29": "BA",
+    "31": "MG", "32": "ES", "33": "RJ", "35": "SP", "41": "PR", "42": "SC", "43": "RS",
+    "50": "MS", "51": "MT", "52": "GO", "53": "DF",
+}
+
+
+def estados_populacao() -> dict:
+    log("baixando malha estadual (IBGE)")
+    malha = json.loads(
+        http_get(
+            "https://servicodados.ibge.gov.br/api/v3/malhas/paises/BR"
+            "?formato=application/vnd.geo%2Bjson&qualidade=minima&intrarregiao=UF"
+        )
+    )
+    log("baixando população do Censo 2022 por UF (IBGE)")
+    agregado = json.loads(
+        http_get(
+            "https://servicodados.ibge.gov.br/api/v3/agregados/4709/periodos/2022/variaveis/93?localidades=N3%5Ball%5D"
+        )
+    )
+    populacao = {
+        s["localidade"]["id"]: (s["localidade"]["nome"], int(s["serie"]["2022"]))
+        for s in agregado[0]["resultados"][0]["series"]
+        if s["serie"].get("2022", "").isdigit()
+    }
+    features = []
+    for feature in malha["features"]:
+        code = feature["properties"]["codarea"]
+        if code not in populacao:
+            continue
+        nome, pop = populacao[code]
+        area = polygon_area_km2(feature["geometry"])
+        features.append(
+            {
+                "type": "Feature",
+                "id": int(code),
+                "geometry": feature["geometry"],
+                "properties": {
+                    "codigo": code,
+                    "nome": nome,
+                    "uf": UF_SIGLAS.get(code, ""),
+                    "populacao": pop,
+                    "area_km2": round(area, 1),
+                    "densidade": round(pop / area, 2) if area > 0 else 0,
+                },
+            }
+        )
+    return {"type": "FeatureCollection", "features": features}
+
+
 def queimadas_24h() -> dict:
     log("baixando focos de queimada das últimas 24 h (NASA FIRMS)")
     raw = http_get(
@@ -141,6 +193,7 @@ def queimadas_24h() -> dict:
 
 BUILDERS: dict[str, Callable[[], dict]] = {
     "municipios-populacao": municipios_populacao,
+    "estados-populacao": estados_populacao,
     "queimadas-24h": queimadas_24h,
 }
 

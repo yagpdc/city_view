@@ -1,7 +1,7 @@
 import type { DatapackManifest } from "@cityview/engine";
 import { dataUrl } from "../catalog";
 import type { SavedLibraryLayer } from "../storage/datasets";
-import type { LibraryItem, MunicipalData, MunicipalVariable } from "./types";
+import { MAP_LEVELS, type LibraryItem, type MapData, type MapLevel, type MapVariable } from "./types";
 
 /** Camada do mapa criada a partir de um item da biblioteca. */
 export interface LibraryLayer {
@@ -11,6 +11,7 @@ export interface LibraryLayer {
   variable: string;
   unit: string;
   period: string;
+  level: MapLevel;
   matched: number;
   missing: number;
   /** Quebras e cores da legenda. */
@@ -22,18 +23,22 @@ export interface LibraryLayer {
 
 const COLORS = ["#f1eef6", "#d0d1e6", "#a6bddb", "#74a9cf", "#3690c0", "#0570b0", "#034e7b"];
 
-type MunicipioFeature = { type: "Feature"; id?: number; geometry: unknown; properties: Record<string, string | number> };
-let mesh: Promise<MunicipioFeature[]> | null = null;
+type MeshFeature = { type: "Feature"; id?: number; geometry: unknown; properties: Record<string, string | number> };
+const meshes = new Map<MapLevel, Promise<MeshFeature[]>>();
 
-/** Malha municipal do catálogo (gerada por datapacks/build.py). */
-function loadMesh(): Promise<MunicipioFeature[]> {
-  mesh ??= fetch(dataUrl("municipios-populacao"))
-    .then((r) => {
-      if (!r.ok) throw new Error("malha municipal não encontrada: rode `pnpm datapacks`");
-      return r.json() as Promise<{ features: MunicipioFeature[] }>;
-    })
-    .then((fc) => fc.features);
-  mesh.catch(() => (mesh = null));
+/** Malhas do catálogo (geradas por datapacks/build.py). */
+function loadMesh(level: MapLevel): Promise<MeshFeature[]> {
+  let mesh = meshes.get(level);
+  if (!mesh) {
+    mesh = fetch(dataUrl(MAP_LEVELS[level].datapack))
+      .then((r) => {
+        if (!r.ok) throw new Error(`malha de ${MAP_LEVELS[level].name.toLowerCase()} não encontrada: rode \`pnpm datapacks\``);
+        return r.json() as Promise<{ features: MeshFeature[] }>;
+      })
+      .then((fc) => fc.features);
+    mesh.catch(() => meshes.delete(level));
+    meshes.set(level, mesh);
+  }
   return mesh;
 }
 
@@ -51,15 +56,15 @@ function quantileBreaks(values: number[], classes: number): number[] {
   return [...new Set(breaks)].sort((a, b) => a - b);
 }
 
-export async function buildMunicipalLayer(item: LibraryItem, data: MunicipalData, variable: MunicipalVariable): Promise<LibraryLayer> {
-  const features = await loadMesh();
-  const joined: MunicipioFeature[] = [];
+export async function buildMapLayer(item: LibraryItem, data: MapData, variable: MapVariable): Promise<LibraryLayer> {
+  const features = await loadMesh(data.level);
+  const joined: MeshFeature[] = [];
   for (const f of features) {
     const value = variable.values.get(String(f.properties.codigo));
     if (value === undefined) continue;
     joined.push({ ...f, properties: { nome: f.properties.nome!, uf: f.properties.uf!, codigo: f.properties.codigo!, valor: value } });
   }
-  if (joined.length === 0) throw new Error("nenhum município da tabela bateu com a malha do IBGE");
+  if (joined.length === 0) throw new Error("nenhum território da tabela bateu com a malha do IBGE");
 
   const breaks = quantileBreaks(
     joined.map((f) => Number(f.properties.valor)),
@@ -68,8 +73,8 @@ export async function buildMunicipalLayer(item: LibraryItem, data: MunicipalData
   const colors = COLORS.slice(0, breaks.length + 1);
   const label = variable.name === data.title ? data.title : `${variable.name}`;
   const manifest: DatapackManifest = {
-    id: `lib-${item.source.id}-${item.id}-${variable.id}-${data.period}`.replace(/[^\w-]/g, "_"),
-    name: `${label} · ${data.period}`,
+    id: `lib-${item.source.id}-${item.id}-${variable.id}-${data.period}${data.level === "uf" ? "-uf" : ""}`.replace(/[^\w-]/g, "_"),
+    name: `${label} · ${data.period}${data.level === "uf" ? " · por estado" : ""}`,
     description: `${data.title} · ${data.period}`,
     category: "Biblioteca",
     geometry: "polygon",
@@ -79,7 +84,7 @@ export async function buildMunicipalLayer(item: LibraryItem, data: MunicipalData
     refresh: `Período: ${data.period}`,
     render: { type: "choropleth", property: "valor", breaks, colors, opacity: 0.75 },
     fields: [
-      { key: "nome", label: "Município" },
+      { key: "nome", label: data.level === "uf" ? "Estado" : "Município" },
       { key: "uf", label: "UF" },
       { key: "valor", label: `${variable.name} (${data.period})`, format: "decimal", ...(variable.unit ? { unit: variable.unit } : {}) },
     ],
@@ -92,6 +97,7 @@ export async function buildMunicipalLayer(item: LibraryItem, data: MunicipalData
       item: { id: item.id, title: item.title, url: item.url, group: item.group, subject: item.subject },
       title: data.title,
       period: data.period,
+      level: data.level,
       variable: { id: variable.id, name: variable.name, unit: variable.unit },
       values: [...variable.values],
     },
@@ -101,6 +107,7 @@ export async function buildMunicipalLayer(item: LibraryItem, data: MunicipalData
     variable: variable.name,
     unit: variable.unit,
     period: data.period,
+    level: data.level,
     matched: joined.length,
     missing: Math.max(0, variable.values.size - joined.length),
     breaks,
@@ -108,8 +115,8 @@ export async function buildMunicipalLayer(item: LibraryItem, data: MunicipalData
   };
 }
 
-/** Remonta uma camada salva (valores + malha municipal). */
-export function restoreMunicipalLayer(saved: SavedLibraryLayer): Promise<LibraryLayer> {
+/** Remonta uma camada salva (valores + malha do recorte). */
+export function restoreMapLayer(saved: SavedLibraryLayer): Promise<LibraryLayer> {
   const item: LibraryItem = {
     source: saved.source,
     id: saved.item.id,
@@ -122,7 +129,7 @@ export function restoreMunicipalLayer(saved: SavedLibraryLayer): Promise<Library
     url: saved.item.url,
   };
   const variable = { ...saved.variable, values: new Map(saved.values) };
-  return buildMunicipalLayer(item, { title: saved.title, period: saved.period, variables: [variable] }, variable).then((layer) => ({
+  return buildMapLayer(item, { title: saved.title, period: saved.period, level: saved.level ?? "municipio", variables: [variable] }, variable).then((layer) => ({
     ...layer,
     saved: { ...layer.saved, savedAt: saved.savedAt },
   }));

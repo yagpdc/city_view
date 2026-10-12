@@ -2,7 +2,7 @@
  * Ipeadata (IPEA). A API OData devolve sempre a série inteira (não filtra nível nem data),
  * então baixamos uma vez e reaproveitamos para as opções, o CSV e o mapa.
  */
-import type { ItemChoice, ItemOptions, LibraryAdapter, LibraryItem, MunicipalData } from "../types";
+import type { ItemChoice, ItemOptions, LibraryAdapter, LibraryItem, MapData, MapLevel } from "../types";
 import { brNumber, safeName, saveCsv } from "./csv";
 
 const SERIES = "https://www.ipeadata.gov.br/api/odata4/Metadados('{id}')/Valores";
@@ -31,6 +31,9 @@ function series(id: string): Promise<Value[]> {
 
 const day = (iso: string) => iso.slice(0, 10);
 
+/** Recorte do mapa → NIVNOME do Ipeadata. */
+const MAP: Record<MapLevel, string> = { municipio: "Municípios", uf: "Estados" };
+
 /** Rótulo do período: só o ano quando a série é anual (todas as datas em 1º de janeiro). */
 function periodLabeler(values: Value[]): (iso: string) => string {
   const annual = values.every((v) => day(v.VALDATA).endsWith("-01-01"));
@@ -47,7 +50,7 @@ export const ipeadataAdapter: LibraryAdapter = {
       periods: dates.map((d) => ({ id: d, label: label(d) })),
       levels: levels.map((n) => ({ code: n, name: n })),
       variables: [],
-      municipal: levels.includes("Municípios"),
+      mapLevels: (Object.keys(MAP) as MapLevel[]).filter((l) => levels.includes(MAP[l])),
     };
   },
 
@@ -70,15 +73,17 @@ export const ipeadataAdapter: LibraryAdapter = {
     return { rows: rows.length, detail: `${choice.level ? `${choice.level.toLowerCase()} · ` : ""}${span}`, fileName };
   },
 
-  async municipal(item: LibraryItem, choice: ItemChoice = {}): Promise<MunicipalData> {
+  async mapData(item: LibraryItem, choice: ItemChoice = {}): Promise<MapData> {
     const all = await series(item.id);
-    const values = all.filter((v) => v.NIVNOME === "Municípios" && v.TERCODIGO && v.VALVALOR !== null);
-    if (values.length === 0) throw new Error("esta série não tem recorte por município");
+    const level = choice.mapLevel ?? (Object.keys(MAP) as MapLevel[]).find((l) => all.some((v) => v.NIVNOME === MAP[l]));
+    if (!level) throw new Error("esta série não tem recorte por município nem por estado");
+    const values = all.filter((v) => v.NIVNOME === MAP[level] && v.TERCODIGO && v.VALVALOR !== null);
+    if (values.length === 0) throw new Error(`esta série não tem recorte por ${level === "uf" ? "estado" : "município"}`);
     const target = choice.period ?? values.reduce((max, v) => (day(v.VALDATA) > max ? day(v.VALDATA) : max), "");
     const map = new Map<string, number>();
     for (const v of values) if (day(v.VALDATA) === target) map.set(v.TERCODIGO!, v.VALVALOR!);
-    if (map.size === 0) throw new Error("não há valores por município nesse período");
+    if (map.size === 0) throw new Error("não há valores nesse recorte e período");
     const unit = /\(([^()]+)\)$/.exec(item.title)?.[1] ?? "";
-    return { title: item.title, period: periodLabeler(all)(target), variables: [{ id: item.id, name: item.title, unit, values: map }] };
+    return { title: item.title, period: periodLabeler(all)(target), level, variables: [{ id: item.id, name: item.title, unit, values: map }] };
   },
 };

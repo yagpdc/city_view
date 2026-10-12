@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ADAPTERS } from "./adapters";
 import { LIBRARY_SOURCES, loadAllSources } from "./load";
-import { buildMunicipalLayer, type LibraryLayer } from "./mapLayer";
-import { FLAG, decodeItem, type ItemChoice, type ItemOptions, type LibraryItem, type LibrarySourceIndex, type MunicipalData } from "./types";
+import { buildMapLayer, type LibraryLayer } from "./mapLayer";
+import { FLAG, MAP_LEVELS, decodeItem, type ItemChoice, type ItemOptions, type LibraryItem, type LibrarySourceIndex, type MapData } from "./types";
 
 const MAX_RESULTS = 200;
 const int = new Intl.NumberFormat("pt-BR");
@@ -40,7 +40,7 @@ interface Entry {
   title: string;
 }
 
-type ActionState = { busy?: "download" | "map"; ok?: string; error?: string; choose?: MunicipalData };
+type ActionState = { busy?: "download" | "map"; ok?: string; error?: string; choose?: MapData };
 
 /** Painel "Opções" de um item: opções carregadas da fonte e escolhas do usuário. */
 type OptionsState = { open: boolean; loading?: boolean; error?: string; options?: ItemOptions; choice: ItemChoice };
@@ -148,17 +148,17 @@ export function LibraryPanel({ onClose, onAddLayer }: { onClose: () => void; onA
     }
   };
 
-  const showOnMap = async (it: LibraryItem, data?: MunicipalData, variableId?: string, choice?: ItemChoice) => {
+  const showOnMap = async (it: LibraryItem, data?: MapData, variableId?: string, choice?: ItemChoice) => {
     const adapter = ADAPTERS[it.source.adapter];
-    if (!adapter?.municipal) return;
+    if (!adapter?.mapData) return;
     setAction(it, { busy: "map" });
     try {
-      const d = data ?? (await adapter.municipal(it, choice));
+      const d = data ?? (await adapter.mapData(it, choice));
       variableId ??= choice?.variable;
       if (d.variables.length > 1 && !variableId) return setAction(it, { choose: d });
       const variable = d.variables.find((v) => v.id === variableId) ?? d.variables[0]!;
-      onAddLayer(await buildMunicipalLayer(it, d, variable));
-      setAction(it, { ok: `No mapa: ${variable.name} · ${d.period}` });
+      onAddLayer(await buildMapLayer(it, d, variable));
+      setAction(it, { ok: `No mapa: ${variable.name} · ${d.period} · ${MAP_LEVELS[d.level].name.toLowerCase()}` });
     } catch (e) {
       setAction(it, { error: `Não deu para pôr no mapa: ${(e as Error).message}` });
     }
@@ -244,7 +244,7 @@ export function LibraryPanel({ onClose, onAddLayer }: { onClose: () => void; onA
             {results.items.map((it) => {
               const state = actions[key(it)] ?? {};
               const adapter = ADAPTERS[it.source.adapter];
-              const canMap = Boolean(adapter?.municipal) && Boolean(it.flags & (FLAG.MUNICIPAL | FLAG.REGIONAL));
+              const canMap = Boolean(adapter?.mapData) && Boolean(it.flags & (FLAG.MUNICIPAL | FLAG.REGIONAL));
               return (
                 <li key={key(it)}>
                   <div>
@@ -257,7 +257,7 @@ export function LibraryPanel({ onClose, onAddLayer }: { onClose: () => void; onA
                     </span>
                     <span className="refs-badges">
                       {it.flags & FLAG.MUNICIPAL ? <span className="refs-badge">por município</span> : null}
-                      {!(it.flags & FLAG.MUNICIPAL) && it.flags & FLAG.REGIONAL ? <span className="refs-badge regional">regional</span> : null}
+                      {!(it.flags & FLAG.MUNICIPAL) && it.flags & FLAG.REGIONAL ? <span className="refs-badge regional">por estado/região</span> : null}
                     </span>
                     {state.choose && (
                       <span className="library-choose">
@@ -395,18 +395,31 @@ function ItemOptionsPanel({
           </select>
         </label>
       )}
+      {canMap && o.mapLevels.length > 1 && (
+        <label>
+          Recorte (mapa)
+          <select value={choice.mapLevel ?? ""} onChange={(e) => onChoice({ mapLevel: (e.target.value || undefined) as ItemChoice["mapLevel"] })}>
+            <option value="">Mais detalhado ({MAP_LEVELS[o.mapLevels[0]!].name})</option>
+            {o.mapLevels.map((l) => (
+              <option key={l} value={l}>
+                {MAP_LEVELS[l].name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <span className="library-options-actions">
         {canDownload && (
           <button type="button" className="btn" disabled={busy} onClick={() => onDownload(choice)}>
             Baixar com essas opções
           </button>
         )}
-        {canMap && o.municipal && (
+        {canMap && o.mapLevels.length > 0 && (
           <button type="button" className="btn btn-primary" disabled={busy} onClick={() => onMap(choice)}>
             Ver no mapa
           </button>
         )}
-        {!o.municipal && <span className="muted">Sem recorte por município: só download.</span>}
+        {o.mapLevels.length === 0 && <span className="muted">Sem recorte por município ou estado: só download.</span>}
       </span>
     </span>
   );

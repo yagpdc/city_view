@@ -32,7 +32,7 @@ export function LibraryLayers({
             </button>
           </div>
           <p className="catalog-meta">
-            {l.item.sourceName} · {new Intl.NumberFormat("pt-BR").format(l.matched)} municípios · salvo neste navegador
+            {l.item.sourceName} · {new Intl.NumberFormat("pt-BR").format(l.matched)} {l.level === "uf" ? "estados" : "municípios"} · salvo neste navegador
             {l.missing > 0 ? ` (${l.missing} sem par na malha)` : ""}
           </p>
           <div className="legend-scale" aria-label="Legenda">

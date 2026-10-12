@@ -9,7 +9,7 @@ import { PickDetails, type DatasetInfo } from "./components/PickDetails";
 import { LibraryLayers } from "./components/LibraryLayers";
 import { LibraryPanel } from "./library/LibraryPanel";
 import { LIBRARY_SOURCES, LIBRARY_TOTAL } from "./library/load";
-import { restoreMunicipalLayer, type LibraryLayer } from "./library/mapLayer";
+import { restoreMapLayer, type LibraryLayer } from "./library/mapLayer";
 import { ServerDatasets } from "./components/ServerDatasets";
 import { Sidebar, SidebarSection } from "./components/Sidebar";
 import { TopBar } from "./components/TopBar";
@@ -158,7 +158,7 @@ export function App() {
   useEffect(() => {
     let cancelled = false;
     void listLibraryLayers()
-      .then((saved) => Promise.all(saved.map((s) => restoreMunicipalLayer(s).catch(() => null))))
+      .then((saved) => Promise.all(saved.map((s) => restoreMapLayer(s).catch(() => null))))
       .then((layers) => {
         if (!cancelled) setLibraryLayers(layers.filter((l): l is LibraryLayer => l !== null));
       })

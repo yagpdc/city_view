@@ -54,15 +54,15 @@ apps/web/src/library/
 interface LibraryAdapter {
   /** Baixa e salva um CSV (direto da fonte). */
   download(item, source): Promise<DownloadResult>;
-  /** Valores por município (código IBGE de 7 dígitos) do período mais recente, para o mapa. */
-  municipal?(item, source): Promise<MunicipalData>;
+  /** Valores por território (município: código IBGE de 7 dígitos; estado: 2), para o mapa. */
+  mapData?(item, choice): Promise<MapData>;
 }
 ```
 
 | Fonte | Adaptador | Download | Mapa | Observações |
 |---|---|---|---|---|
-| IBGE SIDRA | `sidra` | recorte mais detalhado + período mais recente | sim (tabelas com N6) | API aceita recorte/período na consulta |
-| Ipeadata | `ipeadata` | série completa | sim (séries regionais com municípios) | API devolve sempre a série inteira (pode ter dezenas de MB) |
+| IBGE SIDRA | `sidra` | recorte mais detalhado + período mais recente | municípios (N6) ou estados (N3) | API aceita recorte/período na consulta |
+| Ipeadata | `ipeadata` | série completa | municípios ou estados | API devolve sempre a série inteira (pode ter dezenas de MB) |
 
 ## Próximas fontes (Brasil)
 

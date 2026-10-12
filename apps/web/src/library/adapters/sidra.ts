@@ -3,7 +3,7 @@
  * Padrão (sem escolhas) para caber no limite de 100 mil valores: recorte mais detalhado,
  * período mais recente, todas as variáveis, total das classificações.
  */
-import type { ItemChoice, ItemOptions, LibraryAdapter, LibraryItem, MunicipalData, MunicipalVariable } from "../types";
+import type { ItemChoice, ItemOptions, LibraryAdapter, LibraryItem, MapData, MapLevel, MapVariable } from "../types";
 import { brNumber, safeName, saveCsv } from "./csv";
 
 const API = "https://servicodados.ibge.gov.br/api/v3/agregados/{id}";
@@ -15,6 +15,14 @@ const LEVELS = [
   { code: "N2", name: "Grandes regiões" },
   { code: "N1", name: "Brasil" },
 ];
+
+/** Recorte do mapa → nível do SIDRA e rótulo da coluna de código. */
+const MAP: Record<MapLevel, { code: string; column: RegExp }> = {
+  municipio: { code: "N6", column: /^Município \(Código\)$/i },
+  uf: { code: "N3", column: /^Unidade da Federação \(Código\)$/i },
+};
+
+const mapLevelsOf = (available: string[]) => (Object.keys(MAP) as MapLevel[]).filter((l) => available.includes(MAP[l].code));
 
 type Row = Record<string, string>;
 
@@ -71,7 +79,7 @@ export const sidraAdapter: LibraryAdapter = {
       periods: [...periods].reverse().map((p) => ({ id: p.id, label: p.literals[0] ?? p.id })),
       levels: LEVELS.filter((l) => available.includes(l.code)),
       variables: (meta.variaveis ?? []).map((v) => ({ id: String(v.id), name: v.nome, unit: v.unidade })),
-      municipal: available.includes("N6"),
+      mapLevels: mapLevelsOf(available),
     };
   },
 
@@ -91,25 +99,27 @@ export const sidraAdapter: LibraryAdapter = {
     return { rows: rows.length, detail: `${level.name.toLowerCase()} · ${period}`, fileName };
   },
 
-  async municipal(item: LibraryItem, choice: ItemChoice = {}): Promise<MunicipalData> {
-    const { labels, rows } = await values(item.id, "N6", choice.period, choice.variable);
-    const code = keyByLabel(labels, (l) => /^Município \(Código\)$/i.test(l));
+  async mapData(item: LibraryItem, choice: ItemChoice = {}): Promise<MapData> {
+    const level = choice.mapLevel ?? mapLevelsOf((await metadata(item.id)).nivelTerritorial?.Administrativo ?? [])[0];
+    if (!level) throw new Error("esta tabela não tem recorte por município nem por estado");
+    const { labels, rows } = await values(item.id, MAP[level].code, choice.period, choice.variable);
+    const code = keyByLabel(labels, (l) => MAP[level].column.test(l));
     const varCode = keyByLabel(labels, (l) => /^Variável \(Código\)$/i.test(l));
     const varName = keyByLabel(labels, (l) => /^Variável$/i.test(l));
-    if (!code || !varCode || !varName) throw new Error("formato inesperado da tabela (sem município ou variável)");
+    if (!code || !varCode || !varName) throw new Error("formato inesperado da tabela (sem território ou variável)");
 
-    const byVariable = new Map<string, MunicipalVariable>();
+    const byVariable = new Map<string, MapVariable>();
     for (const r of rows) {
       const v = Number(r.V);
       if (r.V === undefined || r.V === "" || !Number.isFinite(v)) continue; // "-", "...", "X" = sem valor/sigilo
       const id = r[varCode]!;
       let variable = byVariable.get(id);
       if (!variable) byVariable.set(id, (variable = { id, name: r[varName] ?? id, unit: r.MN ?? "", values: new Map() }));
-      // Com classificações, a API pode repetir o município; fica o primeiro (total).
+      // Com classificações, a API pode repetir o território; fica o primeiro (total).
       if (!variable.values.has(r[code]!)) variable.values.set(r[code]!, v);
     }
     const variables = [...byVariable.values()].filter((v) => v.values.size > 0);
-    if (variables.length === 0) throw new Error("a tabela não tem valores numéricos por município nesse período");
-    return { title: item.title, period: periodOf(labels, rows), variables };
+    if (variables.length === 0) throw new Error("a tabela não tem valores numéricos nesse recorte e período");
+    return { title: item.title, period: periodOf(labels, rows), level, variables };
   },
 };
