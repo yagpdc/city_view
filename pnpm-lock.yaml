@@ -42,6 +42,9 @@ importers:
       '@cityview/importer':
         specifier: workspace:*
         version: link:../../packages/importer
+      '@cityview/tiler-wasm':
+        specifier: workspace:*
+        version: link:../../packages/tiler-wasm
       '@fontsource-variable/dm-sans':
         specifier: 5.3.0
         version: 5.3.0
@@ -150,6 +153,8 @@ importers:
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
+
+  packages/tiler-wasm: {}
 
 packages:
 

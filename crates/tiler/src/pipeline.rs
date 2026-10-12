@@ -12,7 +12,6 @@ use std::{
     fs::File,
     io::{BufWriter, Write},
     path::Path,
-    time::Instant,
 };
 
 use h3o::{CellIndex, Resolution};
@@ -21,6 +20,7 @@ use serde::Serialize;
 use serde_json::json;
 
 use crate::{
+    clock::Stopwatch,
     mercator::{self, EXTENT_BITS},
     mvt::{LayerBuilder, Value},
     pmtiles::{self, HeaderInfo, Writer},
@@ -298,7 +298,7 @@ pub struct BuildOptions<'a> {
 pub fn build(t: &Table, out_dir: &Path, opts: &BuildOptions, progress: &(dyn Fn(Stage, f32) + Sync)) -> Result<Report, Error> {
     let tiles_path = out_dir.join("tiles.pmtiles");
     let (writer, info, metadata, mut report) = build_tiles(t, opts, progress, Writer::create(&tiles_path)?)?;
-    let clock = Instant::now();
+    let clock = Stopwatch::start();
     writer.finish(&tiles_path, &info, &metadata)?;
     if let Some(offsets) = &t.offsets {
         let mut idx = BufWriter::with_capacity(1 << 20, File::create(out_dir.join("rows.idx"))?);
@@ -307,7 +307,7 @@ pub fn build(t: &Table, out_dir: &Path, opts: &BuildOptions, progress: &(dyn Fn(
         }
         idx.flush()?;
     }
-    report.timings.push(("gravação", clock.elapsed().as_secs_f64()));
+    report.timings.push(("gravação", clock.secs()));
     report.tiles_bytes = std::fs::metadata(&tiles_path)?.len();
     progress(Stage::Writing, 1.0);
     Ok(report)
@@ -330,10 +330,10 @@ fn build_tiles(
     mut writer: Writer,
 ) -> Result<(Writer, HeaderInfo, serde_json::Value, Report), Error> {
     let mut timings = Vec::new();
-    let mut clock = Instant::now();
-    let mut lap = |label: &'static str, clock: &mut Instant| {
-        timings.push((label, clock.elapsed().as_secs_f64()));
-        *clock = Instant::now();
+    let mut clock = Stopwatch::start();
+    let mut lap = |label: &'static str, clock: &mut Stopwatch| {
+        timings.push((label, clock.secs()));
+        *clock = Stopwatch::start();
     };
 
     progress(Stage::Indexing, 0.0);

@@ -59,11 +59,15 @@ export type BuildSummary = ImportSummary;
 export type WorkerRequest =
   | { type: "open"; file: File; options: OpenOptions }
   | { type: "build"; mapping: ImportMapping; colorBy?: string }
-  | { type: "export" };
+  | { type: "export" }
+  /** Gera o PMTiles no navegador (motor em WASM) com o último mapeamento validado. */
+  | { type: "tiles"; name: string; colorBy?: string; title?: string };
 
 export type WorkerResponse =
   | { type: "progress"; loaded: number; total: number }
   | { type: "opened"; file: OpenedFile }
   | { type: "built"; summary: BuildSummary }
   | { type: "exported"; blob: Blob }
+  | { type: "tiling"; stage: string; fraction: number }
+  | { type: "tiled"; blob: Blob; report: import("./tiles").TileReport }
   | { type: "error"; message: string };

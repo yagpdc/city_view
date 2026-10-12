@@ -9,8 +9,9 @@ import { Icon } from "../components/Icon";
 
 export interface ImportedDataset {
   manifest: DatapackManifest;
-  /** GeoJSON (FeatureCollection) gerado no worker. */
+  /** PMTiles (motor em WASM) ou, se ele falhar, GeoJSON — gerados no worker, sem sair do computador. */
   data: Blob;
+  format: "geojson" | "pmtiles";
   count: number;
   bounds: [number, number, number, number];
   fileName: string;
@@ -174,12 +175,20 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
     if (!built?.bounds || !mapping) return;
     setExporting(true);
     let blob: Blob;
+    let format: ImportedDataset["format"] = "pmtiles";
     try {
-      blob = await worker.exportBlob();
-    } catch (e) {
-      setError((e as Error).message);
-      setExporting(false);
-      return;
+      // Motor de tiles no navegador: hexágonos agregados + pontos, como os datasets do servidor.
+      blob = (await worker.tiles({ name: name.trim() || file.name, colorBy: colorBy || undefined, title: title || undefined })).blob;
+    } catch (tilesError) {
+      console.warn("[import] motor de tiles indisponível; usando GeoJSON", tilesError);
+      format = "geojson";
+      try {
+        blob = await worker.exportBlob();
+      } catch (e) {
+        setError((e as Error).message);
+        setExporting(false);
+        return;
+      }
     }
     const included = mapping.columns;
     const ordered = [...included].sort((a, b) => (a.name === title ? -1 : b.name === title ? 1 : 0));
@@ -215,6 +224,7 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
     onImport({
       manifest,
       data: blob,
+      format,
       count: built.count,
       bounds: built.bounds,
       fileName: file.name,

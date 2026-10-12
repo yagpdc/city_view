@@ -45,6 +45,7 @@ Especialistas em `.claude/agents/`. Delegue ao agente quando o assunto for dele:
 - **Windows:** rode `cargo` pelo PowerShell. No Git Bash, `/usr/bin/link.exe` esconde o linker da Microsoft.
 - `pnpm places [-- --area sao-paulo]` gera a camada "Lugares" (Overture Maps: comércio, serviços, turismo…; Brasil ~6,5 mi de pontos, release mensal) em `data/out/places/`.
 - `pnpm cidades` gera `data/out/cidades.pmtiles`: mapa detalhado (prédios 3D, z15) das capitais e grandes cidades em `data/specs/cidades.json` (prédios do mapa e maquete).
+- `pnpm wasm` recompila o motor de tiles para o navegador (`crates/tiler-wasm` → `packages/tiler-wasm/pkg`, versionado). Precisa de `rustup target add wasm32-unknown-unknown` e `wasm-bindgen-cli` 0.2.95.
 - `pnpm assets` baixa fontes e ícones do mapa para `data/out/assets` (mapa sem internet; sem isso o dev server redireciona ao Protomaps).
 - Dados gerados ficam em `data/out/` e `data/workspace/` (fora do git).
 

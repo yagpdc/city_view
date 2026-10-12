@@ -7,8 +7,10 @@ import type { DatapackManifest } from "@cityview/engine";
 export interface StoredDataset {
   id: string;
   manifest: DatapackManifest;
-  /** GeoJSON (FeatureCollection) gerado pelo wizard. */
+  /** GeoJSON (FeatureCollection) ou PMTiles gerado no navegador, conforme `format`. */
   data: Blob;
+  /** Ausente = "geojson" (importações antigas). "pmtiles": motor em WASM, com hexágonos e pontos. */
+  format?: "geojson" | "pmtiles";
   count: number;
   bounds: [number, number, number, number];
   fileName: string;

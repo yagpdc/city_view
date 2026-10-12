@@ -16,7 +16,8 @@
     "library": "python datapacks/library/build.py",
     "assets": "python data/fetch_assets.py",
     "places": "python data/build_places.py",
-    "cidades": "python data/build_cidades.py"
+    "cidades": "python data/build_cidades.py",
+    "wasm": "node tooling/build-wasm.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",

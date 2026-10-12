@@ -213,6 +213,12 @@ self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
     } else if (msg.type === "build") {
       lastMapping = msg.mapping;
       post({ type: "built", summary: summarize(rows, msg.mapping, msg.colorBy) });
+    } else if (msg.type === "tiles") {
+      if (!lastMapping) throw new Error("Nada para processar: valide os dados antes.");
+      const { buildTiles } = await import("./tiles");
+      const { features } = buildFeatures(rows, lastMapping);
+      const { bytes, report } = await buildTiles(features, lastMapping, msg, (stage, fraction) => post({ type: "tiling", stage, fraction }));
+      post({ type: "tiled", blob: new Blob([bytes as Uint8Array<ArrayBuffer>], { type: "application/vnd.pmtiles" }), report });
     } else if (msg.type === "export") {
       if (!lastMapping) throw new Error("Nada para exportar: valide os dados antes.");
       const { features } = buildFeatures(rows, lastMapping);

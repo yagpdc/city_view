@@ -1,0 +1,11 @@
+{
+  "name": "@cityview/tiler-wasm",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Motor de tiles (crates/tiler) compilado para WebAssembly — gerado por `pnpm wasm`.",
+  "exports": {
+    ".": "./pkg/tiler_wasm.js",
+    "./wasm": "./pkg/tiler_wasm_bg.wasm"
+  }
+}

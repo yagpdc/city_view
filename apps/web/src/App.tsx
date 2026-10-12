@@ -147,6 +147,11 @@ export function App() {
   const [demoMeta, setDemoMeta] = useState<DatasetMeta | null>(null);
   const [places, setPlaces] = useState<{ meta: DatasetMeta; release: string; area: string } | null>(null);
   const [serverMetas, setServerMetas] = useState<Record<string, DatasetMeta>>({});
+  /** Seus arquivos processados no navegador (PMTiles em memória): id → metadados. */
+  const [localMetas, setLocalMetas] = useState<Record<string, DatasetMeta>>({});
+  const loadingLocal = useRef(new Set<string>());
+  /** Todos os datasets em tiles que são dados do usuário (servidor local ou navegador). */
+  const tileMetas = useMemo(() => ({ ...serverMetas, ...localMetas }), [serverMetas, localMetas]);
   const [pick, setPick] = useState<MapPick | null>(null);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [streetImageId, setStreetImageId] = useState<string | null>(null);
@@ -241,14 +246,30 @@ export function App() {
     else map.removeOverlay("mapillary");
     for (const id of Object.keys(serverMetas)) map.setDatasetVisible(id, active.has(id));
     for (const d of user.datasets) {
-      if (active.has(d.id)) map.showCatalogLayer(d.manifest, d.dataUrl);
+      if (d.format === "pmtiles") {
+        if (localMetas[d.id]) map.setDatasetVisible(d.id, active.has(d.id));
+      } else if (active.has(d.id)) map.showCatalogLayer(d.manifest, d.dataUrl);
       else map.hideCatalogLayer(d.id);
     }
     for (const l of libraryLayers) {
       if (active.has(l.manifest.id)) map.showCatalogLayer(l.manifest, l.data as never);
       else map.hideCatalogLayer(l.manifest.id);
     }
-  }, [map, active, demoMeta, places, serverMetas, user.datasets, libraryLayers]);
+  }, [map, active, demoMeta, places, serverMetas, localMetas, user.datasets, libraryLayers]);
+
+  // Arquivos processados no navegador: abre o PMTiles guardado como um dataset do mapa.
+  useEffect(() => {
+    if (!map) return;
+    for (const d of user.datasets) {
+      if (d.format !== "pmtiles" || map.hasDataset(d.id) || loadingLocal.current.has(d.id)) continue;
+      loadingLocal.current.add(d.id);
+      map
+        .addDataset(d.id, d.data)
+        .then((layer) => setLocalMetas((m) => ({ ...m, [d.id]: layer.meta })))
+        .catch((e: Error) => console.warn("[local] não deu para abrir", d.id, e.message))
+        .finally(() => loadingLocal.current.delete(d.id));
+    }
+  }, [map, user.datasets]);
 
   // Camadas da biblioteca salvas neste navegador: remonta com a malha ao abrir.
   useEffect(() => {
@@ -451,15 +472,20 @@ export function App() {
         rowUrl: meta.hasRowIndex ? serverApi.rowUrl(d.id) : undefined,
       };
     }
+    for (const d of user.datasets) {
+      const meta = localMetas[d.id];
+      if (!meta) continue;
+      infos[d.id] = { name: d.manifest.name, categories: meta.categories, colorBy: meta.colorBy, title: meta.title };
+    }
     return infos;
-  }, [demoMeta, places, server.datasets, serverMetas]);
+  }, [demoMeta, places, server.datasets, serverMetas, user.datasets, localMetas]);
 
   useEffect(() => {
     if (!map || !widgetsOpen) return;
     const sources = [
       demoMeta && active.has(DATASET_KEY) ? CLIENT_DATASET.id : null,
       places && active.has(PLACES_KEY) ? PLACES.id : null,
-      ...Object.keys(serverMetas).filter((id) => active.has(id)),
+      ...Object.keys(tileMetas).filter((id) => active.has(id)),
     ].filter((id): id is string => Boolean(id));
     const compute = () =>
       setWidgets(
@@ -477,7 +503,7 @@ export function App() {
       );
     compute();
     return map.onViewChange(compute);
-  }, [map, widgetsOpen, active, demoMeta, places, serverMetas, datasetInfos, filters]);
+  }, [map, widgetsOpen, active, demoMeta, places, tileMetas, datasetInfos, filters]);
 
   const nearbySource: NearbySource | null =
     places && datasetInfos[PLACES.id] ? { datasetId: PLACES.id, name: "Estabelecimentos", info: datasetInfos[PLACES.id]!, categories: filters[PLACES.id]?.categories ?? null, where: filters[PLACES.id]?.where ?? null } : null;
@@ -504,6 +530,8 @@ export function App() {
     const target = user.datasets.find((d) => d.id === id);
     if (!target || !window.confirm(`Remover "${target.manifest.name}"? O dado salvo neste navegador será apagado.`)) return;
     map?.removeCatalogLayer(id);
+    map?.removeDataset(id);
+    setLocalMetas(({ [id]: _, ...rest }) => rest);
     void user.remove(id);
     setActive((prev) => without(prev, id));
   };
@@ -608,7 +636,7 @@ export function App() {
     const datasetIds = [
       demoMeta && active.has(DATASET_KEY) ? CLIENT_DATASET.id : null,
       places && active.has(PLACES_KEY) ? PLACES.id : null,
-      ...Object.keys(serverMetas).filter((id) => active.has(id)),
+      ...Object.keys(tileMetas).filter((id) => active.has(id)),
     ].filter((id): id is string => Boolean(id));
     setPick(null);
     // Imersiva: a maquete ganha a área toda do mapa.
@@ -710,7 +738,7 @@ export function App() {
     );
   };
   const datasetMeta = (id: string): DatasetMeta | undefined =>
-    id === CLIENT_DATASET.id ? (demoMeta ?? undefined) : id === PLACES.id ? places?.meta : serverMetas[id];
+    id === CLIENT_DATASET.id ? (demoMeta ?? undefined) : id === PLACES.id ? places?.meta : tileMetas[id];
   /** Filtro por valor de um dataset em tiles: colunas que vão nos pontos. */
   const datasetValueFilter = (id: string) => {
     const meta = datasetMeta(id);
@@ -821,7 +849,13 @@ export function App() {
             { label: "Apagar deste navegador", icon: "trash", onClick: () => removeUserDataset(d.id), danger: true },
           ]}
         >
-          {r.type === "points" && r.colorBy ? (
+          {d.format === "pmtiles" ? (
+            <>
+              {localMetas[d.id] ? datasetLegend(d.id) : <p className="layer-hint muted">Abrindo…</p>}
+              {datasetValueFilter(d.id)}
+              {datasetOptions(d.id)}
+            </>
+          ) : r.type === "points" && r.colorBy ? (
             <CategoryLegend
               items={r.colorBy.categories.map((c, i) => ({ label: c, color: r.colorBy!.colors[i] ?? r.color }))}
               selected={filters[d.id]?.categories ?? null}
@@ -830,12 +864,14 @@ export function App() {
           ) : (
             <CategoryLegend items={[{ label: "Registros", color: r.type === "points" ? r.color : "#6b7485" }]} />
           )}
-          <ValueFilter
-            columns={d.manifest.fields.map((f) => ({ key: f.key, label: f.label, type: f.format === "decimal" || f.format === "int" ? "number" : "text" }))}
-            where={filters[d.id]?.where ?? null}
-            onChange={(where) => setWhere(d.id, where)}
-            range={(column) => map?.columnRange(d.id, column) ?? null}
-          />
+          {d.format !== "pmtiles" && (
+            <ValueFilter
+              columns={d.manifest.fields.map((f) => ({ key: f.key, label: f.label, type: f.format === "decimal" || f.format === "int" ? "number" : "text" }))}
+              where={filters[d.id]?.where ?? null}
+              onChange={(where) => setWhere(d.id, where)}
+              range={(column) => map?.columnRange(d.id, column) ?? null}
+            />
+          )}
         </LayerCard>
       ),
     });

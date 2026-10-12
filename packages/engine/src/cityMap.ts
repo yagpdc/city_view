@@ -13,7 +13,7 @@ import {
   type MapMouseEvent,
 } from "maplibre-gl";
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
-import { PMTiles, Protocol } from "pmtiles";
+import { FileSource, PMTiles, Protocol } from "pmtiles";
 import { CatalogLayer, type CatalogPick, type DatapackManifest, type LayerData } from "./catalog";
 import { CATEGORY_COLORS, DatasetLayer, OTHER_COLOR, categoryColor, readDatasetMeta, type AreaSummary, type DatasetFilter, type DatasetPick } from "./dataset";
 import { paintBuildings, type BuildingPaintResult, type BuildingRecord } from "./buildingPaint";
@@ -189,8 +189,14 @@ export class CityMap {
    * Carrega um dataset gerado pelo cityview-tiler (PMTiles) e o desenha no mapa.
    * Resolve depois de ler os metadados; os tiles chegam sob demanda.
    */
-  async addDataset(id: string, url: string, options: { attribution?: string } = {}): Promise<DatasetLayer> {
-    const pmtiles = new PMTiles(url);
+  /**
+   * Dataset em PMTiles: uma URL (servidor, data/out) ou o arquivo já em memória (Blob gerado no navegador
+   * a partir dos arquivos do usuário — nada sai do computador dele).
+   */
+  async addDataset(id: string, source: string | Blob, options: { attribution?: string } = {}): Promise<DatasetLayer> {
+    // Blob: o protocolo pmtiles:// acha o arquivo pela chave (nome do File).
+    const pmtiles = typeof source === "string" ? new PMTiles(source) : new PMTiles(new FileSource(new File([source], `local-${id}.pmtiles`)));
+    const url = typeof source === "string" ? source : `local-${id}.pmtiles`;
     initMapLibre().add(pmtiles);
     const meta = await readDatasetMeta(pmtiles);
     const layer = new DatasetLayer(this.map, id, url, meta, pmtiles, options.attribution);
