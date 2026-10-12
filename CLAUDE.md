@@ -5,6 +5,7 @@ Super interface para dados no mapa: empresas e pessoas trazem os próprios regis
 - Roadmap: `docs/ROADMAP.md`
 - Biblioteca de dados (fontes públicas): `docs/LIBRARY.md`
 - Arquitetura e stack: `docs/ARCHITECTURE.md`
+- Design system (cores, tipografia, espaço, ícones, componentes): `docs/DESIGN.md`
 - Decisões: `docs/adr/`
 
 ## Agentes
@@ -33,7 +34,7 @@ Especialistas em `.claude/agents/`. Delegue ao agente quando o assunto for dele:
 - Opções, filtros e camadas ficam na Sidebar, organizados em `SidebarSection`.
 - Sobre o mapa, só o que é do lugar: o cartão do clique (`MapPopup`, com o que é, foto da rua e o que tem por perto), a maquete (`DioramaPanel`) e o visualizador de rua (`StreetViewer`). Detalhes completos continuam na Sidebar ("Neste ponto").
 - Em telas < 768px a Sidebar sobrepõe o mapa e começa fechada.
-- Cores e medidas vêm dos tokens CSS em `apps/web/src/styles.css` (tema claro/escuro).
+- Cores e medidas vêm dos tokens CSS em `apps/web/src/styles.css` (tema claro/escuro), seguindo `docs/DESIGN.md`.
 
 ## Rodando local
 
