@@ -306,7 +306,7 @@
   flex: 1;
   height: 8px;
   border-radius: 4px;
-  background: linear-gradient(90deg, #2d1a5c, #5a1f86, #8f2a87, #c63d74, #ee6450, #fb9c3a, #fcd85a);
+  background: linear-gradient(90deg, #5f3dc4, #ae3ec9, #d6336c, #e8590c, #fd7e14, #ffd43b, #fff3bf);
 }
 .diorama-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; font-size: 13px; }
 .diorama-controls .slider { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--fg-muted); }

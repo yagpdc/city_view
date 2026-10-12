@@ -24,7 +24,8 @@ export interface LibraryLayer {
   saved: SavedLibraryLayer;
 }
 
-const COLORS = ["#f1eef6", "#d0d1e6", "#a6bddb", "#74a9cf", "#3690c0", "#0570b0", "#034e7b"];
+/** Escala de densidade City View (docs/DESIGN.md). */
+const COLORS = ["#fff3bf", "#ffd43b", "#fd7e14", "#e8590c", "#d6336c", "#ae3ec9", "#5f3dc4"];
 
 type MeshFeature = { type: "Feature"; id?: number; geometry: unknown; properties: Record<string, string | number> };
 const meshes = new Map<MapLevel, Promise<MeshFeature[]>>();

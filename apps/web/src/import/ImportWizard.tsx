@@ -195,7 +195,7 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
       refresh: `Importado em ${new Date().toLocaleString("pt-BR")}`,
       render: {
         type: "points",
-        color: "#5b6475",
+        color: "#6b7485", // --cv-data-other
         ...(colorBy && categories.length
           ? {
               colorBy: {

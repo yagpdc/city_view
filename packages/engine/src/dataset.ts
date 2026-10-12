@@ -59,25 +59,27 @@ export type DatasetPick =
       lngLat: [number, number];
     };
 
+/** Paleta de dados City View (docs/DESIGN.md): todas ≥ 3:1 sobre o mapa claro e o escuro. */
 export const CATEGORY_COLORS = [
-  "#4e79a7",
-  "#f28e2b",
-  "#e15759",
-  "#76b7b2",
-  "#59a14f",
-  "#edc948",
-  "#b07aa1",
-  "#ff9da7",
-  "#9c755f",
-  "#bab0ac",
+  "#2f6fd6",
+  "#e8590c",
+  "#2b9348",
+  "#c2255c",
+  "#1098ad",
+  "#7048e8",
+  "#b08900",
+  "#8c6d31",
+  "#5c940d",
+  "#a61e4d",
 ];
 /** Cor de "Outros" e de pontos sem categoria. */
-export const OTHER_COLOR = "#8a8f98";
+export const OTHER_COLOR = "#6b7485";
 
 /** Escala sequencial (densidade baixa → alta), um tom a mais que o número de quebras. */
-const DENSITY_COLORS = ["#fff3c4", "#fed98e", "#fdb863", "#f98e4b", "#ec5f3c", "#d03b3f", "#9e1f4a"];
+const DENSITY_COLORS = ["#fff3bf", "#ffd43b", "#fd7e14", "#e8590c", "#d6336c", "#ae3ec9", "#5f3dc4"];
 /** Escala viva (estilo "inferno") para pintar o relevo na maquete e as colunas 3D. */
-const VIVID_COLORS = ["#2d1a5c", "#5a1f86", "#8f2a87", "#c63d74", "#ee6450", "#fb9c3a", "#fcd85a"];
+/** Mesma escala, invertida: no 3D (fundo escuro) o pouco é escuro e o muito acende. */
+const VIVID_COLORS = [...DENSITY_COLORS].reverse();
 /** Altura máxima de uma coluna, em larguras de hexágono. */
 const COLUMN_HEIGHT_FACTOR = 2.6;
 
@@ -443,8 +445,8 @@ export class DatasetLayer {
         "text-letter-spacing": 0.01,
       },
       paint: {
-        "text-color": dark ? "#e5e7eb" : "#374151",
-        "text-halo-color": dark ? "#111827" : "#ffffff",
+        "text-color": dark ? "#c4cbd5" : "#353d4c",
+        "text-halo-color": dark ? "#10141c" : "#ffffff",
         "text-halo-width": 1.3,
         "text-halo-blur": 0.3,
       },
@@ -463,9 +465,10 @@ export class DatasetLayer {
         filter: this.pointsFilter(),
         paint: {
           "circle-color": this.pointColor(),
-          "circle-radius": ["interpolate", ["linear"], ["zoom"], 14, 2, 16, 3.5, 19, 7],
-          "circle-stroke-color": "#ffffff",
-          "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 14, 0, 16, 0.75],
+          // Ponto do dado (docs/DESIGN.md · Mapa 1): anel da cor do chão separa vizinhos.
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 14, 2.5, 16, 4.5, 19, 7],
+          "circle-stroke-color": this.labelTheme === "dark" ? "#10141c" : "#ffffff",
+          "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 14, 0.5, 16, 1.5],
         },
       },
     ];
