@@ -5,6 +5,7 @@ import { DATAPACKS, OBJECTIVES, dataUrl, type Objective } from "./catalog";
 import { DioramaPanel, type AreaChoice } from "./components/DioramaPanel";
 import { Catalog } from "./components/Catalog";
 import { PickDetails, type DatasetInfo } from "./components/PickDetails";
+import { ReferenceCatalog } from "./components/ReferenceCatalog";
 import { ServerDatasets } from "./components/ServerDatasets";
 import { Sidebar, SidebarSection } from "./components/Sidebar";
 import { TopBar } from "./components/TopBar";
@@ -61,6 +62,7 @@ export function App() {
   const [municipios3d, setMunicipios3d] = useState(false);
   const [diorama, setDiorama] = useState<Diorama | null>(null);
   const [paintBuildingsOn, setPaintBuildingsOn] = useState(false);
+  const [refsOpen, setRefsOpen] = useState(false);
   const [buildingResult, setBuildingResult] = useState<BuildingPaintResult | null>(null);
   const [objective, setObjective] = useState<string | null>(null);
   const [active, setActive] = useState<Set<string>>(loadActiveLayers);
@@ -417,6 +419,10 @@ export function App() {
 
         <SidebarSection title="Catálogo de dados">
           <Catalog datapacks={DATAPACKS} active={active} onToggle={toggle} />
+          <button type="button" className="refs-entry" onClick={() => setRefsOpen(true)}>
+            <strong>Referências: 9.336 tabelas do IBGE (SIDRA)</strong>
+            <span>Busque por tema e baixe no site oficial ↗</span>
+          </button>
         </SidebarSection>
 
         <SidebarSection title="Neste ponto">
@@ -505,6 +511,8 @@ export function App() {
           />
         )}
       </main>
+
+      {refsOpen && <ReferenceCatalog onClose={() => setRefsOpen(false)} />}
 
       {importFile && (
         <ImportWizard

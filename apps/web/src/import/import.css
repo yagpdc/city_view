@@ -278,3 +278,61 @@
 .building-records { margin: 6px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: 12px; max-height: 220px; overflow-y: auto; }
 .building-records li { display: flex; gap: 6px; align-items: baseline; }
 .building-records i { width: 9px; height: 9px; border-radius: 50%; flex: none; transform: translateY(1px); }
+
+/* ---------- Catálogo de referências ---------- */
+.refs-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-subtle);
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.refs-entry strong { font-size: 13px; }
+.refs-entry span { font-size: 11px; color: var(--fg-muted); }
+.refs-entry:hover { border-color: var(--accent); }
+.reference-catalog { width: min(900px, 100%); }
+.refs-search { display: flex; gap: 8px; flex-wrap: wrap; }
+.refs-search input {
+  flex: 1;
+  min-width: 220px;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+}
+.refs-search select { max-width: 320px; }
+.refs-count { margin: 0; font-size: 12px; }
+.refs-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; }
+.refs-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 2px; border-bottom: 1px solid var(--border); }
+.refs-list li div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.refs-list b { font-size: 13px; font-weight: 600; }
+.refs-list span { font-size: 11px; }
+.refs-list a.btn { flex: none; text-decoration: none; font-size: 12px; white-space: nowrap; }
+.refs-license { font-size: 11px; align-self: center; }
+
+.refs-municipal { width: 100%; font-size: 13px; }
+.refs-badge {
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, #16a34a 14%, var(--bg));
+  color: #15803d;
+  font-size: 10px !important;
+  font-weight: 600;
+}
+
+.refs-actions { display: flex; gap: 6px; flex: none; }
+.refs-actions .btn { font-size: 12px; white-space: nowrap; text-decoration: none; }
+.refs-ok { font-size: 11px !important; color: #15803d; }
+.refs-error { font-size: 11px !important; color: #b91c1c; }

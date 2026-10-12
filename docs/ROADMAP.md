@@ -57,6 +57,8 @@ Ordem pensada por encanto/esforço (ver [PRODUCT.md](PRODUCT.md)).
   - próximas: rodovias federais (DNIT, 336 mil segmentos — exige tiler de linhas), escolas (INEP), saúde (CNES), CNPJs
 - [x] Painel de catálogo na plataforma, com fonte/licença/atualização visíveis e aviso de desatualizado
 - [x] Pontos de partida por objetivo (varejo, agro, risco, explorar)
+- [x] Catálogo de referências: 9.336 tabelas do IBGE SIDRA (busca por tema, ano, sinônimos; selo "por município"), com link para baixar no site oficial — só índice, sem hospedar dado
+- [ ] Mais referências (dados.gov.br, INPE, DATASUS…) e importar uma tabela SIDRA municipal direto como camada
 - [x] Clique cruzando camadas: dado do cliente + todas as camadas do catálogo no mesmo ponto
 - [ ] Atualização automática das camadas vivas (hoje: rodar `pnpm datapacks`)
 

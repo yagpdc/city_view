@@ -24,6 +24,7 @@ python data/build_sp.py --brasil   # mapa base do Brasil (~760 MB)
 pnpm synth                         # 30M de empresas sintéticas → data/out/empresas.parquet
 pnpm tiles                         # Parquet → data/out/empresas/tiles.pmtiles (~60 s)
 pnpm datapacks                     # camadas do catálogo (IBGE, NASA FIRMS) → data/out/datapacks
+python datapacks/references/build_sidra.py   # (opcional) atualiza o índice SIDRA versionado
 pnpm api                           # servidor local (motor Rust): http://localhost:8787
 pnpm dev                           # plataforma: http://localhost:5173
 pnpm demo                          # site de cliente com o SDK: http://localhost:5174
