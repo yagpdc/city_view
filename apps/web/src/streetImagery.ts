@@ -128,8 +128,9 @@ export function coverageOverlay(): MapOverlay {
         layout: { "line-cap": "round", "line-join": "round" },
         paint: {
           "line-color": COVERAGE_COLOR,
-          "line-width": ["interpolate", ["linear"], ["zoom"], 6, 0.5, 14, 2, 18, 3],
-          "line-opacity": 0.75,
+          // Camada ligada por padrão: discreta, para não brigar com os dados.
+          "line-width": ["interpolate", ["linear"], ["zoom"], 6, 0.5, 14, 1.2, 18, 2],
+          "line-opacity": ["interpolate", ["linear"], ["zoom"], 6, 0.6, 15, 0.45],
         },
       },
       {
@@ -137,12 +138,11 @@ export function coverageOverlay(): MapOverlay {
         type: "circle",
         source,
         "source-layer": "image",
-        minzoom: 15,
+        minzoom: 17,
         paint: {
-          "circle-radius": ["interpolate", ["linear"], ["zoom"], 15, 1.5, 18, 3.5],
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 17, 1.5, 19, 3],
           "circle-color": COVERAGE_COLOR,
-          "circle-stroke-color": "#ffffff",
-          "circle-stroke-width": 0.5,
+          "circle-opacity": 0.6,
         },
       },
     ],

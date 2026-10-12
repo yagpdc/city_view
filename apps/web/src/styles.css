@@ -613,3 +613,7 @@ a { color: var(--cv-link); }
 .clause-hint { margin: 0; font-size: 11px; }
 .clause-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .clause-actions .btn { height: var(--cv-control-h-sm); }
+
+/* Legenda com ícone (Estabelecimentos): o marcador do mapa em miniatura */
+.legend-list i.legend-icon { display: grid; place-items: center; width: 18px; height: 18px; color: #ffffff; }
+.legend-list li.is-off i.legend-icon { color: var(--cv-text-muted); border-color: var(--cv-border-strong) !important; }

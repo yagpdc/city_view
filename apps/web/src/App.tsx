@@ -6,6 +6,7 @@ import { SearchBox, type SearchResult } from "./components/SearchBox";
 import { CategoryLegend, LayerCard, Panel, PanelCard, Rail, ScaleLegend, type LayerAction, type PanelId } from "./components/Shell";
 import { WidgetsPanel, type ViewportWidget } from "./components/WidgetsPanel";
 import { ValueFilter, type FilterColumn } from "./components/ValueFilter";
+import { placeIcon, placeIconSvgs } from "./placeIcons";
 import { Icon } from "./components/Icon";
 import { AddRow, DatapackMeta } from "./components/AddRow";
 import { MeasurePanel } from "./components/MeasurePanel";
@@ -353,6 +354,10 @@ export function App() {
   };
 
   useEffect(() => saveActiveLayers(active), [active]);
+  // Estabelecimentos: ao aproximar, cada ponto vira marcador com o ícone do tipo de lugar.
+  useEffect(() => {
+    if (map && places) void placeIconSvgs([...places.meta.categories, "outros"]).then((svgs) => map.setDatasetIcons(PLACES.id, svgs));
+  }, [map, places]);
   useEffect(() => {
     try {
       localStorage.setItem(FILTERS_KEY, JSON.stringify(filters));
@@ -748,7 +753,14 @@ export function App() {
     if (!info) return null;
     return (
       <CategoryLegend
-        items={info.categories.map((c, i) => ({ label: info.label ? info.label(c) : c, color: categoryColor(i, info.categories) }))}
+        items={info.categories.map((c, i) => {
+          const PlaceIcon = id === PLACES.id ? placeIcon(c) : null;
+          return {
+            label: info.label ? info.label(c) : c,
+            color: categoryColor(i, info.categories),
+            ...(PlaceIcon && { icon: <PlaceIcon size={12} strokeWidth={2.25} aria-hidden="true" /> }),
+          };
+        })}
         selected={filters[id]?.categories ?? null}
         onChange={(categories) => setCategoryFilter(id, categories)}
       />

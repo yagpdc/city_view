@@ -94,6 +94,8 @@ export class CityMap {
   private readonly catalog = new Map<string, CatalogLayer>();
   /** Filtro por camada (dataset ou catálogo), guardado mesmo antes de a camada existir. */
   private readonly layerFilters = new Map<string, DatasetFilter>();
+  /** Ícones por categoria pedidos para cada dataset (aplicados também a datasets que ainda vão carregar). */
+  private readonly datasetIcons = new Map<string, (string | null)[]>();
   /** Camadas externas genéricas (ex.: cobertura de fotos de rua); voltam após troca de estilo. */
   private readonly overlays = new Map<string, MapOverlay>();
   private locationMarker: Marker | null = null;
@@ -204,6 +206,8 @@ export class CityMap {
     layer.labelTheme = this.styleOptions.theme ?? "light";
     const filter = this.layerFilters.get(id);
     if (filter) layer.setFilter(filter);
+    const icons = this.datasetIcons.get(id);
+    if (icons) void layer.setIcons(icons);
     this.datasets.push(layer);
     this.whenStyleReady(() => layer.attach());
     return layer;
@@ -237,6 +241,16 @@ export class CityMap {
     else this.layerFilters.delete(id);
     this.datasets.find((d) => d.id === id)?.setFilter(next);
     this.catalog.get(id)?.setFilter(next.categories ?? null, next.where ?? null);
+  }
+
+  /**
+   * Ícone por categoria de um dataset (SVG de traço, índice = categoria; null numa posição = sem ícone).
+   * Ao aproximar, os pontos viram marcadores com o ícone. null tira os ícones.
+   */
+  setDatasetIcons(id: string, svgs: (string | null)[] | null): Promise<void> {
+    if (svgs) this.datasetIcons.set(id, svgs);
+    else this.datasetIcons.delete(id);
+    return this.datasets.find((d) => d.id === id)?.setIcons(svgs) ?? Promise.resolve();
   }
 
   getLayerFilter(id: string): DatasetFilter | null {
@@ -690,7 +704,12 @@ export class CityMap {
   private attachOverlay(overlay: MapOverlay): void {
     if (this.map.getSource(overlay.id)) return;
     this.map.addSource(overlay.id, overlay.source);
-    const beforeId = this.map.getStyle().layers.find((l) => l.type === "symbol")?.id;
+    // Camadas de apoio (ex.: cobertura de fotos de rua) ficam abaixo dos pontos dos datasets: o dado é o
+    // protagonista. As do próprio motor (`cv-`, ex.: medição) ficam por cima dos dados.
+    const layers = this.map.getStyle().layers;
+    const firstSymbol = layers.find((l) => l.type === "symbol")?.id;
+    const firstData = layers.find((l) => l.id.startsWith("cv-") && !this.overlays.has(l.id.split("-").slice(0, 2).join("-")))?.id;
+    const beforeId = overlay.id.startsWith("cv-") ? firstSymbol : (firstData ?? firstSymbol);
     for (const layer of overlay.layers) this.map.addLayer(layer, beforeId);
   }
 

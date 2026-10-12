@@ -217,7 +217,7 @@ export function CategoryLegend({
   selected = null,
   onChange,
 }: {
-  items: { label: string; color: string; count?: number }[];
+  items: { label: string; color: string; count?: number; icon?: ReactNode }[];
   max?: number;
   selected?: number[] | null;
   onChange?: (selected: number[] | null) => void;
@@ -255,7 +255,13 @@ export function CategoryLegend({
           {shown.map((it, i) => (
             <li key={it.label} className={isOn(i) ? "" : "is-off"}>
               <button type="button" className="legend-item" aria-pressed={isOn(i)} onClick={() => toggleItem(i)} title={isOn(i) ? `Esconder ${it.label}` : `Mostrar ${it.label}`}>
-                <i style={{ background: it.color, borderColor: it.color }} />
+                {it.icon ? (
+                  <i className="legend-icon" style={{ background: it.color, borderColor: it.color }}>
+                    {it.icon}
+                  </i>
+                ) : (
+                  <i style={{ background: it.color, borderColor: it.color }} />
+                )}
                 <span>{it.label}</span>
                 {it.count !== undefined && <span className="num">{int.format(it.count)}</span>}
               </button>

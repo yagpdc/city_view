@@ -9,6 +9,7 @@ import type { PMTiles } from "pmtiles";
 import { loadAreaHexes, type HexFeature } from "./areaHexes";
 import type { AreaGeometry, Position } from "./geo";
 import { whereExpressions, type WhereClause } from "./filter";
+import { ICON_PIXEL_RATIO, rasterizeIcon } from "./icons";
 import { loadNearby, searchPoints, type NearbySummary, type SearchHit } from "./nearby";
 
 /** Metadados gravados pelo cityview-tiler (`cityview` no JSON do PMTiles, versão 2). */
@@ -131,6 +132,84 @@ export class DatasetLayer {
     this.hexLayerId = `cv-${id}-hex`;
     this.pointsLayerId = `cv-${id}-points`;
     this.labelsLayerId = `cv-${id}-labels`;
+    this.iconsLayerId = `cv-${id}-icons`;
+  }
+
+  private readonly iconsLayerId: string;
+  /** Ícone por categoria (índice), já rasterizado; null = só os círculos. */
+  private icons: (ImageData | null)[] | null = null;
+
+  /** Zoom a partir do qual os pontos viram marcadores com ícone (e os rótulos aparecem). */
+  private get iconZoom(): number {
+    return Math.max(this.meta.pointsZoom + 2, 16);
+  }
+
+  private iconName(i: number): string {
+    return `${this.sourceId}-icon-${i}`;
+  }
+
+  /**
+   * Ícone por categoria (SVG de traço, ex.: Lucide; índice = categoria; um a mais vale para "Outros").
+   * Ao aproximar, cada ponto vira um marcador: círculo da cor da categoria com o ícone em branco. null volta aos círculos simples.
+   */
+  async setIcons(svgs: (string | null)[] | null): Promise<void> {
+    this.icons = svgs ? await Promise.all(svgs.map((s) => (s ? rasterizeIcon(s) : Promise.resolve(null)))) : null;
+    if (!this.map.getSource(this.sourceId)) return;
+    this.removeIconLayer();
+    this.addIconLayer();
+    this.map.setPaintProperty(this.pointsLayerId, "circle-radius", this.pointRadius());
+    if (this.map.getLayer(this.labelsLayerId)) this.map.setLayoutProperty(this.labelsLayerId, "text-offset", this.labelOffset());
+    this.setVisible(this.visible);
+  }
+
+  private addIconLayer(): void {
+    if (!this.icons || !this.map.getLayer(this.pointsLayerId)) return;
+    const pairs: (number | string)[] = [];
+    let fallback = "";
+    this.icons.forEach((data, i) => {
+      if (!data) return;
+      const name = this.iconName(i);
+      if (!this.map.hasImage(name)) this.map.addImage(name, data, { pixelRatio: ICON_PIXEL_RATIO });
+      // Um ícone além das categorias vale para o resto ("Outros").
+      if (i >= this.meta.categories.length) fallback = name;
+      else pairs.push(i, name);
+    });
+    if (pairs.length === 0 && !fallback) return;
+    // Logo acima dos círculos, abaixo dos rótulos.
+    const above = this.map.getStyle().layers.findIndex((l) => l.id === this.pointsLayerId);
+    const beforeId = this.map.getStyle().layers[above + 1]?.id;
+    this.map.addLayer(
+      {
+        id: this.iconsLayerId,
+        type: "symbol",
+        source: this.sourceId,
+        "source-layer": "points",
+        minzoom: this.iconZoom,
+        filter: this.pointsFilter(),
+        layout: {
+          "icon-image": (pairs.length ? ["match", ["get", this.meta.categoryProperty], ...pairs, fallback] : fallback) as unknown as ExpressionSpecification,
+          "icon-size": ["interpolate", ["linear"], ["zoom"], this.iconZoom, 0.7, 19, 1],
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+        },
+      },
+      beforeId,
+    );
+  }
+
+  private removeIconLayer(): void {
+    if (this.map.getLayer(this.iconsLayerId)) this.map.removeLayer(this.iconsLayerId);
+  }
+
+  /** Raio do ponto: com ícones, cresce até virar o fundo do marcador. */
+  private pointRadius(): ExpressionSpecification {
+    if (!this.icons) return ["interpolate", ["linear"], ["zoom"], 14, 2.5, 16, 4.5, 19, 7];
+    const z = this.iconZoom;
+    return ["interpolate", ["linear"], ["zoom"], 14, 2.5, z - 0.5, 4.5, z, 9, 19, 13];
+  }
+
+  private labelOffset(): [number, number] {
+    return this.icons ? [0, 1.25] : [0, 0.7];
   }
 
   /** Camadas clicáveis (hexágonos e pontos). */
@@ -140,7 +219,7 @@ export class DatasetLayer {
 
   /** Todas as camadas, inclusive os rótulos. */
   private get allLayerIds(): string[] {
-    return [...this.layerIds, this.labelsLayerId];
+    return [...this.layerIds, this.iconsLayerId, this.labelsLayerId];
   }
 
   /** (Re)adiciona fonte e camadas. Chamado na criação e sempre que o estilo é recarregado. */
@@ -154,6 +233,7 @@ export class DatasetLayer {
     // Dados acima do mapa base, mas abaixo dos rótulos.
     const beforeId = this.map.getStyle().layers.find((l) => l.type === "symbol")?.id;
     for (const layer of this.layers()) this.map.addLayer(layer, beforeId);
+    this.addIconLayer();
     // Rótulos acima dos do mapa base: na disputa por espaço, o nome dos dados ganha dos POIs do mapa.
     const labels = this.labelsLayer();
     if (labels) this.map.addLayer(labels);
@@ -184,6 +264,7 @@ export class DatasetLayer {
     if (this.extruded) this.map.setPaintProperty(this.hexLayerId, "fill-extrusion-height", this.columnHeight(count));
     this.map.setFilter(this.hexLayerId, [">", count, 0]);
     this.map.setFilter(this.pointsLayerId, this.pointsFilter());
+    if (this.map.getLayer(this.iconsLayerId)) this.map.setFilter(this.iconsLayerId, this.pointsFilter());
     if (this.map.getLayer(this.labelsLayerId)) this.map.setFilter(this.labelsLayerId, this.pointsFilter());
   }
 
@@ -481,14 +562,14 @@ export class DatasetLayer {
       type: "symbol",
       source: this.sourceId,
       "source-layer": "points",
-      minzoom: Math.max(this.meta.pointsZoom + 2, 16),
+      minzoom: this.iconZoom,
       filter: this.pointsFilter(),
       layout: {
         "text-field": ["get", title],
         "text-font": ["Noto Sans Regular"],
         "text-size": ["interpolate", ["linear"], ["zoom"], 16, 10.5, 19, 13],
         "text-anchor": "top",
-        "text-offset": [0, 0.7],
+        "text-offset": this.labelOffset(),
         "text-max-width": 9,
         "text-padding": 3,
         "text-letter-spacing": 0.01,
@@ -515,7 +596,7 @@ export class DatasetLayer {
         paint: {
           "circle-color": this.pointColor(),
           // Ponto do dado (docs/DESIGN.md · Mapa 1): anel da cor do chão separa vizinhos.
-          "circle-radius": ["interpolate", ["linear"], ["zoom"], 14, 2.5, 16, 4.5, 19, 7],
+          "circle-radius": this.pointRadius(),
           "circle-stroke-color": this.labelTheme === "dark" ? "#10141c" : "#ffffff",
           "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 14, 0.5, 16, 1.5],
         },

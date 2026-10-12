@@ -89,6 +89,8 @@ Inspirada no CARTO Builder: regiões claras, uma tarefa por painel, hierarquia f
 - Barra superior: marca, perspectiva 2D/3D, botão do painel "Na tela", Compartilhar (principal).
 - Trilho de ícones (76 px): Camadas, Adicionar, Detalhes, Ajustes.
 - Painel (360 px) sobre `--cv-surface`, com cartões `--cv-float` de cantos 12 px; cada camada é um cartão com letra, nome, fonte/quantidade, olho, menu ⋯ e legenda. A legenda de categorias é o filtro da camada: clicar liga/desliga, "só" isola uma, "Mostrar todas" limpa; o filtro vale no mapa, em "Na tela" (selo *filtrado*) e no "Por perto" do cartão do clique, e fica lembrado no navegador. Abaixo da legenda, "Filtrar por valor" cria condições por coluna (faixa numérica De/Até ou texto "contém"), mostradas como chips; em datasets em tiles valem só nos pontos (os hexágonos não têm as colunas). Filtros vão junto no link de compartilhar.
+- Marcadores com ícone: ao aproximar (zoom ≥ 16), pontos de datasets com `CityMap.setDatasetIcons` viram círculo da cor da categoria com ícone Lucide branco; a legenda mostra o mesmo marcador em miniatura. Estabelecimentos usa um ícone por grupo (`apps/web/src/placeIcons.tsx`) e alfinete para "Outros".
+- Camadas de apoio (cobertura de fotos de rua) ficam abaixo dos pontos e discretas.
 - Padrões ao abrir: Estabelecimentos e Fotos de rua ligados; coropléticos (municípios, UFs, biblioteca) nunca abrem ligados, ficam no projeto com o olho fechado.
 - Mapa no centro, com a busca flutuando no canto superior esquerdo.
 - "Na tela" (320 px) à direita: contagem visível e barras por categoria de cada camada de pontos.
