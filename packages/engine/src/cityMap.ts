@@ -177,6 +177,7 @@ export class CityMap {
     initMapLibre().add(pmtiles);
     const meta = await readDatasetMeta(pmtiles);
     const layer = new DatasetLayer(this.map, id, url, meta, pmtiles, options.attribution);
+    layer.labelTheme = this.styleOptions.theme ?? "light";
     this.datasets.push(layer);
     this.whenStyleReady(() => layer.attach());
     return layer;
@@ -720,6 +721,7 @@ export class CityMap {
   private applyState(): void {
     // Trocar o estilo (ex.: tema) remove fontes e camadas; os datasets voltam aqui.
     for (const dataset of this.datasets) {
+      dataset.labelTheme = this.styleOptions.theme ?? "light";
       dataset.attach();
       dataset.setFilter(dataset.getFilter());
     }

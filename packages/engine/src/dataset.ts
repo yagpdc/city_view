@@ -111,6 +111,9 @@ export class DatasetLayer {
   private readonly sourceId: string;
   private readonly hexLayerId: string;
   private readonly pointsLayerId: string;
+  private readonly labelsLayerId: string;
+  /** Tema do mapa base, para a cor dos rótulos (definido pelo CityMap antes de anexar). */
+  labelTheme: "light" | "dark" = "light";
 
   constructor(
     private readonly map: MapLibreMap,
@@ -124,10 +127,17 @@ export class DatasetLayer {
     this.sourceId = `cv-${id}`;
     this.hexLayerId = `cv-${id}-hex`;
     this.pointsLayerId = `cv-${id}-points`;
+    this.labelsLayerId = `cv-${id}-labels`;
   }
 
+  /** Camadas clicáveis (hexágonos e pontos). */
   get layerIds(): string[] {
     return [this.hexLayerId, this.pointsLayerId];
+  }
+
+  /** Todas as camadas, inclusive os rótulos. */
+  private get allLayerIds(): string[] {
+    return [...this.layerIds, this.labelsLayerId];
   }
 
   /** (Re)adiciona fonte e camadas. Chamado na criação e sempre que o estilo é recarregado. */
@@ -141,17 +151,20 @@ export class DatasetLayer {
     // Dados acima do mapa base, mas abaixo dos rótulos.
     const beforeId = this.map.getStyle().layers.find((l) => l.type === "symbol")?.id;
     for (const layer of this.layers()) this.map.addLayer(layer, beforeId);
+    // Rótulos acima dos do mapa base: na disputa por espaço, o nome dos dados ganha dos POIs do mapa.
+    const labels = this.labelsLayer();
+    if (labels) this.map.addLayer(labels);
     this.setVisible(this.visible);
   }
 
   detach(): void {
-    for (const id of this.layerIds) if (this.map.getLayer(id)) this.map.removeLayer(id);
+    for (const id of this.allLayerIds) if (this.map.getLayer(id)) this.map.removeLayer(id);
     if (this.map.getSource(this.sourceId)) this.map.removeSource(this.sourceId);
   }
 
   setVisible(visible: boolean): void {
     this.visible = visible;
-    for (const id of this.layerIds) {
+    for (const id of this.allLayerIds) {
       if (this.map.getLayer(id)) this.map.setLayoutProperty(id, "visibility", visible ? "visible" : "none");
     }
   }
@@ -168,6 +181,7 @@ export class DatasetLayer {
     if (this.extruded) this.map.setPaintProperty(this.hexLayerId, "fill-extrusion-height", this.columnHeight(count));
     this.map.setFilter(this.hexLayerId, [">", count, 0]);
     this.map.setFilter(this.pointsLayerId, this.pointsFilter());
+    if (this.map.getLayer(this.labelsLayerId)) this.map.setFilter(this.labelsLayerId, this.pointsFilter());
   }
 
   /** Hexágonos como colunas 3D (altura e cor pela densidade). */
@@ -389,6 +403,37 @@ export class DatasetLayer {
     if (this.meta.categories.length === 0) return CATEGORY_COLORS[0]!;
     const pairs = this.meta.categories.flatMap((_, i) => [i, categoryColor(i, this.meta.categories)]);
     return ["match", ["get", this.meta.categoryProperty], ...pairs, OTHER_COLOR] as unknown as ExpressionSpecification;
+  }
+
+  /** Nome de cada ponto (coluna de título) ao aproximar; sem título, sem rótulos. */
+  private labelsLayer(): LayerSpecification | null {
+    const title = this.meta.title;
+    if (!title || !this.meta.columns.some((c) => c.name === title)) return null;
+    const dark = this.labelTheme === "dark";
+    return {
+      id: this.labelsLayerId,
+      type: "symbol",
+      source: this.sourceId,
+      "source-layer": "points",
+      minzoom: Math.max(this.meta.pointsZoom + 2, 16),
+      filter: this.pointsFilter(),
+      layout: {
+        "text-field": ["get", title],
+        "text-font": ["Noto Sans Regular"],
+        "text-size": ["interpolate", ["linear"], ["zoom"], 16, 10.5, 19, 13],
+        "text-anchor": "top",
+        "text-offset": [0, 0.7],
+        "text-max-width": 9,
+        "text-padding": 3,
+        "text-letter-spacing": 0.01,
+      },
+      paint: {
+        "text-color": dark ? "#e5e7eb" : "#374151",
+        "text-halo-color": dark ? "#111827" : "#ffffff",
+        "text-halo-width": 1.3,
+        "text-halo-blur": 0.3,
+      },
+    };
   }
 
   private layers(): LayerSpecification[] {
