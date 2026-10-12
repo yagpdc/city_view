@@ -38,6 +38,9 @@ if (-not $Rclone) {
 # Chaves: digitadas agora, só na memória deste processo.
 Write-Host "Cole os dados do token do R2 (R2 > Manage API Tokens). Nada é gravado." -ForegroundColor Cyan
 $endpoint = (Read-Host "Endereço S3 (termina em .r2.cloudflarestorage.com)").Trim().TrimEnd("/")
+if ($endpoint -match '^cfat_') { throw "Isso é o 'Token value' (cfat_...). Use o endereço S3/Endpoint, que termina em .r2.cloudflarestorage.com. Por segurança, apague esse token e crie outro." }
+if ($endpoint -notmatch '^https?://') { $endpoint = "https://$endpoint" }
+if ($endpoint -notmatch '^https://[a-z0-9]+\.(eu\.|fedramp\.)?r2\.cloudflarestorage\.com$') { throw "Endereço S3 inválido: '$endpoint'. Deve ser algo como https://<id-da-conta>.r2.cloudflarestorage.com (em R2 > bucket > Settings > S3 API)." }
 $keyId = (Read-Host "Access Key ID").Trim()
 $secretSecure = Read-Host "Secret Access Key" -AsSecureString
 $secret = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($secretSecure))
