@@ -526,3 +526,54 @@ a { color: var(--cv-link); }
 .pick-card dt { color: var(--cv-text-muted); }
 .pick-card dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
 .pick-card .source { margin-top: 6px; font-size: 12px; }
+
+/* ---------- Origem do dado (público × seu) ---------- */
+.origin-tag {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 6px;
+  border-radius: var(--cv-radius-sm);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  vertical-align: 1px;
+}
+.origin-public { background: var(--cv-info-bg); color: var(--cv-info); }
+.origin-user { background: var(--cv-action-subtle); color: var(--cv-action-subtle-text); }
+.origin-sample { background: var(--cv-surface-press); color: var(--cv-text-muted); }
+.panel-intro { margin: 0 4px 4px; font-size: 13px; line-height: 18px; color: var(--cv-text-muted); }
+.panel-subsection { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid var(--cv-border); }
+.panel-subsection h4 { margin: 0; font-size: 14px; font-weight: 600; }
+
+/* ---------- Ferramenta Medir ---------- */
+.topbar-tool { height: var(--cv-control-h-sm); }
+.topbar-tool.is-on { border-color: var(--cv-action-subtle-text); background: var(--cv-action-subtle); color: var(--cv-action-subtle-text); }
+.measure-panel {
+  position: absolute;
+  left: 50%;
+  bottom: 40px;
+  z-index: 5;
+  transform: translateX(-50%);
+  width: min(380px, calc(100% - 24px));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px 12px 16px;
+  border-radius: var(--cv-radius-xl);
+  background: var(--cv-float);
+  box-shadow: var(--cv-shadow-3);
+}
+.measure-head { display: flex; align-items: center; gap: 10px; }
+.measure-title { display: inline-flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; flex: 1; }
+.measure-head .segmented button { height: 28px; font-size: 12px; }
+.measure-value { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.measure-value .num { font-size: 28px; line-height: 34px; font-weight: 500; letter-spacing: -0.02em; }
+.measure-value .muted { font-size: 13px; }
+.measure-hint { margin: 0; font-size: 12px; line-height: 16px; }
+.measure-actions { display: flex; gap: 8px; }
+.measure-note { margin: 0; font-size: 11px; }
+
+/* "Na tela" em gaveta fica acima da busca */
+@media (max-width: 1100px) {
+  .widgets { z-index: 6; }
+}

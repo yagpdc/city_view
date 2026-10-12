@@ -20,6 +20,19 @@ import type { HexFeature } from "./areaHexes";
 import { paintBuildings, type BuildingPaintResult, type BuildingRecord } from "./buildingPaint";
 import { areaBounds, circleArea, worldMask, type AreaGeometry } from "./geo";
 import type { NearbySummary, SearchHit } from "./nearby";
+import { lineLengthM, polygonMeasure } from "./measure";
+
+export type MeasureMode = "distance" | "area";
+
+/** Resultado vivo da medição (atualiza a cada clique e ao mover o mouse). */
+export interface MeasureState {
+  mode: MeasureMode;
+  points: [number, number][];
+  lengthM: number;
+  areaM2: number;
+  perimeterM: number;
+  done: boolean;
+}
 import { BUILDINGS_3D_LAYER, BUILDINGS_SOURCE, BASEMAP_SOURCE, TERRAIN_SOURCE, buildStyle, type BasemapLook, type StyleOptions, type Theme } from "./style";
 
 export interface Camera {
@@ -83,6 +96,14 @@ export class CityMap {
   private readonly overlays = new Map<string, MapOverlay>();
   private locationMarker: Marker | null = null;
   private popup: Popup | null = null;
+  private measure: {
+    mode: MeasureMode;
+    points: [number, number][];
+    cursor: [number, number] | null;
+    done: boolean;
+    onChange: (state: MeasureState) => void;
+    cleanup: () => void;
+  } | null = null;
   /**
    * Estilo carregado (fontes e camadas podem ser adicionadas). Diferente de `isStyleLoaded()`
    * do MapLibre, que só fica verdadeiro quando todos os tiles terminaram de carregar.
@@ -134,6 +155,7 @@ export class CityMap {
       bearing: camera?.bearing ?? 0,
       maxPitch: 85,
       hash,
+      attributionControl: { compact: true },
     });
 
     this.map.addControl(new NavigationControl({ visualizePitch: true }), "top-right");
@@ -532,6 +554,7 @@ export class CityMap {
   /** Clique com tudo o que está sob o cursor, de todas as camadas. */
   onMapPick(handler: (pick: MapPick) => void): () => void {
     const listener = (e: MapMouseEvent) => {
+      if (this.measure) return; // medindo: o clique marca pontos
       const dataset = this.datasets.map((d) => d.pick(e.point)).find((p) => p !== null) ?? null;
       const catalog = [...this.catalog.values()].map((c) => c.pick(e.point)).filter((p): p is CatalogPick => p !== null);
       handler({ lngLat: [e.lngLat.lng, e.lngLat.lat], dataset, catalog, building: this.pickBuilding(e.point) });
@@ -569,6 +592,7 @@ export class CityMap {
   /** Cursor de "clicável" sobre camadas de dados. */
   enableHoverCursor(): void {
     this.map.on("mousemove", (e) => {
+      if (this.measure) return;
       const layers = [
         ...this.datasets.flatMap((d) => d.layerIds),
         ...[...this.catalog.values()].filter((c) => c.isVisible()).flatMap((c) => c.layerIds),
@@ -697,6 +721,141 @@ export class CityMap {
       ),
     );
     return results.flat();
+  }
+
+  // ---------- Medição (distância e área no elipsoide) ----------
+
+  /**
+   * Liga o modo de medir: clique marca pontos, mover mostra o trecho seguinte, duplo clique ou Enter
+   * termina, Backspace desfaz, Esc encerra. Depois de terminado, um novo clique começa outra medição.
+   */
+  startMeasure(mode: MeasureMode, onChange: (state: MeasureState) => void, onExit?: () => void): void {
+    this.stopMeasure();
+    const m = { mode, points: [] as [number, number][], cursor: null as [number, number] | null, done: false, onChange, cleanup: () => {} };
+    this.measure = m;
+    this.map.doubleClickZoom.disable();
+    const canvas = this.map.getCanvas();
+    canvas.style.cursor = "crosshair";
+    const click = (e: MapMouseEvent) => {
+      const p: [number, number] = [e.lngLat.lng, e.lngLat.lat];
+      if (m.done) {
+        m.points = [];
+        m.done = false;
+      }
+      // O duplo clique gera dois cliques no mesmo lugar: não repete o ponto.
+      const last = m.points.at(-1);
+      if (last && this.map.project(last).dist(e.point) < 4) return;
+      m.points.push(p);
+      this.renderMeasure();
+    };
+    const move = (e: MapMouseEvent) => {
+      if (m.done || m.points.length === 0) return;
+      m.cursor = [e.lngLat.lng, e.lngLat.lat];
+      this.renderMeasure();
+    };
+    const dbl = (e: MapMouseEvent) => {
+      e.preventDefault();
+      this.finishMeasure();
+    };
+    const key = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.key === "Enter") this.finishMeasure();
+      else if (e.key === "Backspace") this.undoMeasure();
+      else if (e.key === "Escape") {
+        this.stopMeasure();
+        onExit?.();
+      }
+    };
+    this.map.on("click", click);
+    this.map.on("mousemove", move);
+    this.map.on("dblclick", dbl);
+    window.addEventListener("keydown", key);
+    m.cleanup = () => {
+      this.map.off("click", click);
+      this.map.off("mousemove", move);
+      this.map.off("dblclick", dbl);
+      window.removeEventListener("keydown", key);
+    };
+    this.renderMeasure();
+  }
+
+  setMeasureMode(mode: MeasureMode): void {
+    if (!this.measure) return;
+    this.measure.mode = mode;
+    this.renderMeasure();
+  }
+
+  finishMeasure(): void {
+    if (!this.measure) return;
+    this.measure.done = this.measure.points.length > 1;
+    this.measure.cursor = null;
+    this.renderMeasure();
+  }
+
+  undoMeasure(): void {
+    if (!this.measure) return;
+    this.measure.points.pop();
+    this.measure.done = false;
+    this.renderMeasure();
+  }
+
+  clearMeasure(): void {
+    if (!this.measure) return;
+    this.measure.points = [];
+    this.measure.cursor = null;
+    this.measure.done = false;
+    this.renderMeasure();
+  }
+
+  stopMeasure(): void {
+    if (!this.measure) return;
+    this.measure.cleanup();
+    this.measure = null;
+    this.removeOverlay("cv-measure");
+    this.map.doubleClickZoom.enable();
+    this.map.getCanvas().style.cursor = "";
+  }
+
+  isMeasuring(): boolean {
+    return this.measure !== null;
+  }
+
+  private renderMeasure(): void {
+    const m = this.measure;
+    if (!m) return;
+    const pts = m.cursor ? [...m.points, m.cursor] : [...m.points];
+    const area = m.mode === "area";
+    const features: object[] = [];
+    if (area && pts.length >= 3) {
+      features.push({ type: "Feature", properties: { kind: "fill" }, geometry: { type: "Polygon", coordinates: [[...pts, pts[0]]] } });
+    }
+    if (pts.length >= 2) {
+      const line = area && pts.length >= 3 ? [...pts, pts[0]] : pts;
+      features.push({ type: "Feature", properties: { kind: "line" }, geometry: { type: "LineString", coordinates: line } });
+    }
+    for (const p of m.points) features.push({ type: "Feature", properties: { kind: "vertex" }, geometry: { type: "Point", coordinates: p } });
+    const data = { type: "FeatureCollection", features } as GeoJSON.FeatureCollection;
+    const source = this.map.getSource("cv-measure") as GeoJSONSource | undefined;
+    if (source && this.overlays.has("cv-measure")) source.setData(data);
+    else {
+      this.setOverlay({
+        id: "cv-measure",
+        source: { type: "geojson", data },
+        layers: [
+          { id: "cv-measure-fill", type: "fill", source: "cv-measure", filter: ["==", ["get", "kind"], "fill"], paint: { "fill-color": "#6068ee", "fill-opacity": 0.14 } },
+          { id: "cv-measure-line", type: "line", source: "cv-measure", filter: ["==", ["get", "kind"], "line"], layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#4a50d6", "line-width": 2.5 } },
+          {
+            id: "cv-measure-vertex",
+            type: "circle",
+            source: "cv-measure",
+            filter: ["==", ["get", "kind"], "vertex"],
+            paint: { "circle-radius": 5, "circle-color": "#ffffff", "circle-stroke-color": "#4a50d6", "circle-stroke-width": 2.5 },
+          },
+        ],
+      });
+    }
+    const poly = area ? polygonMeasure(pts) : { areaM2: 0, perimeterM: 0 };
+    m.onChange({ mode: m.mode, points: [...m.points], lengthM: lineLengthM(pts), areaM2: poly.areaM2, perimeterM: poly.perimeterM, done: m.done });
   }
 
   /** Desenha (ou apaga, com null) o círculo de um raio em metros. */

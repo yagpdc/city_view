@@ -84,6 +84,8 @@ export function PanelCard({ title, aside, children }: { title?: string; aside?: 
   );
 }
 
+const ORIGIN_LABEL = { public: "Público", user: "Seu dado", sample: "Exemplo" } as const;
+
 export interface LayerAction {
   label: string;
   icon: IconName;
@@ -99,6 +101,7 @@ export function LayerCard({
   badge,
   tone,
   title,
+  origin,
   meta,
   visible,
   onVisible,
@@ -110,6 +113,8 @@ export function LayerCard({
   badge: string;
   tone: string;
   title: string;
+  /** De onde vem o dado: o produto visualiza dados públicos e do usuário com o mesmo peso. */
+  origin?: "public" | "user" | "sample";
   meta: ReactNode;
   visible: boolean;
   onVisible?: (visible: boolean) => void;
@@ -126,7 +131,10 @@ export function LayerCard({
         </span>
         <span className="layer-card-text">
           <b title={title}>{title}</b>
-          <span>{meta}</span>
+          <span>
+            {origin && <span className={`origin-tag origin-${origin}`}>{ORIGIN_LABEL[origin]}</span>}
+            {meta}
+          </span>
         </span>
         {status === "working" ? (
           <span className="spinner" aria-label="Processando" />

@@ -106,6 +106,9 @@ importers:
       '@protomaps/basemaps':
         specifier: ^5.7.2
         version: 5.7.2
+      geographiclib-geodesic:
+        specifier: 2.2.0
+        version: 2.2.0
       maplibre-gl:
         specifier: ^6.13.0
         version: 6.13.0
@@ -566,6 +569,9 @@ packages:
 
   fzstd@0.1.1:
     resolution: {integrity: sha512-dkuVSOKKwh3eas5VkJy1AW1vFpet8TA/fGmVA5krThl8YcOVE/8ZIoEA1+U1vEn5ckxxhLirSdY837azmbaNHA==}
+
+  geographiclib-geodesic@2.2.0:
+    resolution: {integrity: sha512-cIedo9VTYb0DFufodgibDmVfsWe9EASqb/kUByl09xc6PZYvLvlc89BHCThtGTPf2OII/zWJGxsR3Uz6O7QOVw==}
 
   gl-matrix@3.4.4:
     resolution: {integrity: sha512-latSnyDNt/8zYUB6VIJ6PCh2jBjJX6gnDsoCZ7LyW7GkqrD51EWwa9qCoGixj8YqBtETQK/xY7OmpTF8xz1DdQ==}
@@ -1255,6 +1261,8 @@ snapshots:
     optional: true
 
   fzstd@0.1.1: {}
+
+  geographiclib-geodesic@2.2.0: {}
 
   gl-matrix@3.4.4: {}
 

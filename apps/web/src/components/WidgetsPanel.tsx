@@ -39,10 +39,14 @@ export function WidgetsPanel({ widgets, onClose }: { widgets: ViewportWidget[]; 
               <header className="panel-card-header">
                 <h3>{w.title}</h3>
               </header>
-              <div className="widget-count">
-                <span className="num">{int.format(w.count)}</span>
-                <span className="muted">{w.mode === "points" ? "na tela agora" : "na tela agora (por região)"}</span>
-              </div>
+              {w.count === 0 ? (
+                <p className="panel-text">Nada desta camada nesta parte do mapa. Mova ou aproxime o mapa.</p>
+              ) : (
+                <div className="widget-count">
+                  <span className="num">{int.format(w.count)}</span>
+                  <span className="muted">{w.mode === "points" ? "na tela agora" : "na tela agora (por região)"}</span>
+                </div>
+              )}
               {w.bars.length > 0 && (
                 <ul className="widget-bars">
                   {w.bars.slice(0, 6).map((b) => (

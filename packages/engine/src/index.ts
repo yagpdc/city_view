@@ -13,7 +13,8 @@ export {
 export { geodesicDistanceM } from "./geo";
 export { normalizeText } from "./nearby";
 export type { NearbyPoint, NearbySummary, SearchHit } from "./nearby";
-export { CityMap, type Camera, type CityMapEvent, type CityMapOptions, type MapOverlay, type MapPick } from "./cityMap";
+export { CityMap, type Camera, type CityMapEvent, type CityMapOptions, type MapOverlay, type MapPick, type MeasureMode, type MeasureState } from "./cityMap";
+export { formatArea, formatDistance, lineLengthM, polygonMeasure } from "./measure";
 export {
   CATEGORY_COLORS,
   DatasetLayer,

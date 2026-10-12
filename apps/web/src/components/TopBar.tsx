@@ -7,12 +7,16 @@ export function TopBar({
   onShare,
   widgetsOpen,
   onToggleWidgets,
+  measuring,
+  onToggleMeasure,
 }: {
   perspective: "2d" | "3d";
   onPerspective: (mode: "2d" | "3d") => void;
   onShare: () => void;
   widgetsOpen: boolean;
   onToggleWidgets: () => void;
+  measuring: boolean;
+  onToggleMeasure: () => void;
 }) {
   return (
     <header className="topbar">
@@ -28,6 +32,16 @@ export function TopBar({
           </button>
         ))}
       </div>
+      <button
+        type="button"
+        className={`btn topbar-tool ${measuring ? "is-on" : ""}`}
+        aria-pressed={measuring}
+        onClick={onToggleMeasure}
+        title="Medir distância ou área"
+      >
+        <Icon name="ruler" size={16} />
+        <span>Medir</span>
+      </button>
       <button
         type="button"
         className={`icon-button ${widgetsOpen ? "is-on" : ""}`}

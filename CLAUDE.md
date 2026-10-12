@@ -1,6 +1,6 @@
 # City View
 
-Super interface para dados no mapa: empresas e pessoas trazem os próprios registros (lojas, prédios, garagens, clientes, ativos… às vezes milhões), localizam e entendem esses dados no mapa e geram análises sobre eles na plataforma, e pode embutir mapas/análises no produto dele via SDK. A gente cuida de ingestão, tiles, consultas, render e interação. Roda localmente por enquanto.
+**Visualizador de dados no mapa** — dados públicos (APIs e bases abertas) e dados do próprio usuário, com o mesmo peso. Super interface para dados no mapa: empresas e pessoas trazem os próprios registros (lojas, prédios, garagens, clientes, ativos… às vezes milhões), localizam e entendem esses dados no mapa e geram análises sobre eles na plataforma, e pode embutir mapas/análises no produto dele via SDK. A gente cuida de ingestão, tiles, consultas, render e interação. Roda localmente por enquanto.
 
 - Roadmap: `docs/ROADMAP.md`
 - Biblioteca de dados (fontes públicas): `docs/LIBRARY.md`
@@ -26,7 +26,7 @@ Especialistas em `.claude/agents/`. Delegue ao agente quando o assunto for dele:
 ## Layout padrão da interface
 
 ```
-[marca ............................ 2D/3D  Na tela  Compartilhar]   TopBar (components/TopBar.tsx)
+[marca .................... 2D/3D  Medir  Na tela  Compartilhar]   TopBar (components/TopBar.tsx)
 [trilho][painel][          mapa + busca flutuante          ][Na tela]
 ```
 

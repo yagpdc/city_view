@@ -7,6 +7,8 @@ import { CategoryLegend, LayerCard, Panel, PanelCard, Rail, ScaleLegend, type La
 import { WidgetsPanel, type ViewportWidget } from "./components/WidgetsPanel";
 import { Icon } from "./components/Icon";
 import { AddRow, DatapackMeta } from "./components/AddRow";
+import { MeasurePanel } from "./components/MeasurePanel";
+import type { MeasureMode, MeasureState } from "@cityview/engine";
 import type { Comparison } from "./compare";
 import { DATAPACKS, OBJECTIVES, dataUrl, type Objective } from "./catalog";
 import { DioramaPanel, type AreaChoice } from "./components/DioramaPanel";
@@ -95,6 +97,9 @@ export function App() {
   const [widgetsOpen, setWidgetsOpen] = useState(() => window.innerWidth >= 1280);
   const [widgets, setWidgets] = useState<ViewportWidget[]>([]);
   const [perspective, setPerspective] = useState<"2d" | "3d">("2d");
+  const [measuring, setMeasuring] = useState(false);
+  const [measureMode, setMeasureMode] = useState<MeasureMode>("distance");
+  const [measureState, setMeasureState] = useState<MeasureState | null>(null);
   const [theme, setTheme] = useState<Theme>(SHARED?.theme ?? "light");
   const [look, setLook] = useState<BasemapLook>(SHARED?.look ?? "data");
   const [shareStatus, setShareStatus] = useState<string | null>(null);
@@ -484,6 +489,23 @@ export function App() {
 
   const inProject = (id: string) => active.has(id) || hidden.has(id);
 
+  const startMeasure = (mode: MeasureMode = measureMode) => {
+    if (!map) return;
+    setPick(null);
+    setMeasuring(true);
+    setMeasureState(null);
+    map.startMeasure(mode, setMeasureState, () => setMeasuring(false));
+  };
+  const stopMeasure = () => {
+    map?.stopMeasure();
+    setMeasuring(false);
+    setMeasureState(null);
+  };
+  const changeMeasureMode = (mode: MeasureMode) => {
+    setMeasureMode(mode);
+    map?.setMeasureMode(mode);
+  };
+
   const changePerspective = (mode: "2d" | "3d") => {
     setPerspective(mode);
     map?.setPerspective(mode);
@@ -525,6 +547,7 @@ export function App() {
 
   const openDiorama = async (datasetId: string, lngLat: [number, number], area: Area, areaChoice: AreaChoice) => {
     if (!map) return;
+    if (measuring) stopMeasure();
     const exaggeration = diorama?.exaggeration ?? 1.8;
     setDiorama({ datasetId, lngLat, area, areaChoice, summary: null, columns: diorama?.columns ?? false, exaggeration, orbiting: false });
     setActive((prev) => new Set(prev).add(datasetKey(datasetId)));
@@ -711,12 +734,12 @@ export function App() {
     const meta = working
       ? d.status === "queued" ? "na fila do servidor…" : `processando… ${Math.round(d.progress * 100)}%`
       : d.status === "error" ? <span className="warn">{d.error}</span>
-      : d.report ? <>Seus dados · <span className="num">{int.format(d.report.records)}</span> registros · servidor local</>
-      : "Seus dados";
+      : d.report ? <><span className="num">{int.format(d.report.records)}</span> registros · servidor local</>
+      : "servidor local";
     layerCards.push({
       key: d.id,
       node: (badge, tone) => (
-        <LayerCard badge={badge} tone={tone} title={d.name} meta={meta} visible={active.has(d.id)} onVisible={d.status === "ready" ? (v) => toggle(d.id, v) : undefined} actions={actions} status={working ? "working" : d.status === "error" ? "error" : undefined} progress={working ? d.progress : undefined}>
+        <LayerCard badge={badge} tone={tone} title={d.name} origin="user" meta={meta} visible={active.has(d.id)} onVisible={d.status === "ready" ? (v) => toggle(d.id, v) : undefined} actions={actions} status={working ? "working" : d.status === "error" ? "error" : undefined} progress={working ? d.progress : undefined}>
           {datasetLegend(d.id)}
           {datasetOptions}
         </LayerCard>
@@ -733,7 +756,8 @@ export function App() {
           badge={badge}
           tone={tone}
           title={d.manifest.name}
-          meta={<>Seus dados · <span className="num">{int.format(d.count)}</span> pontos · neste navegador</>}
+          origin="user"
+          meta={<><span className="num">{int.format(d.count)}</span> pontos · neste navegador</>}
           visible={active.has(d.id)}
           onVisible={(v) => toggle(d.id, v)}
           actions={[
@@ -761,6 +785,7 @@ export function App() {
           badge={badge}
           tone={tone}
           title={`${l.variable} · ${l.period}`}
+          origin="public"
           meta={<>{l.item.sourceName} · <span className="num">{int.format(l.matched)}</span> {l.level === "uf" ? "estados" : "municípios"}</>}
           visible={active.has(l.manifest.id)}
           onVisible={(v) => toggle(l.manifest.id, v)}
@@ -783,6 +808,7 @@ export function App() {
           badge={badge}
           tone={tone}
           title="Lugares"
+          origin="public"
           meta={<>Overture Maps · <span className="num">{int.format(places.meta.records)}</span> · versão {places.release}</>}
           visible={active.has(PLACES_KEY)}
           onVisible={(v) => toggle(PLACES_KEY, v)}
@@ -805,7 +831,8 @@ export function App() {
           badge={badge}
           tone={tone}
           title={CLIENT_DATASET.name}
-          meta={<>Exemplo sintético · <span className="num">{int.format(demoMeta.records)}</span> registros</>}
+          origin="sample"
+          meta={<><span className="num">{int.format(demoMeta.records)}</span> registros</>}
           visible={active.has(DATASET_KEY)}
           onVisible={(v) => toggle(DATASET_KEY, v)}
           actions={[{ label: "Tirar do mapa", icon: "eyeOff", onClick: () => removeFromMap(DATASET_KEY) }]}
@@ -825,6 +852,7 @@ export function App() {
           badge={badge}
           tone={tone}
           title={d.name}
+          origin="public"
           meta={<DatapackMeta datapack={d} />}
           visible={active.has(d.id)}
           onVisible={(v) => toggle(d.id, v)}
@@ -854,6 +882,7 @@ export function App() {
           badge={badge}
           tone={tone}
           title="Fotos de rua"
+          origin="public"
           meta="Mapillary · CC BY-SA"
           visible={active.has(STREET_KEY)}
           onVisible={(v) => toggle(STREET_KEY, v)}
@@ -915,7 +944,8 @@ export function App() {
 
   const addPanel = (
     <Panel title="Adicionar dados" onClose={() => setPanel(null)}>
-      <PanelCard title="Seus registros">
+      <p className="panel-intro">Visualize no mesmo mapa os seus próprios dados e dados públicos.</p>
+      <PanelCard title="Seus dados" aside={<span className="origin-tag origin-user">Seu dado</span>}>
         <p className="panel-text">CSV, Excel, Parquet ou GeoJSON com localização. Também dá para arrastar o arquivo direto para o mapa.</p>
         <button type="button" className="btn btn-primary btn-block" onClick={() => fileInput.current?.click()}>
           <Icon name="fileUp" size={18} />
@@ -955,7 +985,8 @@ export function App() {
         )}
       </PanelCard>
 
-      <PanelCard title="Catálogo">
+      <PanelCard title="Dados públicos" aside={<span className="origin-tag origin-public">Público</span>}>
+        <p className="panel-text">Fontes abertas prontas para o mapa. Os dados vêm direto de cada fonte.</p>
         <div className="add-list">
           <AddRow
             title="Lugares"
@@ -970,18 +1001,23 @@ export function App() {
           {DATAPACKS.map((d) => (
             <AddRow key={d.id} title={d.name} meta={<DatapackMeta datapack={d} />} added={inProject(d.id)} onAdd={() => toggle(d.id, true)} />
           ))}
-          <AddRow title={CLIENT_DATASET.name} meta={demoMeta ? "Exemplo sintético para testar volume" : "Gere com pnpm synth && pnpm tiles"} added={inProject(DATASET_KEY)} disabled={!demoMeta} onAdd={() => toggle(DATASET_KEY, true)} />
+        </div>
+        <div className="panel-subsection">
+          <h4>Biblioteca</h4>
+          <p className="panel-text">
+          {int.format(LIBRARY_TOTAL)} tabelas e séries de {LIBRARY_SOURCES.map((s) => s.name).join(", ")}. Baixe direto da fonte ou ponha no mapa por município ou estado.
+        </p>
+          <button type="button" className="btn btn-block" onClick={() => setLibraryOpen(true)}>
+            <Icon name="library" size={18} />
+            Abrir biblioteca
+          </button>
         </div>
       </PanelCard>
 
-      <PanelCard title="Biblioteca de dados públicos">
-        <p className="panel-text">
-          {int.format(LIBRARY_TOTAL)} tabelas e séries de {LIBRARY_SOURCES.map((s) => s.name).join(", ")}. Baixe direto da fonte ou ponha no mapa por município ou estado.
-        </p>
-        <button type="button" className="btn btn-block" onClick={() => setLibraryOpen(true)}>
-          <Icon name="library" size={18} />
-          Abrir biblioteca
-        </button>
+      <PanelCard title="Exemplo" aside={<span className="origin-tag origin-sample">Exemplo</span>}>
+        <div className="add-list">
+          <AddRow title={CLIENT_DATASET.name} meta={demoMeta ? "Dados sintéticos para testar volume" : "Gere com pnpm synth && pnpm tiles"} added={inProject(DATASET_KEY)} disabled={!demoMeta} onAdd={() => toggle(DATASET_KEY, true)} />
+        </div>
       </PanelCard>
     </Panel>
   );
@@ -1061,7 +1097,7 @@ export function App() {
 
   return (
     <div className={`app theme-${theme}`}>
-      <TopBar perspective={perspective} onPerspective={changePerspective} onShare={() => void copyShareLink()} widgetsOpen={widgetsOpen} onToggleWidgets={() => setWidgetsOpen((o) => !o)} />
+      <TopBar perspective={perspective} onPerspective={changePerspective} onShare={() => void copyShareLink()} widgetsOpen={widgetsOpen} onToggleWidgets={() => setWidgetsOpen((o) => !o)} measuring={measuring} onToggleMeasure={() => (measuring ? stopMeasure() : startMeasure())} />
 
       <div className="workspace">
         <Rail panel={panel} onPanel={setPanel} badges={{ layers: [...active].length || undefined, details: pick ? 1 : undefined }} />
@@ -1091,6 +1127,16 @@ export function App() {
               />,
               popupEl,
             )}
+          {measuring && (
+            <MeasurePanel
+              state={measureState}
+              mode={measureMode}
+              onMode={changeMeasureMode}
+              onUndo={() => map?.undoMeasure()}
+              onClear={() => map?.clearMeasure()}
+              onClose={stopMeasure}
+            />
+          )}
           {streetImageId && <StreetViewer imageId={streetImageId} onCamera={(c) => map?.setLocationMarker(c)} onClose={closeStreetView} />}
           {diorama && (
             <DioramaPanel
