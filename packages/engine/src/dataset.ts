@@ -9,7 +9,7 @@ import type { PMTiles } from "pmtiles";
 import { loadAreaHexes, type HexFeature } from "./areaHexes";
 import type { AreaGeometry, Position } from "./geo";
 import { whereExpressions, type WhereClause } from "./filter";
-import { ICON_PIXEL_RATIO, rasterizeIcon } from "./icons";
+import { ICON_PIXEL_RATIO, rasterizeMarker } from "./icons";
 import { loadNearby, searchPoints, type NearbySummary, type SearchHit } from "./nearby";
 
 /** Metadados gravados pelo cityview-tiler (`cityview` no JSON do PMTiles, versão 2). */
@@ -136,10 +136,10 @@ export class DatasetLayer {
   }
 
   private readonly iconsLayerId: string;
-  /** Ícone por categoria (índice), já rasterizado; null = só os círculos. */
+  /** Marcador por categoria (índice), já rasterizado; null = só os círculos. */
   private icons: (ImageData | null)[] | null = null;
 
-  /** Zoom a partir do qual os pontos viram marcadores com ícone (e os rótulos aparecem). */
+  /** Zoom a partir do qual os pontos ganham marcador com ícone (e nome). */
   private get iconZoom(): number {
     return Math.max(this.meta.pointsZoom + 2, 16);
   }
@@ -150,20 +150,25 @@ export class DatasetLayer {
 
   /**
    * Ícone por categoria (SVG de traço, ex.: Lucide; índice = categoria; um a mais vale para "Outros").
-   * Ao aproximar, cada ponto vira um marcador: círculo da cor da categoria com o ícone em branco. null volta aos círculos simples.
+   * Ao aproximar, cada ponto ganha um marcador (círculo da cor da categoria com o ícone e o nome embaixo).
+   * Marcadores não se sobrepõem: onde não cabe, fica o ponto simples. null volta aos círculos com rótulo.
    */
   async setIcons(svgs: (string | null)[] | null): Promise<void> {
-    this.icons = svgs ? await Promise.all(svgs.map((s) => (s ? rasterizeIcon(s) : Promise.resolve(null)))) : null;
+    const color = (i: number) => (i < this.meta.categories.length ? categoryColor(i, this.meta.categories) : OTHER_COLOR);
+    this.icons = svgs ? await Promise.all(svgs.map((s, i) => (s ? rasterizeMarker(s, color(i)) : Promise.resolve(null)))) : null;
     if (!this.map.getSource(this.sourceId)) return;
     this.removeIconLayer();
-    this.addIconLayer();
-    this.map.setPaintProperty(this.pointsLayerId, "circle-radius", this.pointRadius());
-    if (this.map.getLayer(this.labelsLayerId)) this.map.setLayoutProperty(this.labelsLayerId, "text-offset", this.labelOffset());
+    if (this.map.getLayer(this.labelsLayerId)) this.map.removeLayer(this.labelsLayerId);
+    if (!this.addIconLayer()) {
+      const labels = this.labelsLayer();
+      if (labels) this.map.addLayer(labels);
+    }
     this.setVisible(this.visible);
   }
 
-  private addIconLayer(): void {
-    if (!this.icons || !this.map.getLayer(this.pointsLayerId)) return;
+  /** Camada de marcadores (ícone + nome opcional); false se não há ícones. */
+  private addIconLayer(): boolean {
+    if (!this.icons || !this.map.getLayer(this.pointsLayerId)) return false;
     const pairs: (number | string)[] = [];
     let fallback = "";
     this.icons.forEach((data, i) => {
@@ -174,42 +179,48 @@ export class DatasetLayer {
       if (i >= this.meta.categories.length) fallback = name;
       else pairs.push(i, name);
     });
-    if (pairs.length === 0 && !fallback) return;
-    // Logo acima dos círculos, abaixo dos rótulos.
-    const above = this.map.getStyle().layers.findIndex((l) => l.id === this.pointsLayerId);
-    const beforeId = this.map.getStyle().layers[above + 1]?.id;
-    this.map.addLayer(
-      {
-        id: this.iconsLayerId,
-        type: "symbol",
-        source: this.sourceId,
-        "source-layer": "points",
-        minzoom: this.iconZoom,
-        filter: this.pointsFilter(),
-        layout: {
-          "icon-image": (pairs.length ? ["match", ["get", this.meta.categoryProperty], ...pairs, fallback] : fallback) as unknown as ExpressionSpecification,
-          "icon-size": ["interpolate", ["linear"], ["zoom"], this.iconZoom, 0.7, 19, 1],
-          "icon-allow-overlap": true,
-          "icon-ignore-placement": true,
-        },
+    if (pairs.length === 0 && !fallback) return false;
+    const title = this.meta.title && this.meta.columns.some((c) => c.name === this.meta.title) ? this.meta.title : null;
+    const dark = this.labelTheme === "dark";
+    // Acima dos rótulos do mapa base: na disputa por espaço, o dado ganha dos POIs do mapa.
+    this.map.addLayer({
+      id: this.iconsLayerId,
+      type: "symbol",
+      source: this.sourceId,
+      "source-layer": "points",
+      minzoom: this.iconZoom,
+      filter: this.pointsFilter(),
+      layout: {
+        "icon-image": (pairs.length ? ["match", ["get", this.meta.categoryProperty], ...pairs, fallback] : fallback) as unknown as ExpressionSpecification,
+        "icon-size": ["interpolate", ["linear"], ["zoom"], this.iconZoom, 0.85, 19, 1.1],
+        "icon-padding": 1,
+        ...(title && {
+          "text-field": ["get", title],
+          "text-font": ["Noto Sans Regular"],
+          "text-size": ["interpolate", ["linear"], ["zoom"], 16, 10.5, 19, 13],
+          "text-anchor": "top",
+          "text-offset": [0, 1.05],
+          "text-max-width": 9,
+          "text-padding": 2,
+          "text-letter-spacing": 0.01,
+          // Sem espaço para o nome, o marcador aparece mesmo assim.
+          "text-optional": true,
+        }),
       },
-      beforeId,
-    );
+      paint: title
+        ? {
+            "text-color": dark ? "#c4cbd5" : "#353d4c",
+            "text-halo-color": dark ? "#10141c" : "#ffffff",
+            "text-halo-width": 1.3,
+            "text-halo-blur": 0.3,
+          }
+        : {},
+    } as LayerSpecification);
+    return true;
   }
 
   private removeIconLayer(): void {
     if (this.map.getLayer(this.iconsLayerId)) this.map.removeLayer(this.iconsLayerId);
-  }
-
-  /** Raio do ponto: com ícones, cresce até virar o fundo do marcador. */
-  private pointRadius(): ExpressionSpecification {
-    if (!this.icons) return ["interpolate", ["linear"], ["zoom"], 14, 2.5, 16, 4.5, 19, 7];
-    const z = this.iconZoom;
-    return ["interpolate", ["linear"], ["zoom"], 14, 2.5, z - 0.5, 4.5, z, 9, 19, 13];
-  }
-
-  private labelOffset(): [number, number] {
-    return this.icons ? [0, 1.25] : [0, 0.7];
   }
 
   /** Camadas clicáveis (hexágonos e pontos). */
@@ -233,10 +244,11 @@ export class DatasetLayer {
     // Dados acima do mapa base, mas abaixo dos rótulos.
     const beforeId = this.map.getStyle().layers.find((l) => l.type === "symbol")?.id;
     for (const layer of this.layers()) this.map.addLayer(layer, beforeId);
-    this.addIconLayer();
-    // Rótulos acima dos do mapa base: na disputa por espaço, o nome dos dados ganha dos POIs do mapa.
-    const labels = this.labelsLayer();
-    if (labels) this.map.addLayer(labels);
+    // Marcadores (com nome) ou, sem ícones, só os rótulos — acima dos do mapa base.
+    if (!this.addIconLayer()) {
+      const labels = this.labelsLayer();
+      if (labels) this.map.addLayer(labels);
+    }
     this.setVisible(this.visible);
   }
 
@@ -569,7 +581,7 @@ export class DatasetLayer {
         "text-font": ["Noto Sans Regular"],
         "text-size": ["interpolate", ["linear"], ["zoom"], 16, 10.5, 19, 13],
         "text-anchor": "top",
-        "text-offset": this.labelOffset(),
+        "text-offset": [0, 0.7],
         "text-max-width": 9,
         "text-padding": 3,
         "text-letter-spacing": 0.01,
@@ -596,7 +608,7 @@ export class DatasetLayer {
         paint: {
           "circle-color": this.pointColor(),
           // Ponto do dado (docs/DESIGN.md · Mapa 1): anel da cor do chão separa vizinhos.
-          "circle-radius": this.pointRadius(),
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 14, 2.5, 16, 4.5, 19, 7],
           "circle-stroke-color": this.labelTheme === "dark" ? "#10141c" : "#ffffff",
           "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 14, 0.5, 16, 1.5],
         },
