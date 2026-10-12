@@ -3,7 +3,7 @@ import { CATEGORY_COLORS } from "@cityview/engine";
 import { parseNumber, type ColumnInfo, type ColumnType, type ImportMapping } from "@cityview/importer";
 import { useEffect, useMemo, useState } from "react";
 import type { ImportSpec } from "../server/api";
-import { SAMPLE_ROWS, SERVER_THRESHOLD_BYTES, fileFormat, type BuildSummary, type Delimiter, type Encoding, type OpenedFile } from "./protocol";
+import { SAMPLE_ROWS, SERVER_FORMATS, SERVER_THRESHOLD_BYTES, fileFormat, type BuildSummary, type Delimiter, type Encoding, type OpenedFile } from "./protocol";
 import { useImportWorker } from "./useImportWorker";
 
 export interface ImportedDataset {
@@ -53,9 +53,9 @@ interface ColumnChoice {
 export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSendToServer }: ImportWizardProps) {
   const worker = useImportWorker();
   // Arquivo grande + servidor de pé: o navegador só lê uma amostra; o motor em Rust faz o resto.
-  // O motor em Rust lê CSV; Excel e GeoJSON ficam no navegador.
-  const csv = fileFormat(file.name) === "csv";
-  const [sampleOnly] = useState(() => csv && serverAvailable && file.size > SERVER_THRESHOLD_BYTES);
+  // O motor em Rust lê CSV e Parquet; Excel e GeoJSON ficam no navegador.
+  const serverFormat = SERVER_FORMATS.includes(fileFormat(file.name) ?? "csv");
+  const [sampleOnly] = useState(() => serverFormat && serverAvailable && file.size > SERVER_THRESHOLD_BYTES);
   const [useServer, setUseServer] = useState(sampleOnly);
   const [step, setStep] = useState<Step>(0);
   const [opened, setOpened] = useState<OpenedFile | null>(null);
@@ -464,7 +464,7 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
               {building && <p className="muted">Preparando os pontos…</p>}
               {built && (
                 <div className="review">
-                  {serverAvailable && csv && !sampleOnly && (
+                  {serverAvailable && serverFormat && !sampleOnly && (
                     <label className="server-toggle">
                       <input type="checkbox" checked={useServer} onChange={(e) => setUseServer(e.target.checked)} />
                       <span>

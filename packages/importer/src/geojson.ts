@@ -1,7 +1,7 @@
 import type { Row } from "./detect";
 
 type Position = number[];
-interface Geometry {
+export interface Geometry {
   type: string;
   coordinates?: unknown;
   geometries?: Geometry[];
@@ -36,7 +36,7 @@ function* positions(g: Geometry): Generator<Position> {
 }
 
 /** Ponto: a própria posição. Outras geometrias: centro da extensão (bbox). */
-function anchor(g: Geometry): { point: Position; converted: boolean } | null {
+export function geometryAnchor(g: Geometry): { point: Position; converted: boolean } | null {
   if (g.type === "Point" && Array.isArray(g.coordinates)) return { point: g.coordinates as Position, converted: false };
   let w = Infinity, s = Infinity, e = -Infinity, n = -Infinity;
   for (const [x, y] of positions(g)) {
@@ -83,7 +83,7 @@ export function geoJsonToRows(input: unknown): GeoJsonRows {
   const rows: Row[] = features.map((f) => {
     const row: Row = {};
     for (const k of keys) row[k] = cell(f.properties?.[k]);
-    const a = f.geometry ? anchor(f.geometry) : null;
+    const a = f.geometry ? geometryAnchor(f.geometry) : null;
     if (!a) withoutGeometry++;
     else if (a.converted) converted++;
     row[lon] = a ? String(a.point[0]) : "";

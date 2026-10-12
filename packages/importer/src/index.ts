@@ -10,4 +10,4 @@ export {
 } from "./build";
 export { detectColumns, guessLocation, guessStyleColumns, type ColumnInfo, type ColumnType, type LocationGuess, type Row } from "./detect";
 export { isEmpty, looksBrazilian, normalizeName, parseDate, parseNumber, type NumberLocale } from "./values";
-export { geoJsonToRows, type GeoJsonRows } from "./geojson";
+export { geoJsonToRows, geometryAnchor, type GeoJsonRows, type Geometry } from "./geojson";

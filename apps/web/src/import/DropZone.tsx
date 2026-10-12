@@ -58,13 +58,13 @@ export function DropZone({ onFile }: { onFile: (file: File) => void }) {
         <div className="dropzone" aria-hidden="true">
           <div className="dropzone-card">
             <strong>Solte para importar</strong>
-            <span>CSV, Excel (.xlsx) com latitude e longitude, ou GeoJSON</span>
+            <span>CSV, Excel (.xlsx) ou Parquet com latitude e longitude, ou GeoJSON</span>
           </div>
         </div>
       )}
       {rejected && (
         <div className="toast" role="status">
-          “{rejected}” ainda não é suportado. Aceitamos CSV/TSV, Excel (.xlsx) e GeoJSON.
+          “{rejected}” ainda não é suportado. Aceitamos CSV/TSV, Excel (.xlsx), Parquet e GeoJSON.
         </div>
       )}
     </>

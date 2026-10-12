@@ -3,6 +3,8 @@ import {
   buildFeatures,
   detectColumns,
   geoJsonToRows,
+  geometryAnchor,
+  type Geometry,
   guessLocation,
   guessStyleColumns,
   summarize,
@@ -10,6 +12,8 @@ import {
   type Row,
 } from "@cityview/importer";
 import Papa from "papaparse";
+import { parquetMetadataAsync, parquetReadObjects, type AsyncBuffer } from "hyparquet";
+import { compressors } from "hyparquet-compressors";
 import { readSheet } from "read-excel-file/web-worker";
 import { MAX_BROWSER_ROWS, fileFormat, type Delimiter, type Encoding, type WorkerRequest, type WorkerResponse } from "./protocol";
 
@@ -117,6 +121,58 @@ async function openGeoJson(file: File): Promise<string | undefined> {
   return notes.length ? `${notes.join("; ")}.` : undefined;
 }
 
+const isGeometry = (v: unknown): v is Geometry =>
+  typeof v === "object" && v !== null && "type" in v && ("coordinates" in v || "geometries" in v);
+
+/** Valor do Parquet → texto no formato do CSV. */
+function parquetCell(v: unknown): string {
+  if (v === null || v === undefined) return "";
+  if (typeof v === "bigint" || typeof v === "number" || typeof v === "boolean") return String(v);
+  if (v instanceof Date) return excelCell(v);
+  if (v instanceof Uint8Array) return ""; // binário (ex.: WKB sem metadados GeoParquet)
+  if (typeof v === "object") return JSON.stringify(v, (_, x) => (typeof x === "bigint" ? String(x) : x));
+  return String(v);
+}
+
+/**
+ * Parquet lido aos pedaços direto do arquivo (só os bytes necessários). Colunas de geometria
+ * (GeoParquet) viram longitude/latitude, como no GeoJSON. Devolve o total de linhas do arquivo.
+ */
+async function openParquet(file: File, previewRows?: number): Promise<{ total: number; note?: string }> {
+  const buffer: AsyncBuffer = { byteLength: file.size, slice: (start, end) => file.slice(start, end).arrayBuffer() };
+  const metadata = await parquetMetadataAsync(buffer);
+  const total = Number(metadata.num_rows);
+  if (!previewRows && total > MAX_BROWSER_ROWS) throw new Error(`${TOO_MANY_ROWS} Inicie o servidor local (pnpm api) para arquivos maiores.`);
+  const objects = await parquetReadObjects({
+    file: buffer,
+    metadata,
+    compressors,
+    ...(previewRows ? { rowEnd: Math.min(previewRows, total) } : {}),
+  });
+  const first = objects[0] ?? {};
+  const geometryKeys = Object.keys(first).filter((k) => objects.slice(0, 50).some((o) => isGeometry(o[k])));
+  const plain = Object.keys(first).filter((k) => !geometryKeys.includes(k));
+  const geometryKey = geometryKeys[0];
+  const lon = plain.includes("longitude") ? "geometria_longitude" : "longitude";
+  const lat = plain.includes("latitude") ? "geometria_latitude" : "latitude";
+  let converted = 0;
+  rows = objects.map((o) => {
+    const row: Row = {};
+    for (const k of plain) row[k] = parquetCell(o[k]);
+    if (geometryKey) {
+      const a = isGeometry(o[geometryKey]) ? geometryAnchor(o[geometryKey]) : null;
+      if (a?.converted) converted++;
+      row[lon] = a ? String(a.point[0]) : "";
+      row[lat] = a ? String(a.point[1]) : "";
+    }
+    return row;
+  });
+  const notes = [];
+  if (geometryKey) notes.push(`a coluna de geometria "${geometryKey}" virou longitude/latitude`);
+  if (converted > 0) notes.push(`${converted.toLocaleString("pt-BR")} geometrias não eram ponto e viraram o centro da sua extensão`);
+  return { total, note: notes.length ? `${notes.join("; ")}.`.replace(/^./, (c) => c.toUpperCase()) : undefined };
+}
+
 self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
   const msg = e.data;
   try {
@@ -125,7 +181,9 @@ self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
       let encoding: Encoding = "utf-8";
       let delimiter: Delimiter = ",";
       let note: string | undefined;
+      let total: number | undefined;
       if (format === "excel") await openExcel(msg.file);
+      else if (format === "parquet") ({ total, note } = await openParquet(msg.file, msg.options.previewRows));
       else if (format === "geojson") note = await openGeoJson(msg.file);
       else {
         encoding = msg.options.encoding ?? (await detectEncoding(msg.file));
@@ -143,7 +201,7 @@ self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
           note,
           headers,
           preview: rows.slice(0, PREVIEW_ROWS),
-          rowCount: rows.length,
+          rowCount: total ?? rows.length,
           delimiter,
           encoding,
           columns,

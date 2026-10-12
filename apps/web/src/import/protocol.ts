@@ -6,14 +6,18 @@ export const MAX_BROWSER_ROWS = 2_000_000;
 export type Delimiter = "," | ";" | "\t" | "|";
 
 /** Formatos aceitos no assistente. Excel e GeoJSON viram as mesmas linhas de texto do CSV. */
-export type FileFormat = "csv" | "excel" | "geojson";
+export type FileFormat = "csv" | "excel" | "geojson" | "parquet";
 
-export const ACCEPTED_EXTENSIONS = ".csv,.tsv,.txt,.xlsx,.geojson,.json";
+export const ACCEPTED_EXTENSIONS = ".csv,.tsv,.txt,.xlsx,.geojson,.json,.parquet";
+
+/** O motor em Rust (servidor local) lê CSV e Parquet. */
+export const SERVER_FORMATS: FileFormat[] = ["csv", "parquet"];
 
 export function fileFormat(name: string): FileFormat | null {
   if (/\.(csv|tsv|txt)$/i.test(name)) return "csv";
   if (/\.xlsx$/i.test(name)) return "excel";
   if (/\.(geo)?json$/i.test(name)) return "geojson";
+  if (/\.parquet$/i.test(name)) return "parquet";
   return null;
 }
 export type Encoding = "utf-8" | "windows-1252";

@@ -77,7 +77,7 @@ Ordem pensada por encanto/esforço (ver [PRODUCT.md](PRODUCT.md)).
   - 3 milhões de linhas (139 MB): 9,6 s do envio ao mapa; clique traz todas as colunas da linha original
   - tiler genérico (colunas e categoria de cor quaisquer), mesmas regras numéricas do importador TS
 - [x] GeoJSON e Excel (.xlsx) no wizard (Excel: 1ª planilha; GeoJSON: linhas/áreas viram o centro da extensão)
-- [ ] Parquet no wizard (o servidor local já lê)
+- [x] Parquet no wizard (navegador lê só os bytes necessários; grandes vão ao servidor; GeoParquet vira longitude/latitude)
 - [x] Datasets importados salvos no navegador (IndexedDB): voltam ao recarregar; renomear, remover, enquadrar; camadas ligadas lembradas
   - 500 mil pontos (74 MB) salvos em ~3 s em segundo plano; leitura do banco em ms
 - [ ] Migrar datasets do navegador para o servidor (IndexedDB vira cache)

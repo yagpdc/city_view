@@ -492,7 +492,7 @@ export function App() {
           <button type="button" className="btn btn-block" onClick={() => fileInput.current?.click()}>
             Importar arquivo…
           </button>
-          <p className="hint">ou arraste um CSV, Excel ou GeoJSON para o mapa</p>
+          <p className="hint">ou arraste CSV, Excel, Parquet ou GeoJSON para o mapa</p>
           <p className={`server-status ${server.available ? "is-on" : ""}`}>
             <i />
             {server.available
