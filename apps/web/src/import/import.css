@@ -469,3 +469,26 @@
 .map-popup-actions { display: flex; gap: 6px; margin-top: 10px; }
 .map-popup-actions .btn { flex: 1; }
 @media (max-width: 767px) { .map-popup { width: 250px; } }
+
+/* Cartão do mapa: foto em destaque */
+.map-popup { width: 340px; }
+.cv-popup .maplibregl-popup-content { padding: 0 0 12px; overflow-x: hidden; }
+.map-popup > :not(.street-photo-hero) { margin-left: 14px; margin-right: 14px; }
+.map-popup h4 { margin-top: 10px; margin-right: 14px; }
+.street-photo-hero { margin: 0; }
+.street-photo-hero.is-loading { aspect-ratio: 4 / 3; background: linear-gradient(90deg, var(--border), transparent, var(--border)); background-size: 200% 100%; animation: cv-shimmer 1.2s linear infinite; }
+@keyframes cv-shimmer { to { background-position: -200% 0; } }
+.street-photo-open { position: relative; display: block; width: 100%; padding: 0; border: 0; background: #000; cursor: pointer; }
+.street-photo-open img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+.street-photo-cta {
+  position: absolute; left: 10px; bottom: 10px; padding: 6px 10px; border-radius: 999px;
+  background: rgba(0, 0, 0, 0.65); color: #fff; font-size: 12px; font-weight: 600; backdrop-filter: blur(4px);
+}
+.street-photo-open:hover .street-photo-cta { background: rgba(0, 0, 0, 0.8); }
+.street-photo-hero figcaption { padding: 4px 14px 0; font-size: 10.5px; color: var(--fg-muted); }
+.map-popup-summary { margin: 0 0 8px; color: var(--fg-muted); }
+.map-popup-more { border-top: 1px solid var(--border); margin-top: 10px; padding-top: 10px; }
+.map-popup-all { margin-top: 8px; font-size: 12px; }
+.map-popup-nearby .segmented button { white-space: nowrap; }
+.cv-popup .maplibregl-popup-close-button { z-index: 2; top: 6px; right: 6px; width: 26px; height: 26px; border-radius: 50%; background: rgba(0,0,0,.55); color: #fff; line-height: 1; padding: 0; }
+@media (max-width: 767px) { .map-popup { width: 270px; } }

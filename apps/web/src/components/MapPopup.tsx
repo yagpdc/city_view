@@ -1,14 +1,17 @@
 import { categoryColor, type CityMap, type MapPick, type NearbySummary } from "@cityview/engine";
 import { useEffect, useState } from "react";
+/** Campos que formam a linha de resumo sob o título (o primeiro que existir). */
+const SUMMARY_KEYS = ["endereco", "address", "endereço", "cidade"];
 import { FieldValue, formatField, labelled, type DatasetInfo } from "./PickDetails";
 import { StreetPhoto } from "./StreetPhoto";
 
 const int = new Intl.NumberFormat("pt-BR");
 const RADII = [200, 500, 1000];
-/** Campos mostrados no cartão (o resto fica em "Detalhes", na barra lateral). */
-const MAX_FIELDS = 4;
+/** Campos em "Mais informações" (todos ficam na barra lateral). */
+const MAX_FIELDS = 8;
 
-const meters = (m: number) => (m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1).replace(".", ",")} km`);
+const meters = (m: number) =>
+  m < 1000 ? `${Math.round(m)} m` : `${new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 }).format(m / 1000)} km`;
 
 /** Dataset usado para "o que tem por perto" (os Lugares, quando gerados). */
 export interface NearbySource {
@@ -51,6 +54,11 @@ export function MapPopup({
         ? catalog.datapack.name
         : "Neste ponto";
 
+  const [expanded, setExpanded] = useState(false);
+  const summary = record
+    ? SUMMARY_KEYS.map((k) => record.properties[k]).find((v) => v !== undefined && String(v).trim() !== "")
+    : undefined;
+
   const fields = record
     ? labelled(
         // Sem o título e sem a coluna de cor (já aparecem no cabeçalho do cartão).
@@ -63,58 +71,66 @@ export function MapPopup({
 
   return (
     <div className="map-popup">
+      <StreetPhoto lngLat={center} onOpen={onStreetView} variant="hero" />
+
       <h4>{titleText}</h4>
       {record && record.category !== null && info && (
         <p className="pick-category">
           <i style={{ background: categoryColor(record.category, info.categories) }} />
           {info.label ? info.label(info.categories[record.category] ?? "") : info.categories[record.category]}
-          {record && pick.dataset && info.name ? <span className="muted"> · {info.name}</span> : null}
+          {info.name ? <span className="muted"> · {info.name}</span> : null}
         </p>
       )}
-      {fields.length > 0 && (
-        <dl>
-          {fields.map(({ key, label, value }) => (
-            <div key={key}>
-              <dt>{label}</dt>
-              <dd>
-                <FieldValue value={value} />
-              </dd>
-            </div>
-          ))}
-        </dl>
-      )}
-      {!record && catalog && (
-        <dl>
-          {catalog.datapack.fields.slice(0, MAX_FIELDS).map((f) => (
-            <div key={f.key}>
-              <dt>{f.label}</dt>
-              <dd>{formatField(f, catalog.properties[f.key])}</dd>
-            </div>
-          ))}
-        </dl>
-      )}
-
-      <StreetPhoto lngLat={center} onOpen={onStreetView} />
-
-      {nearbySource && (
-        <Nearby
-          map={map}
-          source={nearbySource}
-          center={center}
-          exclude={record && pick.dataset?.datasetId === nearbySource.datasetId ? record.id : null}
-        />
-      )}
+      {summary !== undefined && <p className="map-popup-summary">{String(summary)}</p>}
 
       <div className="map-popup-actions">
-        <button type="button" className="btn" onClick={onDetails}>
-          Detalhes
+        <button type="button" className="btn" aria-expanded={expanded} onClick={() => setExpanded((x) => !x)}>
+          {expanded ? "Menos informações ▴" : "Mais informações ▾"}
         </button>
         {pick.dataset && onAdvanced && (
-          <button type="button" className="btn btn-primary" onClick={() => onAdvanced(pick)}>
-            Visualização avançada
+          <button type="button" className="btn" onClick={() => onAdvanced(pick)} title="Maquete 3D da área">
+            Maquete 3D
           </button>
         )}
       </div>
+
+      {expanded && (
+        <div className="map-popup-more">
+          {fields.length > 0 && (
+            <dl>
+              {fields.map(({ key, label, value }) => (
+                <div key={key}>
+                  <dt>{label}</dt>
+                  <dd>
+                    <FieldValue value={value} />
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          )}
+          {!record && catalog && (
+            <dl>
+              {catalog.datapack.fields.slice(0, MAX_FIELDS).map((f) => (
+                <div key={f.key}>
+                  <dt>{f.label}</dt>
+                  <dd>{formatField(f, catalog.properties[f.key])}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+          {nearbySource && (
+            <Nearby
+              map={map}
+              source={nearbySource}
+              center={center}
+              exclude={record && pick.dataset?.datasetId === nearbySource.datasetId ? record.id : null}
+            />
+          )}
+          <button type="button" className="link map-popup-all" onClick={onDetails}>
+            Todos os campos na barra lateral →
+          </button>
+        </div>
+      )}
     </div>
   );
 }
