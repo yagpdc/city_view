@@ -1,8 +1,9 @@
 # Pôr o City View no ar
 
 Uma VM Linux só (Ubuntu 24.04, ARM ou x86) entrega o site, a demo do SDK e os tiles públicos.
-**Dados do usuário não vão para o servidor**: são processados no navegador ([ADR 0002](adr/0002-dados-do-usuario-so-no-navegador.md)),
-então em produção não há API. Hospedagem: [ADR 0001](adr/0001-hospedagem-vm-unica.md).
+**Arquivos do usuário não vão para o servidor**: são processados no navegador ([ADR 0002](adr/0002-dados-do-usuario-so-no-navegador.md)),
+então a API de ingestão não roda em produção. A API de produto (contas, espaços de trabalho, projetos) ainda vai ser
+desenhada e entra aqui quando existir. Hospedagem: [ADR 0001](adr/0001-hospedagem-vm-unica.md).
 
 ```
 navegador ──HTTPS──▶ Caddy (:443, certificado automático)

@@ -1,31 +1,37 @@
-# ADR 0002 — Dados do usuário são processados só no navegador
+# ADR 0002 — Arquivos do usuário são processados só no navegador
 
 - Data: 2026-10-12
 - Estado: aceita
 
 ## Contexto
 
-O produto visualiza dados públicos e dados do próprio usuário (planilhas, GeoJSON, Parquet de lojas,
-clientes, ativos…). Guardar esses dados num servidor traz responsabilidade (LGPD, vazamento, backup,
-contas, cotas) e custo, e obriga a ter contas de usuário antes de qualquer coisa.
+O produto visualiza dados públicos e dados do próprio usuário (planilhas, SHP, GeoJSON, Parquet de lojas,
+clientes, ativos…). Guardar esses arquivos num servidor traz responsabilidade (LGPD, vazamento, backup),
+custo de armazenamento e processamento. Ao mesmo tempo, o produto vai precisar de uma API para outras
+coisas: autenticação, espaços de trabalho, projetos salvos, compartilhamento.
 
 ## Decisão
 
-Arquivos do usuário **nunca saem do computador dele**: leitura, geocodificação por coordenadas, agregação
-e tiles acontecem no navegador (Web Workers), e o resultado fica no armazenamento do próprio navegador
-(IndexedDB/OPFS). O servidor em produção só entrega o site e os dados públicos (estático).
+**O servidor não guarda nem processa o conteúdo dos arquivos que o usuário sobe.** Leitura, agregação e
+tiles desses arquivos acontecem no navegador (Web Workers), e o resultado fica no armazenamento do próprio
+navegador (IndexedDB/OPFS).
 
-- `deploy/install.sh` não instala a API por padrão (`--with-api` continua existindo para uso interno/local).
-- Sem `/api`, o site esconde "enviar ao servidor" (detecta pelo `/api/health`).
-- Compartilhar por link leva só camadas públicas e filtros; camadas do usuário ficam de fora (já era assim).
+**O servidor guarda o resto**: contas, espaços de trabalho, membros e permissões, e a *configuração* dos
+projetos (camadas públicas, filtros, estilos, câmera, anotações). Uma camada do usuário entra no projeto só
+como referência ao arquivo local (nome, tamanho, colunas, impressão digital), nunca com as linhas. Ao abrir o
+projeto noutra máquina, o app pede para reabrir aquele arquivo e reaplica a configuração.
+
+- A API atual (`services/api`, ingestão de arquivos) fica para dev e para gerar datasets públicos/de exemplo;
+  em produção não é instalada (`deploy/install.sh` só com `--with-api`).
+- A API de produto (auth, workspaces, projetos) é outro serviço, a desenhar; quando existir, entra no
+  `deploy/` com o próprio banco (PostgreSQL).
+- Compartilhar por link leva só camadas públicas e filtros (já era assim).
 
 ## Consequências
 
-- Hospedagem barata e simples: qualquer host estático + PMTiles com Range (VM pequena, ou Pages + R2).
-- Privacidade é argumento de produto: "seus dados não saem do seu computador".
-- **Lacuna a fechar**: hoje arquivos acima de ~20 MB dependem do servidor (tiler em Rust). Para manter a
-  promessa de milhões de registros, o tiler precisa rodar no navegador (Rust → WASM num worker, gerando
-  PMTiles no OPFS). Até lá, arquivos grandes entram por amostra.
-- O dado vive num navegador só: trocar de máquina exige importar de novo (exportar/importar projeto é um
-  próximo passo natural).
-- `services/api` continua útil em dev e para gerar datasets de exemplo/públicos.
+- Privacidade é argumento de produto: "seus arquivos não saem do seu computador".
+- Armazenamento e custo do servidor crescem com o número de usuários e projetos, não com o volume de dados.
+- **Lacuna a fechar**: hoje arquivos acima de ~20 MB dependem do tiler no servidor. Para manter a promessa de
+  milhões de registros, o tiler precisa rodar no navegador (Rust → WASM num worker, gerando PMTiles no OPFS).
+- Colaboração em equipe sobre o mesmo dado do usuário exige que cada pessoa tenha o arquivo (ou que, no
+  futuro, o cliente opte por guardar o dado com a gente — decisão separada, com ADR próprio).
