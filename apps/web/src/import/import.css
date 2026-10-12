@@ -387,3 +387,8 @@
 }
 .compare-select .muted { font-size: 11px; }
 .compare-note { margin: 0; font-size: 11px; }
+
+.street-photo { margin: 0 0 10px; }
+.street-photo img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 8px; display: block; background: var(--border); }
+.street-photo figcaption { margin-top: 4px; font-size: 11px; color: var(--fg-muted); }
+.street-photo-note { font-size: 11px; margin: 0 0 8px; }

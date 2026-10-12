@@ -277,6 +277,22 @@ export function App() {
         categories: places.meta.categories,
         colorBy: places.meta.colorBy,
         title: places.meta.title,
+        fieldLabels: {
+          categoria: "Categoria",
+          grupo: "Grupo",
+          marca: "Marca",
+          endereco: "Endereço",
+          cidade: "Cidade",
+          uf: "UF",
+          cep: "CEP",
+          telefone: "Telefone",
+          site: "Site",
+          email: "E-mail",
+          redes: "Redes sociais",
+          origem: "Fonte do dado",
+          atualizado: "Atualizado na fonte",
+          confianca: "Confiança (0–1)",
+        },
       };
     }
     for (const d of server.datasets) {

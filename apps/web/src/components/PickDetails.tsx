@@ -1,6 +1,7 @@
 import type { DatapackField, MapPick } from "@cityview/engine";
 import { categoryColor } from "@cityview/engine";
 import { useEffect, useState } from "react";
+import { StreetPhoto } from "./StreetPhoto";
 
 const int = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
 const dec = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 });
@@ -15,6 +16,58 @@ export interface DatasetInfo {
   label?: (value: string) => string;
   /** URL que devolve todas as colunas da linha (`{rowId}` é substituído). */
   rowUrl?: string;
+  /** Rótulos legíveis por coluna, na ordem de exibição; colunas fora da lista vêm depois. */
+  fieldLabels?: Record<string, string>;
+}
+
+const SOCIAL_NAMES: [RegExp, string][] = [
+  [/facebook\.com/i, "Facebook"],
+  [/instagram\.com/i, "Instagram"],
+  [/(twitter|x)\.com/i, "X/Twitter"],
+  [/linkedin\.com/i, "LinkedIn"],
+  [/tiktok\.com/i, "TikTok"],
+  [/youtube\.com|youtu\.be/i, "YouTube"],
+];
+
+function linkLabel(url: string): string {
+  const social = SOCIAL_NAMES.find(([re]) => re.test(url));
+  if (social) return social[1];
+  return url.replace(/^https?:\/\/(www\.)?/i, "").replace(/\/$/, "");
+}
+
+/** Valor de uma coluna: links, e-mail e telefone clicáveis; datas ISO em dd/mm/aaaa. */
+function FieldValue({ value }: { value: string | number }) {
+  if (typeof value === "number") return <>{formatValue(value)}</>;
+  const text = value.trim();
+  if (!text) return <>–</>;
+  const urls = text.split(/\s+/).filter((t) => /^https?:\/\//i.test(t));
+  if (urls.length > 0 && urls.length === text.split(/\s+/).length) {
+    return (
+      <>
+        {urls.map((u, i) => (
+          <span key={u}>
+            {i > 0 && " · "}
+            <a href={u} target="_blank" rel="noreferrer">
+              {linkLabel(u)}
+            </a>
+          </span>
+        ))}
+      </>
+    );
+  }
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text)) return <a href={`mailto:${text}`}>{text}</a>;
+  // Telefone: só dígitos e pontuação, com 10+ dígitos (CEP e códigos curtos ficam como texto).
+  if (/^\+?[\d\s().-]+$/.test(text) && text.replace(/\D/g, "").length >= 10) return <a href={`tel:${text.replace(/[^\d+]/g, "")}`}>{text}</a>;
+  const date = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
+  if (date) return <>{`${date[3]}/${date[2]}/${date[1]}`}</>;
+  return <>{text}</>;
+}
+
+/** Ordena pelas colunas com rótulo e troca o nome técnico pelo rótulo. */
+function labelled(entries: [string, string | number][], labels: Record<string, string> = {}) {
+  const order = Object.keys(labels);
+  const rank = (k: string) => (order.includes(k) ? order.indexOf(k) : order.length);
+  return [...entries].sort((a, b) => rank(a[0]) - rank(b[0])).map(([k, v]) => ({ key: k, label: labels[k] ?? k, value: v }));
 }
 
 function formatField(field: DatapackField, value: unknown): string {
@@ -84,6 +137,7 @@ export function PickDetails({
       <p className="muted coords">
         {pick.lngLat[1].toFixed(5)}, {pick.lngLat[0].toFixed(5)}
       </p>
+      <StreetPhoto lngLat={pick.lngLat} />
       {empty && <p className="muted">Nenhuma camada ligada tem dados aqui.</p>}
       {pick.dataset && onAdvanced && (
         <button type="button" className="btn btn-primary btn-block advanced" onClick={() => onAdvanced(pick)}>
@@ -129,7 +183,9 @@ export function PickDetails({
             {info?.name ?? "Seus dados"}
             {info?.title && details.fields
               ? ` · ${details.fields.find(([k]) => k === info.title)?.[1] ?? ""}`
-              : ` · #${record.id}`}
+              : info?.title && record.properties[info.title]
+                ? ` · ${record.properties[info.title]}`
+                : ` · #${record.id}`}
           </h4>
           {record.category !== null && info && (
             <p className="pick-category">
@@ -138,21 +194,17 @@ export function PickDetails({
             </p>
           )}
           <dl>
-            {details.fields
-              ? details.fields
-                  .filter(([k]) => k !== info?.title)
-                  .map(([k, v]) => (
-                    <div key={k}>
-                      <dt>{k}</dt>
-                      <dd>{v || "–"}</dd>
-                    </div>
-                  ))
-              : Object.entries(record.properties).map(([k, v]) => (
-                  <div key={k}>
-                    <dt>{k}</dt>
-                    <dd>{formatValue(v)}</dd>
-                  </div>
-                ))}
+            {labelled(
+              (details.fields ?? Object.entries(record.properties)).filter(([k]) => k !== info?.title),
+              info?.fieldLabels,
+            ).map(({ key, label: name, value }) => (
+              <div key={key}>
+                <dt>{name}</dt>
+                <dd>
+                  <FieldValue value={value} />
+                </dd>
+              </div>
+            ))}
           </dl>
           {details.loading && <p className="muted source">Carregando todas as colunas…</p>}
         </div>
