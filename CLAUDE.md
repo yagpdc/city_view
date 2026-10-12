@@ -6,6 +6,7 @@
 - Biblioteca de dados (fontes públicas): `docs/LIBRARY.md`
 - Arquitetura e stack: `docs/ARCHITECTURE.md`
 - Design system (cores, tipografia, espaço, ícones, componentes): `docs/DESIGN.md`
+- Importação de dados (builder, receita, casos difíceis): `docs/IMPORT.md`
 - Pôr no ar (VM, Caddy, scripts em `deploy/`): `docs/DEPLOY.md`
 - Decisões: `docs/adr/`
 
