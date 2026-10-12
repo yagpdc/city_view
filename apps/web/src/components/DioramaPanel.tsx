@@ -1,11 +1,11 @@
-import { categoryColor, type AreaSummary } from "@cityview/engine";
+import { categoryColor, type AreaSummary, type BuildingPaintResult } from "@cityview/engine";
 import type { Area } from "../areas";
 import type { DatasetInfo } from "./PickDetails";
 
 const int = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
 const dec = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
 
-export type AreaChoice = "municipio" | 2 | 5 | 10;
+export type AreaChoice = "municipio" | 0.5 | 1 | 2 | 5;
 
 interface DioramaPanelProps {
   area: Area;
@@ -15,6 +15,9 @@ interface DioramaPanelProps {
   columns: boolean;
   exaggeration: number;
   orbiting: boolean;
+  buildings: boolean;
+  buildingResult: BuildingPaintResult | null;
+  onBuildings: (on: boolean) => void;
   onAreaChoice: (choice: AreaChoice) => void;
   onColumns: (on: boolean) => void;
   onExaggeration: (value: number) => void;
@@ -24,9 +27,10 @@ interface DioramaPanelProps {
 
 const CHOICES: { value: AreaChoice; label: string }[] = [
   { value: "municipio", label: "Município" },
+  { value: 0.5, label: "500 m" },
+  { value: 1, label: "1 km" },
   { value: 2, label: "2 km" },
   { value: 5, label: "5 km" },
-  { value: 10, label: "10 km" },
 ];
 
 /** Painel da visualização avançada: números da área e controles da maquete. */
@@ -120,6 +124,20 @@ export function DioramaPanel(props: DioramaPanelProps) {
         <span>menos</span>
         <i />
         <span>mais registros por km²</span>
+      </div>
+
+      <div className="buildings-box">
+        <label className="toggle">
+          <input type="checkbox" checked={props.buildings} onChange={(e) => props.onBuildings(e.target.checked)} />
+          <b>Prédios dos seus dados</b>
+        </label>
+        <p className="muted">
+          {!props.buildings
+            ? "Acende em 3D os prédios onde estão os seus pontos, na cor da categoria."
+            : props.buildingResult
+              ? `${int.format(props.buildingResult.features.length)} prédios acesos · ${int.format(props.buildingResult.matchedPoints)} de ${int.format(props.buildingResult.points)} pontos na tela`
+              : "Aproxime até o nível da rua (500 m ou 1 km) para ver os prédios."}
+        </p>
       </div>
 
       <div className="diorama-controls">

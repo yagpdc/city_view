@@ -23,5 +23,6 @@ export {
   type WhereClause,
 } from "./dataset";
 export { pickZoom, type HexFeature } from "./areaHexes";
+export { type BuildingPaintResult, type BuildingRecord } from "./buildingPaint";
 export { areaBounds, circleArea, pointInArea, type AreaGeometry, type Bounds } from "./geo";
 export { buildStyle, type BasemapLook, type StyleOptions, type Theme } from "./style";

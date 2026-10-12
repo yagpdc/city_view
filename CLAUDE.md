@@ -1,6 +1,6 @@
 # City View
 
-Super interface para dados no mapa: o usuário traz os próprios dados (ex.: 30M de registros), explora e gera análises sobre eles na plataforma, e pode embutir mapas/análises no produto dele via SDK. A gente cuida de ingestão, tiles, consultas, render e interação. Roda localmente por enquanto.
+Super interface para dados no mapa: empresas e pessoas trazem os próprios registros (lojas, prédios, garagens, clientes, ativos… às vezes milhões), localizam e entendem esses dados no mapa e geram análises sobre eles na plataforma, e pode embutir mapas/análises no produto dele via SDK. A gente cuida de ingestão, tiles, consultas, render e interação. Roda localmente por enquanto.
 
 - Roadmap: `docs/ROADMAP.md`
 - Arquitetura e stack: `docs/ARCHITECTURE.md`

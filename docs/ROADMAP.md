@@ -5,7 +5,7 @@
 
 ## Tese do produto
 
-Uma **super interface para dados no mapa**: o usuário traz os **próprios dados** (ex.: 30M de empresas), explora, filtra e **gera análises** sobre eles (densidade, contagem por região, cobertura, comparação, evolução no tempo).
+Uma **super interface para dados no mapa**: o usuário traz os **próprios dados** (ex.: milhões de registros — lojas, prédios, garagens, clientes, ativos), explora, filtra e **gera análises** sobre eles (densidade, contagem por região, cobertura, comparação, evolução no tempo).
 
 Dois jeitos de usar, sobre o mesmo motor:
 1. **Plataforma** — o espaço de trabalho onde o usuário sobe dados, analisa e monta mapas.

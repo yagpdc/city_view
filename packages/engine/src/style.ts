@@ -28,11 +28,17 @@ export interface StyleOptions {
   hillshade?: boolean;
   /** Globo 3D na visão continental (vira plano ao aproximar). */
   globe?: boolean;
+  /**
+   * Mapa base detalhado (PMTiles, zoom 14+) usado só para os prédios 3D — o mapa base
+   * principal pode ser mais leve (ex.: Brasil até z12) e não ter prédios.
+   */
+  buildingsUrl?: string;
   /** Idioma dos rótulos. */
   lang?: string;
 }
 
 export const BASEMAP_SOURCE = "basemap";
+export const BUILDINGS_SOURCE = "buildings";
 export const TERRAIN_SOURCE = "terrain";
 export const HILLSHADE_LAYER = "hillshade";
 export const BUILDINGS_3D_LAYER = "buildings-3d";
@@ -72,11 +78,11 @@ const SKY: Record<Theme, Record<string, unknown>> = {
   },
 };
 
-function buildingsLayer(theme: Theme): FillExtrusionLayerSpecification {
+function buildingsLayer(theme: Theme, source: string): FillExtrusionLayerSpecification {
   return {
     id: BUILDINGS_3D_LAYER,
     type: "fill-extrusion",
-    source: BASEMAP_SOURCE,
+    source,
     "source-layer": "buildings",
     minzoom: 14,
     filter: ["in", ["get", "kind"], ["literal", ["building", "building_part"]]],
@@ -113,6 +119,7 @@ export function buildStyle({
   look = "data",
   hillshade = true,
   globe = true,
+  buildingsUrl,
   lang = "pt",
 }: StyleOptions): StyleSpecification {
   const baseLayers = layers(BASEMAP_SOURCE, namedFlavor(FLAVOR[look][theme]), { lang }) as LayerSpecification[];
@@ -120,7 +127,7 @@ export function buildStyle({
   // Prédios 2D viram extrusão 3D, inserida antes dos rótulos.
   const result = baseLayers.filter((l) => l.id !== "buildings");
   const firstSymbol = result.findIndex((l) => l.type === "symbol");
-  result.splice(firstSymbol === -1 ? result.length : firstSymbol, 0, buildingsLayer(theme));
+  result.splice(firstSymbol === -1 ? result.length : firstSymbol, 0, buildingsLayer(theme, buildingsUrl ? BUILDINGS_SOURCE : BASEMAP_SOURCE));
 
   // Relevo sombreado acima do solo e da vegetação, abaixo da água, estradas e rótulos.
   if (hillshade) {
@@ -141,6 +148,7 @@ export function buildStyle({
         url: `pmtiles://${basemapUrl}`,
         attribution: '<a href="https://protomaps.com">Protomaps</a> © <a href="https://openstreetmap.org/copyright">OpenStreetMap</a>',
       },
+      ...(buildingsUrl ? { [BUILDINGS_SOURCE]: { type: "vector", url: `pmtiles://${buildingsUrl}` } } : {}),
       [TERRAIN_SOURCE]: terrainUrl
         ? { type: "raster-dem", url: `pmtiles://${terrainUrl}`, encoding: "terrarium", tileSize: 256, attribution: "Relevo: Mapzen / AWS Open Data" }
         : {

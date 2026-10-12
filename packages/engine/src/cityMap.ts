@@ -11,10 +11,11 @@ import {
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import { PMTiles, Protocol } from "pmtiles";
 import { CatalogLayer, type CatalogPick, type DatapackManifest, type LayerData } from "./catalog";
-import { DatasetLayer, readDatasetMeta, type AreaSummary, type DatasetPick } from "./dataset";
+import { CATEGORY_COLORS, DatasetLayer, OTHER_COLOR, categoryColor, readDatasetMeta, type AreaSummary, type DatasetPick } from "./dataset";
 import type { HexFeature } from "./areaHexes";
+import { paintBuildings, type BuildingPaintResult, type BuildingRecord } from "./buildingPaint";
 import { areaBounds, worldMask, type AreaGeometry } from "./geo";
-import { BUILDINGS_3D_LAYER, TERRAIN_SOURCE, buildStyle, type BasemapLook, type StyleOptions, type Theme } from "./style";
+import { BUILDINGS_3D_LAYER, BUILDINGS_SOURCE, BASEMAP_SOURCE, TERRAIN_SOURCE, buildStyle, type BasemapLook, type StyleOptions, type Theme } from "./style";
 
 export interface Camera {
   center: [lon: number, lat: number];
@@ -41,6 +42,8 @@ export interface MapPick {
   lngLat: [number, number];
   dataset: DatasetPick | null;
   catalog: CatalogPick[];
+  /** Prédio aceso pelos dados: quantos registros caem nele e quais (até 25). */
+  building: { datasetId: string; count: number; category: number; records: BuildingRecord[] } | null;
 }
 
 let protocol: Protocol | null = null;
@@ -84,6 +87,18 @@ export class CityMap {
     columns: boolean;
   } | null = null;
   private orbitFrame = 0;
+  /** Prédios pintados pelos pontos de um dataset (no nível da rua). */
+  private buildingPaint: { datasetId: string; onResult?: (r: BuildingPaintResult | null) => void; timer: number } | null = null;
+  private readonly repaintBuildings = () => this.scheduleBuildingPaint();
+  /** Tiles novos de pontos ou prédios: repinta (ignora a própria fonte dos prédios pintados). */
+  private readonly repaintOnTiles = (e: { sourceId?: string; isSourceLoaded?: boolean; tile?: unknown }) => {
+    const paint = this.buildingPaint;
+    if (!paint || !e.tile || !e.isSourceLoaded) return;
+    if (e.sourceId === `cv-${paint.datasetId}` || e.sourceId === BUILDINGS_SOURCE || e.sourceId === BASEMAP_SOURCE) {
+      this.scheduleBuildingPaint();
+    }
+  };
+  private orbitCleanup: (() => void) | null = null;
 
   constructor({
     container,
@@ -213,6 +228,108 @@ export class CityMap {
     return this.catalog.get(id)?.getGeometry(featureId) ?? Promise.resolve(null);
   }
 
+  // ---------- Prédios dos seus dados ----------
+
+  /**
+   * Pinta os prédios 3D com a categoria predominante dos pontos do dataset que caem neles.
+   * Só acontece a partir do zoom dos pontos (14); abaixo disso `onResult` recebe `null`.
+   * Passe `null` para desligar.
+   */
+  setBuildingPaint(datasetId: string | null, onResult?: (r: BuildingPaintResult | null) => void): void {
+    if (this.buildingPaint) {
+      window.clearTimeout(this.buildingPaint.timer);
+      this.map.off("moveend", this.repaintBuildings);
+      this.map.off("sourcedata", this.repaintOnTiles);
+    }
+    this.buildingPaint = datasetId ? { datasetId, onResult, timer: 0 } : null;
+    if (!datasetId) {
+      if (this.map.getLayer("client-buildings")) this.map.removeLayer("client-buildings");
+      if (this.map.getSource("client-buildings")) this.map.removeSource("client-buildings");
+      this.dimBaseBuildings(false);
+      return;
+    }
+    this.map.on("moveend", this.repaintBuildings);
+    this.map.on("sourcedata", this.repaintOnTiles);
+    this.scheduleBuildingPaint();
+  }
+
+  private scheduleBuildingPaint(): void {
+    const paint = this.buildingPaint;
+    if (!paint) return;
+    window.clearTimeout(paint.timer);
+    paint.timer = window.setTimeout(() => this.runBuildingPaint(), 200);
+  }
+
+  private runBuildingPaint(): void {
+    const paint = this.buildingPaint;
+    const dataset = paint && this.datasets.find((d) => d.id === paint.datasetId);
+    if (!paint || !dataset || !this.styleReady) return;
+    const buildingsSource = this.map.getSource(BUILDINGS_SOURCE) ? BUILDINGS_SOURCE : BASEMAP_SOURCE;
+    const empty = { type: "FeatureCollection" as const, features: [] };
+    if (this.map.getZoom() < dataset.meta.pointsZoom) {
+      this.map.getSource<GeoJSONSource>("client-buildings")?.setData(empty);
+      this.dimBaseBuildings(false);
+      if (this.map.getLayer("diorama-data-surface")) this.map.setPaintProperty("diorama-data-surface", "fill-opacity", 0.88);
+      paint.onResult?.(null);
+      return;
+    }
+    const result = paintBuildings(this.map, {
+      pointsSource: `cv-${dataset.id}`,
+      categoryProperty: dataset.meta.categoryProperty,
+      buildingsSource,
+    });
+    const data = { type: "FeatureCollection" as const, features: result.features };
+    const source = this.map.getSource<GeoJSONSource>("client-buildings");
+    if (source) source.setData(data);
+    else {
+      this.map.addSource("client-buildings", { type: "geojson", data });
+      const pairs = dataset.meta.categories.flatMap((_, i) => [i, categoryColor(i, dataset.meta.categories)]);
+      const color = (pairs.length ? ["match", ["get", "c"], ...pairs, OTHER_COLOR] : CATEGORY_COLORS[0]) as never;
+      const beforeId = this.map.getStyle().layers.find((l) => l.type === "symbol")?.id;
+      this.map.addLayer(
+        {
+          id: "client-buildings",
+          type: "fill-extrusion",
+          source: "client-buildings",
+          paint: {
+            "fill-extrusion-color": color,
+            // Um pouco mais alto que o prédio original para não brigar com as paredes dele.
+            "fill-extrusion-height": ["+", ["*", ["get", "h"], 1.04], 1.5],
+            "fill-extrusion-base": ["get", "mh"],
+            "fill-extrusion-opacity": 0.96,
+            "fill-extrusion-vertical-gradient": true,
+          },
+        },
+        beforeId,
+      );
+    }
+    this.dimBaseBuildings(true);
+    // Na maquete, a superfície colorida vira só um "chão" para os prédios aparecerem.
+    if (this.map.getLayer("diorama-data-surface")) this.map.setPaintProperty("diorama-data-surface", "fill-opacity", 0.3);
+    paint.onResult?.(result);
+  }
+
+  private pickBuilding(point: { x: number; y: number }): MapPick["building"] {
+    if (!this.buildingPaint || !this.map.getLayer("client-buildings")) return null;
+    const [f] = this.map.queryRenderedFeatures([point.x, point.y], { layers: ["client-buildings"] });
+    if (!f) return null;
+    const p = f.properties as { c: number; n: number; recs: string };
+    let records: BuildingRecord[] = [];
+    try {
+      records = JSON.parse(p.recs) as BuildingRecord[];
+    } catch {
+      // propriedade ausente: segue sem a lista
+    }
+    return { datasetId: this.buildingPaint.datasetId, count: Number(p.n), category: Number(p.c), records };
+  }
+
+  /** A cidade cinza fica mais apagada quando os prédios dos dados estão acesos. */
+  private dimBaseBuildings(on: boolean): void {
+    if (!this.map.getLayer(BUILDINGS_3D_LAYER)) return;
+    const dark = this.styleOptions.theme === "dark";
+    this.map.setPaintProperty(BUILDINGS_3D_LAYER, "fill-extrusion-color", on ? (dark ? "#23262c" : "#c9c6c0") : dark ? "#2c2f36" : "#d9d6d0");
+  }
+
   // ---------- Maquete ----------
 
   /**
@@ -229,11 +346,14 @@ export class CityMap {
       columns = false,
       onSummary,
       padding = 70,
+      maxZoom = 13.5,
     }: {
       datasetId: string;
       exaggeration?: number;
       columns?: boolean;
       onSummary?: (summary: AreaSummary) => void;
+      /** Zoom máximo do enquadramento (áreas pequenas: nível da rua, onde aparecem os prédios). */
+      maxZoom?: number;
       /** Espaço livre nas bordas (ex.: deixar a esquerda para um painel). */
       padding?: number | { top: number; bottom: number; left: number; right: number };
     },
@@ -262,7 +382,7 @@ export class CityMap {
           [w, s],
           [e, n],
         ],
-        { padding, pitch: 58, bearing: -18, maxZoom: 13.5, duration: 2600, essential: true },
+        { padding, pitch: 58, bearing: -18, maxZoom, duration: 2600, essential: true },
       );
       if (dataset) {
         const { features } = await dataset.loadAreaHexes(geometry);
@@ -307,8 +427,11 @@ export class CityMap {
     this.setTerrain(true, exaggeration);
   }
 
-  /** Câmera girando devagar em volta do centro (para quando a pessoa interagir). */
-  startOrbit(degreesPerSecond = 5): void {
+  /**
+   * Câmera girando devagar em volta do centro. Para quando a pessoa interagir com o mapa;
+   * `onStop` avisa (para a interface desmarcar o controle).
+   */
+  startOrbit(degreesPerSecond = 5, onStop?: () => void): void {
     this.stopOrbit();
     let last = performance.now();
     const step = (now: number) => {
@@ -317,15 +440,26 @@ export class CityMap {
       this.orbitFrame = requestAnimationFrame(step);
     };
     this.orbitFrame = requestAnimationFrame(step);
-    const stop = () => this.stopOrbit();
-    this.map.once("mousedown", stop);
-    this.map.once("touchstart", stop);
-    this.map.once("wheel", stop);
+    const interrupt = () => {
+      if (!this.orbitFrame) return;
+      this.stopOrbit();
+      onStop?.();
+    };
+    this.orbitCleanup = () => {
+      this.map.off("mousedown", interrupt);
+      this.map.off("touchstart", interrupt);
+      this.map.off("wheel", interrupt);
+    };
+    this.map.on("mousedown", interrupt);
+    this.map.on("touchstart", interrupt);
+    this.map.on("wheel", interrupt);
   }
 
   stopOrbit(): void {
     cancelAnimationFrame(this.orbitFrame);
     this.orbitFrame = 0;
+    this.orbitCleanup?.();
+    this.orbitCleanup = null;
   }
 
   isOrbiting(): boolean {
@@ -352,11 +486,14 @@ export class CityMap {
     }
 
     // Ordem: dados da área (relevo pintado e colunas) → máscara do entorno → contorno → rótulos.
+    // A escala de cor depende dos hexágonos da área: recria as camadas quando eles chegam.
     const dataset = this.datasets.find((x) => x.id === d.datasetId);
-    if (dataset && !this.map.getLayer("diorama-data-surface")) {
-      const { surface, columns } = dataset.areaLayers("diorama-data");
-      this.map.addLayer(surface, beforeId);
-      this.map.addLayer({ ...columns, layout: { visibility: d.columns ? "visible" : "none" } } as typeof columns, beforeId);
+    for (const id of ["diorama-data-columns", "diorama-data-surface"]) if (this.map.getLayer(id)) this.map.removeLayer(id);
+    if (dataset && d.hexes) {
+      const before = this.map.getLayer("diorama-mask") ? "diorama-mask" : beforeId;
+      const { surface, columns } = dataset.areaLayers("diorama-data", d.hexes);
+      this.map.addLayer(surface, before);
+      this.map.addLayer({ ...columns, layout: { visibility: d.columns ? "visible" : "none" } } as typeof columns, before);
     }
     if (!this.map.getLayer("diorama-mask")) {
       this.map.addLayer(
@@ -384,7 +521,7 @@ export class CityMap {
     const listener = (e: MapMouseEvent) => {
       const dataset = this.datasets.map((d) => d.pick(e.point)).find((p) => p !== null) ?? null;
       const catalog = [...this.catalog.values()].map((c) => c.pick(e.point)).filter((p): p is CatalogPick => p !== null);
-      handler({ lngLat: [e.lngLat.lng, e.lngLat.lat], dataset, catalog });
+      handler({ lngLat: [e.lngLat.lng, e.lngLat.lat], dataset, catalog, building: this.pickBuilding(e.point) });
     };
     this.map.on("click", listener);
     return () => this.map.off("click", listener);
@@ -487,5 +624,6 @@ export class CityMap {
       this.map.setLayoutProperty(BUILDINGS_3D_LAYER, "visibility", this.buildingsEnabled ? "visible" : "none");
     }
     this.addDioramaLayers();
+    if (this.buildingPaint) this.scheduleBuildingPaint();
   }
 }

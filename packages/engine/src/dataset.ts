@@ -203,17 +203,37 @@ export class DatasetLayer {
   /**
    * Camadas para uma fonte GeoJSON com os hexágonos da área (mesmas propriedades dos tiles):
    * relevo pintado (plana, "drapeada" sobre o terreno) e colunas 3D.
+   *
+   * A escala é LOCAL: degradê contínuo entre os percentis 5 e 98 da densidade dentro da área,
+   * para mostrar onde os dados se concentram ali — a escala nacional deixaria uma cidade densa
+   * inteira com a mesma cor.
    */
-  areaLayers(sourceId: string): { surface: LayerSpecification; columns: LayerSpecification } {
+  areaLayers(sourceId: string, features: HexFeature[]): { surface: LayerSpecification; columns: LayerSpecification } {
     const count = this.countExpression();
     const filter = [">", count, 0] as FilterSpecification;
+    const density = (p: Record<string, number>) => {
+      const visible = this.activeCategories();
+      const n = visible
+        ? visible.reduce((sum, i) => sum + Number(p[`${this.meta.categoryCountPrefix}${i}`] ?? 0), 0)
+        : Number(p.n ?? 0);
+      return Math.log1p(n / Number(p.a || 1));
+    };
+    const values = features.map((f) => density(f.properties)).filter((v) => v > 0).sort((a, b) => a - b);
+    const q = (t: number) => values[Math.min(values.length - 1, Math.floor((values.length - 1) * t))] ?? 0;
+    const lo = q(0.05);
+    const hi = Math.max(lo + 1e-6, q(0.98));
+    const t = ["interpolate", ["linear"], ["ln", ["+", 1, ["/", count, ["get", "a"]]]], lo, 0, hi, 1];
+    const stops = VIVID_COLORS.flatMap((c, i) => [i / (VIVID_COLORS.length - 1), c]);
+    const color = ["interpolate", ["linear"], t, ...stops] as unknown as ExpressionSpecification;
+    // Colunas: até ~1/4 da largura da área, com um mínimo para os valores baixos aparecerem.
+    const height = ["*", ["sqrt", ["get", "a"]], 1000 * COLUMN_HEIGHT_FACTOR * 1.6, ["max", 0.04, t]] as unknown as ExpressionSpecification;
     return {
       surface: {
         id: `${sourceId}-surface`,
         type: "fill",
         source: sourceId,
         filter,
-        paint: { "fill-color": this.densityColor(count, true), "fill-opacity": 0.85, "fill-antialias": false },
+        paint: { "fill-color": color, "fill-opacity": 0.88, "fill-antialias": false },
       },
       columns: {
         id: `${sourceId}-columns`,
@@ -221,8 +241,8 @@ export class DatasetLayer {
         source: sourceId,
         filter,
         paint: {
-          "fill-extrusion-color": this.densityColor(count, true),
-          "fill-extrusion-height": this.columnHeight(count),
+          "fill-extrusion-color": color,
+          "fill-extrusion-height": height,
           "fill-extrusion-opacity": 0.95,
           "fill-extrusion-vertical-gradient": true,
         },

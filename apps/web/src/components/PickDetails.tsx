@@ -28,7 +28,9 @@ function formatField(field: DatapackField, value: unknown): string {
   return field.unit ? `${text} ${field.unit}` : text;
 }
 
-const formatValue = (v: string | number) => (typeof v === "number" ? dec.format(v) : v);
+// Inteiros pequenos (anos, códigos) sem separador de milhar.
+const formatValue = (v: string | number) =>
+  typeof v !== "number" ? v : Number.isInteger(v) && Math.abs(v) < 10000 ? String(v) : dec.format(v);
 
 function useRowDetails(url: string | null) {
   const [fields, setFields] = useState<[string, string][] | null>(null);
@@ -65,7 +67,12 @@ export function PickDetails({
   const details = useRowDetails(rowUrl);
 
   if (!pick) return <p className="muted">Clique no mapa para ver o que há naquele ponto.</p>;
-  const empty = !pick.dataset && pick.catalog.length === 0;
+  const empty = !pick.dataset && !pick.building && pick.catalog.length === 0;
+  const buildingInfo = pick.building ? datasets[pick.building.datasetId] : undefined;
+  const buildingLabel = (i: number) => {
+    const raw = buildingInfo?.categories[i] ?? "";
+    return buildingInfo?.label ? buildingInfo.label(raw) : raw;
+  };
   const label = (i: number | null) => {
     if (i === null || !info) return null;
     const raw = info.categories[i] ?? "";
@@ -82,6 +89,38 @@ export function PickDetails({
         <button type="button" className="btn btn-primary btn-block advanced" onClick={() => onAdvanced(pick)}>
           Visualização avançada desta área
         </button>
+      )}
+
+      {pick.building && (
+        <div className="pick-card building-card">
+          <h4>
+            Prédio com {int.format(pick.building.count)} {pick.building.count === 1 ? "registro seu" : "registros seus"}
+          </h4>
+          <p className="muted source">Registros que caem neste prédio (ou a até 25 m dele).</p>
+          <ul className="building-records">
+            {pick.building.records.map((r) => (
+              <li key={r.id}>
+                <i style={{ background: categoryColor(r.category, buildingInfo?.categories ?? []) }} />
+                <span>
+                  <b>#{r.id}</b> {r.category >= 0 ? buildingLabel(r.category) : ""}
+                  {Object.entries(r.properties).length > 0 && (
+                    <span className="muted">
+                      {" · "}
+                      {Object.entries(r.properties)
+                        .filter(([k]) => k !== buildingInfo?.colorBy)
+                        .slice(0, 3)
+                        .map(([k, v]) => `${k}: ${formatValue(v)}`)
+                        .join(" · ")}
+                    </span>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {pick.building.count > pick.building.records.length && (
+            <p className="muted source">e mais {int.format(pick.building.count - pick.building.records.length)}…</p>
+          )}
+        </div>
       )}
 
       {record && (

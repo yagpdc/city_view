@@ -1,4 +1,4 @@
-import type { AreaSummary, BasemapLook, DatasetMeta, MapPick, Theme } from "@cityview/engine";
+import type { AreaSummary, BasemapLook, BuildingPaintResult, DatasetMeta, MapPick, Theme } from "@cityview/engine";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { areaAt, radiusArea, type Area } from "./areas";
 import { DATAPACKS, OBJECTIVES, dataUrl, type Objective } from "./catalog";
@@ -18,7 +18,7 @@ import { loadActiveLayers, saveActiveLayers } from "./storage/datasets";
 import { useUserDatasets, type UserDataset } from "./storage/useUserDatasets";
 import { useCityMap } from "./useCityMap";
 
-const CLIENT_DATASET = { id: "empresas", name: "Empresas (demonstração)", url: "/data/empresas/tiles.pmtiles" };
+const CLIENT_DATASET = { id: "empresas", name: "Exemplo: 30 milhões de registros", url: "/data/empresas/tiles.pmtiles" };
 const DATASET_KEY = `dataset:${CLIENT_DATASET.id}`;
 const EXPLORE = OBJECTIVES.find((o) => o.id === "explorar")!;
 // Rótulos do dataset de demonstração (no produto real, vêm do mapeamento de colunas do cliente).
@@ -60,6 +60,8 @@ export function App() {
   const [columns3d, setColumns3d] = useState(false);
   const [municipios3d, setMunicipios3d] = useState(false);
   const [diorama, setDiorama] = useState<Diorama | null>(null);
+  const [paintBuildingsOn, setPaintBuildingsOn] = useState(false);
+  const [buildingResult, setBuildingResult] = useState<BuildingPaintResult | null>(null);
   const [objective, setObjective] = useState<string | null>(null);
   const [active, setActive] = useState<Set<string>>(loadActiveLayers);
   const [demoMeta, setDemoMeta] = useState<DatasetMeta | null>(null);
@@ -77,6 +79,8 @@ export function App() {
     basemapUrl: `${location.origin}/data/brasil.pmtiles`,
     terrain: false,
     look: "data",
+    // Prédios 3D vêm do extrato detalhado (Grande SP); o mapa do Brasil vai só até z12.
+    buildingsUrl: `${location.origin}/data/sao-paulo.pmtiles`,
     theme,
     camera: { ...EXPLORE.camera, pitch: 0, bearing: 0 },
     hash: true,
@@ -139,6 +143,15 @@ export function App() {
   }, [map, active, demoMeta, serverMetas, user.datasets]);
 
   useEffect(() => saveActiveLayers(active), [active]);
+
+  // Prédios dos seus dados: o dataset da maquete ou o primeiro dos seus dados que estiver ligado.
+  const paintTarget = diorama?.datasetId
+    ?? (active.has(DATASET_KEY) && demoMeta ? CLIENT_DATASET.id : Object.keys(serverMetas).find((id) => active.has(id)));
+  useEffect(() => {
+    if (!map) return;
+    map.setBuildingPaint(paintBuildingsOn && paintTarget ? paintTarget : null, setBuildingResult);
+    if (!paintBuildingsOn) setBuildingResult(null);
+  }, [map, paintBuildingsOn, paintTarget]);
 
   /** O que o painel "Neste ponto" precisa saber de cada dataset vetorial. */
   const datasetInfos = useMemo(() => {
@@ -269,20 +282,24 @@ export function App() {
     if (isNarrowScreen()) setSidebarOpen(false);
     await map.enterDiorama(area.geometry, {
       datasetId,
+      maxZoom: area.kind === "raio" && (area.radiusKm ?? 10) <= 1 ? 16.5 : 13.5,
       exaggeration,
       columns: diorama?.columns ?? false,
       // Na tela larga, o painel ocupa a esquerda do mapa.
       padding: isNarrowScreen() ? 40 : { top: 50, bottom: 50, left: 360, right: 50 },
       onSummary: (summary) => setDiorama((d) => (d && d.area === area ? { ...d, summary } : d)),
     });
-    map.startOrbit(4);
+    map.startOrbit(4, orbitStopped);
     setDiorama((d) => (d && d.area === area ? { ...d, orbiting: true } : d));
   };
+
+  /** A pessoa mexeu no mapa: a câmera para de girar e o controle desmarca. */
+  const orbitStopped = () => setDiorama((d) => (d ? { ...d, orbiting: false } : d));
 
   const startAdvanced = async (p: MapPick) => {
     if (!p.dataset) return;
     const area = await areaAt(p.lngLat);
-    void openDiorama(p.dataset.datasetId, p.lngLat, area, area.kind === "municipio" ? "municipio" : 10);
+    void openDiorama(p.dataset.datasetId, p.lngLat, area, area.kind === "municipio" ? "municipio" : 5);
   };
 
   const changeDioramaArea = async (choice: AreaChoice) => {
@@ -297,7 +314,7 @@ export function App() {
   };
 
   const setOrbit = (on: boolean) => {
-    if (on) map?.startOrbit(4);
+    if (on) map?.startOrbit(4, orbitStopped);
     else map?.stopOrbit();
     setDiorama((d) => (d ? { ...d, orbiting: on } : d));
   };
@@ -415,6 +432,17 @@ export function App() {
             <input type="checkbox" checked={municipios3d} onChange={(e) => toggleMunicipios3d(e.target.checked)} />
             Municípios em 3D (densidade)
           </label>
+          <label className="toggle">
+            <input type="checkbox" checked={paintBuildingsOn} onChange={(e) => setPaintBuildingsOn(e.target.checked)} />
+            Prédios dos seus dados (nível da rua)
+          </label>
+          {paintBuildingsOn && (
+            <p className="catalog-meta">
+              {buildingResult
+                ? `${new Intl.NumberFormat("pt-BR").format(buildingResult.features.length)} prédios acesos na tela`
+                : "Aproxime até o nível da rua (zoom 14+) — por enquanto, prédios só na Grande SP."}
+            </p>
+          )}
           <p className="hint left">Dica: clique nos seus dados e use “Visualização avançada” para ver a área em maquete 3D.</p>
         </SidebarSection>
 
@@ -462,7 +490,14 @@ export function App() {
             columns={diorama.columns}
             exaggeration={diorama.exaggeration}
             orbiting={diorama.orbiting}
-            onAreaChoice={(c) => void changeDioramaArea(c)}
+            buildings={paintBuildingsOn}
+            buildingResult={buildingResult}
+            onBuildings={setPaintBuildingsOn}
+            onAreaChoice={(c) => {
+              // Nível da rua: liga os prédios dos dados por padrão.
+              if (c === 0.5 || c === 1) setPaintBuildingsOn(true);
+              void changeDioramaArea(c);
+            }}
             onColumns={toggleDioramaColumns}
             onExaggeration={setExaggeration}
             onOrbit={setOrbit}

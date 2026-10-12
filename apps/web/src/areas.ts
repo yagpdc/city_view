@@ -41,7 +41,7 @@ function loadMunicipios(): Promise<Municipio[]> {
 export function radiusArea(center: [number, number], radiusKm: number): Area {
   return {
     kind: "raio",
-    name: `Raio de ${radiusKm} km`,
+    name: radiusKm < 1 ? `Raio de ${radiusKm * 1000} m` : `Raio de ${radiusKm} km`,
     geometry: circleArea(center, radiusKm),
     areaKm2: Math.PI * radiusKm * radiusKm,
     radiusKm,
