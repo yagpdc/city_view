@@ -1,7 +1,8 @@
 import type { BasemapLook, BuildingPaintResult, DatasetMeta, MapPick, Theme } from "@cityview/engine";
 import { CATEGORY_COLORS, categoryColor, geodesicDistanceM, normalizeText } from "@cityview/engine";
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { parseCoordinates, searchMunicipios } from "./areas";
+import { areaAt, parseCoordinates, searchMunicipios } from "./areas";
+import type { Comparison, PlaceFacts } from "./compare";
 import { SearchBox, type SearchResult } from "./components/SearchBox";
 import { CategoryLegend, LayerCard, Panel, PanelCard, Rail, ScaleLegend, type LayerAction, type PanelId } from "./components/Shell";
 import { WidgetsPanel, type ViewportWidget } from "./components/WidgetsPanel";
@@ -628,6 +629,22 @@ export function App() {
   // ---------- Visualização avançada (maquete) ----------
 
   /** Maquete do ponto clicado, com os pontos das camadas de dados ligadas. */
+  /** Município do ponto: população (IBGE 2022), área e valores das camadas da biblioteca no projeto. */
+  const placeFacts = async (center: [number, number]): Promise<PlaceFacts> => {
+    const area = await areaAt(center);
+    const comparisons: Comparison[] = [];
+    if (area.kind === "municipio" && area.code) {
+      for (const layer of libraryLayers) {
+        if (!inProject(layer.manifest.id)) continue;
+        const feature = (layer.data.features as { properties: { codigo: string | number; valor: number } }[]).find(
+          (f) => String(f.properties.codigo) === area.code,
+        );
+        if (feature) comparisons.push({ id: layer.manifest.id, label: `${layer.variable} · ${layer.period}`, unit: layer.unit, value: feature.properties.valor });
+      }
+    }
+    return { name: area.name, kind: area.kind, population: area.population, areaKm2: area.areaKm2, comparisons };
+  };
+
   const startAdvanced = async (p: MapPick) => {
     if (measuring) stopMeasure();
     const record = p.dataset?.kind === "record" ? p.dataset : null;
@@ -1212,7 +1229,7 @@ export function App() {
             )}
           {maquete && map && (
             <Suspense fallback={null}>
-            <MaqueteView map={map} center={maquete.center} title={maquete.title} datasetIds={maquete.datasetIds} theme={`${theme}-${look}`} datasets={datasetInfos} onClose={() => setMaquete(null)} />
+            <MaqueteView map={map} center={maquete.center} title={maquete.title} datasetIds={maquete.datasetIds} theme={`${theme}-${look}`} datasets={datasetInfos} placeFacts={placeFacts} onClose={() => setMaquete(null)} />
             </Suspense>
           )}
           {measuring && (

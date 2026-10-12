@@ -640,9 +640,9 @@ a { color: var(--cv-link); }
 .maquete-coords { font-size: 12px; color: var(--cv-text-muted); }
 .maquete-close { pointer-events: auto; display: grid; place-items: center; width: 40px; height: 40px; border: 1px solid var(--cv-border); border-radius: 50%; background: var(--cv-float); color: var(--cv-text); box-shadow: var(--cv-shadow-2); cursor: pointer; }
 .maquete-close:hover { background: var(--cv-surface); }
-.maquete-side { position: absolute; left: 16px; top: 104px; display: flex; flex-direction: column; gap: 8px; max-width: 220px; pointer-events: none; }
-.maquete-stats { display: flex; flex-direction: column; gap: 8px; margin: 0; }
-.maquete-stats div { min-width: 132px; padding: 8px 12px; border: 1px solid var(--cv-border); border-radius: var(--cv-radius-lg, 10px); background: var(--cv-float); box-shadow: var(--cv-shadow-1); }
+.maquete-side { position: absolute; left: 16px; top: 104px; display: flex; flex-direction: column; gap: 8px; width: 280px; max-height: calc(100cqh - 200px); overflow: auto; pointer-events: none; }
+.maquete-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0; }
+.maquete-stats div { min-width: 0; padding: 8px 12px; border: 1px solid var(--cv-border); border-radius: var(--cv-radius-lg, 10px); background: var(--cv-float); box-shadow: var(--cv-shadow-1); }
 .maquete-stats dt { font-size: 12px; color: var(--cv-text-muted); }
 .maquete-stats dd { margin: 2px 0 0; font-size: 20px; font-weight: 500; }
 .maquete-note { margin: 0; font-size: 11px; line-height: 15px; color: var(--cv-text-muted); }
@@ -657,7 +657,14 @@ a { color: var(--cv-link); }
 .maquete-status { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; align-items: center; gap: 10px; max-width: 420px; padding: 12px 16px; border: 1px solid var(--cv-border); border-radius: var(--cv-radius-lg, 10px); background: var(--cv-float); box-shadow: var(--cv-shadow-2); text-align: center; font-size: 14px; }
 .maquete-spinner { width: 16px; height: 16px; border: 2px solid var(--cv-border); border-top-color: var(--cv-action); border-radius: 50%; animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.maquete-details { display: flex; flex-direction: column; gap: 10px; width: 300px; max-height: calc(100cqh - 200px); overflow: auto; padding: 12px 14px; border: 1px solid var(--cv-border); border-radius: var(--cv-radius-lg, 10px); background: var(--cv-float); box-shadow: var(--cv-shadow-2); pointer-events: auto; }
+.maquete-place { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border: 1px solid var(--cv-border); border-radius: var(--cv-radius-lg, 10px); background: var(--cv-float); box-shadow: var(--cv-shadow-1); }
+.maquete-place-kicker { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--cv-text-muted); }
+.maquete-place b { font-size: 15px; }
+.maquete-place dl { display: grid; gap: 4px; margin: 2px 0 0; }
+.maquete-place dl div { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; }
+.maquete-place dt { color: var(--cv-text-muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.maquete-place dd { margin: 0; white-space: nowrap; }
+.maquete-details { display: flex; flex-direction: column; gap: 10px; width: auto; max-height: calc(100cqh - 200px); overflow: auto; padding: 12px 14px; border: 1px solid var(--cv-border); border-radius: var(--cv-radius-lg, 10px); background: var(--cv-float); box-shadow: var(--cv-shadow-2); pointer-events: auto; }
 .maquete-details header { display: flex; align-items: flex-start; gap: 8px; }
 .maquete-details-title { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; font-size: 13px; }
 .maquete-details-title b { font-size: 16px; line-height: 22px; }
@@ -675,7 +682,7 @@ a { color: var(--cv-link); }
 .maquete-details-list span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .maquete-details-list .muted { font-size: 12px; white-space: nowrap; }
 @container (max-width: 760px) {
-  .maquete-side { top: 96px; right: 16px; max-width: none; }
+  .maquete-side { top: 96px; right: 16px; width: auto; max-width: none; }
   .maquete-stats { flex-direction: row; flex-wrap: wrap; gap: 6px; }
   .maquete-stats div { min-width: 0; flex: 1 1 28%; padding: 6px 8px; }
   .maquete-stats dd { font-size: 16px; }

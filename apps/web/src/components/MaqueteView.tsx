@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Icon } from "./Icon";
 import { MaqueteDetails } from "./MaqueteDetails";
 import type { DatasetInfo } from "./PickDetails";
+import type { PlaceFacts } from "../compare";
 
 const RADII = [150, 300, 500] as const;
 const int = new Intl.NumberFormat("pt-BR");
@@ -20,6 +21,7 @@ export function MaqueteView({
   datasetIds,
   theme,
   datasets,
+  placeFacts,
   onClose,
 }: {
   map: CityMap;
@@ -30,6 +32,8 @@ export function MaqueteView({
   theme: string;
   /** Rótulos e títulos dos datasets, para os detalhes dos registros. */
   datasets: Record<string, DatasetInfo>;
+  /** Município do ponto e grandezas dele (cartão "O lugar"). */
+  placeFacts?: (center: [number, number]) => Promise<PlaceFacts>;
   onClose: () => void;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -40,6 +44,18 @@ export function MaqueteView({
   const [views, setViews] = useState(true);
   const [rects, setRects] = useState<ReturnType<MaqueteScene["viewRects"]>>([]);
   const [selection, setSelection] = useState<MaqueteSelection>(null);
+  const [place, setPlace] = useState<PlaceFacts | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    setPlace(null);
+    placeFacts?.(center)
+      .then((p) => !cancelled && setPlace(p))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- só quando o ponto muda
+  }, [center[0], center[1]]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -167,6 +183,7 @@ export function MaqueteView({
             </div>
           )}
         </dl>
+        {place && <PlaceCard place={place} />}
         <p className="maquete-note">Clique num prédio ou alfinete para ver os dados.</p>
         {data.stats.withHeight < data.stats.buildings && (
           <p className="maquete-note">
@@ -216,6 +233,45 @@ export function MaqueteView({
           {state.error ? `Não deu para montar: ${state.error}` : "Sem prédios em 3D aqui ainda. Por enquanto, a maquete cobre as principais cidades (capitais e grandes regiões metropolitanas)."}
         </div>
       )}
+    </section>
+  );
+}
+
+const compactNum = new Intl.NumberFormat("pt-BR", { notation: "compact", maximumFractionDigits: 1 });
+
+/** O município do ponto: população, área, densidade e as camadas da biblioteca no projeto. */
+function PlaceCard({ place }: { place: PlaceFacts }) {
+  const density = place.population && place.areaKm2 > 0 ? place.population / place.areaKm2 : null;
+  return (
+    <section className="maquete-place" aria-label="O lugar">
+      <span className="maquete-place-kicker">{place.kind === "municipio" ? "Município" : "Região"}</span>
+      <b>{place.name}</b>
+      <dl>
+        {place.population !== undefined && (
+          <div>
+            <dt>População (IBGE 2022)</dt>
+            <dd className="num">{int.format(place.population)}</dd>
+          </div>
+        )}
+        <div>
+          <dt>Área</dt>
+          <dd className="num">{int.format(Math.round(place.areaKm2))} km²</dd>
+        </div>
+        {density !== null && (
+          <div>
+            <dt>Densidade</dt>
+            <dd className="num">{int.format(Math.round(density))} hab/km²</dd>
+          </div>
+        )}
+        {place.comparisons.map((c) => (
+          <div key={c.id}>
+            <dt>{c.label}</dt>
+            <dd className="num">
+              {compactNum.format(c.value)} {c.unit && <span className="muted">{c.unit.toLowerCase()}</span>}
+            </dd>
+          </div>
+        ))}
+      </dl>
     </section>
   );
 }

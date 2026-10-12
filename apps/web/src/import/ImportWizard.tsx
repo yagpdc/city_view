@@ -533,6 +533,7 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
               )}
             </>
           )}
+          {exporting && <TilingProgress tiling={worker.tiling} />}
         </div>
 
         <footer className="wizard-footer">
@@ -550,6 +551,28 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
           </button>
         </footer>
       </div>
+    </div>
+  );
+}
+
+/** Andamento do motor de tiles (WASM): etapa em palavras e barra geral. */
+function TilingProgress({ tiling }: { tiling: { stage: string; fraction: number } | null }) {
+  const [label, overall] = !tiling
+    ? ["Preparando os pontos…", 0.02]
+    : tiling.stage === "tiling"
+      ? ["Gerando os tiles do mapa…", 0.1 + Math.min(1, tiling.fraction) * 0.85]
+      : tiling.stage === "writing"
+        ? ["Guardando neste navegador…", 0.95 + tiling.fraction * 0.05]
+        : ["Agregando em hexágonos…", 0.05];
+  return (
+    <div className="wizard-loading tiling-progress" aria-live="polite">
+      <p>
+        {label} <span className="muted num">{Math.round(overall * 100)}%</span>
+      </p>
+      <div className="progress">
+        <div style={{ width: `${Math.round(overall * 100)}%` }} />
+      </div>
+      <p className="muted">Tudo acontece no seu computador: o arquivo não é enviado a lugar nenhum.</p>
     </div>
   );
 }

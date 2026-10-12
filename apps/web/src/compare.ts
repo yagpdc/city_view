@@ -9,6 +9,15 @@ export interface Comparison {
   value: number;
 }
 
+/** O município de um ponto e as grandezas dele (IBGE + camadas da biblioteca no projeto). */
+export interface PlaceFacts {
+  name: string;
+  kind: "municipio" | "raio";
+  population?: number;
+  areaKm2: number;
+  comparisons: Comparison[];
+}
+
 export interface Ratio {
   value: number;
   /** Ex.: "por 1.000 pessoas", "por R$ 1 milhão". */
