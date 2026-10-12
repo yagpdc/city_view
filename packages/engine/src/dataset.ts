@@ -8,7 +8,7 @@ import type {
 import type { PMTiles } from "pmtiles";
 import { loadAreaHexes, type HexFeature } from "./areaHexes";
 import type { AreaGeometry, Position } from "./geo";
-import { loadNearby, type NearbySummary } from "./nearby";
+import { loadNearby, searchPoints, type NearbySummary, type SearchHit } from "./nearby";
 
 /** Metadados gravados pelo cityview-tiler (`cityview` no JSON do PMTiles, versão 2). */
 export interface DatasetMeta {
@@ -283,6 +283,21 @@ export class DatasetLayer {
       zoom: this.meta.pointsZoom,
       categoryProperty: this.meta.categoryProperty,
       categories: this.meta.categories.length,
+    });
+  }
+
+  /** Busca pelo nome (coluna de título) ao redor de um centro; vazio se o dataset não tem título. */
+  search(query: string, center: Position, radiusM: number, limit = 8): Promise<SearchHit[]> {
+    const title = this.meta.title;
+    if (!title || !this.meta.columns.some((c) => c.name === title)) return Promise.resolve([]);
+    return searchPoints(this.pmtiles, {
+      query,
+      center,
+      radiusM,
+      zoom: this.meta.pointsZoom,
+      titleProperty: title,
+      categoryProperty: this.meta.categoryProperty,
+      limit,
     });
   }
 

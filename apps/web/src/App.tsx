@@ -1,6 +1,8 @@
 import type { AreaSummary, BasemapLook, BuildingPaintResult, DatasetMeta, MapPick, Theme } from "@cityview/engine";
+import { categoryColor, geodesicDistanceM, normalizeText } from "@cityview/engine";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { areaAt, radiusArea, type Area } from "./areas";
+import { areaAt, parseCoordinates, radiusArea, searchMunicipios, type Area } from "./areas";
+import type { SearchResult } from "./components/TopBar";
 import type { Comparison } from "./compare";
 import { DATAPACKS, OBJECTIVES, dataUrl, type Objective } from "./catalog";
 import { DioramaPanel, type AreaChoice } from "./components/DioramaPanel";
@@ -522,7 +524,73 @@ export function App() {
   }, [diorama?.area, libraryLayers]);
 
   // TODO(fase 2b): geocodificação local (Photon). Por enquanto a busca não faz nada.
-  const search = (query: string) => console.info("[search]", query);
+  /** O que cada resultado da busca faz ao ser escolhido. */
+  const searchActions = useRef(new Map<string, () => void>());
+
+  const search = useCallback(
+    async (query: string): Promise<SearchResult[]> => {
+      const actions = new Map<string, () => void>();
+      const results: SearchResult[] = [];
+      const coords = parseCoordinates(query);
+      if (coords) {
+        results.push({ key: "coords", kind: "coords", title: `${coords[1].toFixed(5)}, ${coords[0].toFixed(5)}` });
+        actions.set("coords", () => {
+          map?.flyTo({ center: coords, zoom: 17 });
+          setPick({ lngLat: coords, dataset: null, catalog: [], building: null });
+        });
+      }
+      const [cities, hits] = await Promise.all([
+        coords ? Promise.resolve([]) : searchMunicipios(query, 3),
+        coords || !map ? Promise.resolve([]) : map.searchDatasets(query, { limit: 8 }),
+      ]);
+      // A mesma coisa vinda de fontes diferentes (mesmo nome a poucos metros) aparece uma vez só.
+      const unique: typeof hits = [];
+      for (const h of hits.sort((a, b) => a.rank - b.rank || a.distanceM - b.distanceM)) {
+        const name = normalizeText(h.title);
+        if (unique.some((u) => normalizeText(u.title) === name && geodesicDistanceM(u.lngLat, h.lngLat) < 50)) continue;
+        unique.push(h);
+      }
+      // Cidade cujo nome começa com a busca vem antes dos lugares ("curitiba" → a cidade, não a Rua Curitiba).
+      const q = normalizeText(query);
+      const leading = cities.filter((c) => normalizeText(c.name).startsWith(q));
+      const trailing = cities.filter((c) => !leading.includes(c));
+      const addCity = (c: (typeof cities)[number]) => {
+        const key = `city:${c.code}`;
+        results.push({ key, kind: "city", title: c.name, subtitle: `Cidade · ${new Intl.NumberFormat("pt-BR").format(c.population)} hab.` });
+        actions.set(key, () => map?.fitBounds(c.bounds, 13));
+      };
+      leading.forEach(addCity);
+      for (const h of unique.slice(0, 8 - leading.length)) {
+        const key = `${h.datasetId}:${h.id}`;
+        const info = datasetInfos[h.datasetId];
+        const where = [h.properties.endereco, h.properties.cidade].filter(Boolean).join(" · ");
+        const dist = h.distanceM < 1000 ? `${Math.round(h.distanceM)} m` : `${(h.distanceM / 1000).toFixed(1).replace(".", ",")} km`;
+        results.push({
+          key,
+          kind: "place",
+          title: h.title,
+          subtitle: [where || info?.name, dist].filter(Boolean).join(" · "),
+          color: h.category !== null && info ? categoryColor(h.category, info.categories) : undefined,
+        });
+        actions.set(key, () => {
+          setActive((prev) => new Set(prev).add(datasetKey(h.datasetId)));
+          map?.flyTo({ center: h.lngLat, zoom: 17.5 });
+          setPick({
+            lngLat: h.lngLat,
+            dataset: { kind: "record", datasetId: h.datasetId, id: h.id, category: h.category, properties: h.properties, lngLat: h.lngLat },
+            catalog: [],
+            building: null,
+          });
+        });
+      }
+      trailing.forEach(addCity);
+      searchActions.current = actions;
+      return results;
+    },
+    [map, datasetInfos],
+  );
+
+  const selectSearch = (r: SearchResult) => searchActions.current.get(r.key)?.();
 
   const errors = [user.error && { text: user.error, clear: user.clearError }, server.error && { text: server.error, clear: server.clearError }].filter(
     (e): e is { text: string; clear: () => void } => Boolean(e),
@@ -530,7 +598,7 @@ export function App() {
 
   return (
     <div className={`app theme-${theme} ${sidebarOpen ? "sidebar-open" : ""}`}>
-      <TopBar sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen((o) => !o)} onSearch={search} />
+      <TopBar sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen((o) => !o)} search={search} onSelect={selectSearch} />
 
       <Sidebar open={sidebarOpen}>
         <SidebarSection title="Ponto de partida">

@@ -74,3 +74,94 @@ export async function loadNearby(
   for (const p of points) if (p.category !== null && p.category < byCategory.length) byCategory[p.category]!++;
   return { center, radiusM, total: points.length, byCategory, points };
 }
+
+/** Tiles de pontos já decodificados, por arquivo (buscas seguidas não baixam de novo). */
+const tileCache = new WeakMap<PMTiles, Map<string, Promise<ReturnType<typeof decodePoints>>>>();
+
+function decodePoints(data: ArrayBuffer) {
+  return new VectorTile(new PbfReader(new Uint8Array(data))).layers.points ?? null;
+}
+
+function cachedTile(pmtiles: PMTiles, z: number, x: number, y: number) {
+  let cache = tileCache.get(pmtiles);
+  if (!cache) tileCache.set(pmtiles, (cache = new Map()));
+  const key = `${z}/${x}/${y}`;
+  let pending = cache.get(key);
+  if (!pending) {
+    pending = pmtiles.getZxy(z, x, y).then((res) => (res ? decodePoints(res.data) : null));
+    pending.catch(() => cache!.delete(key));
+    cache.set(key, pending);
+  }
+  return pending;
+}
+
+export interface SearchHit extends NearbyPoint {
+  id: number;
+  title: string;
+  /** Menor = melhor (0: começa com a busca; 1: alguma palavra começa; 2: contém). */
+  rank: number;
+}
+
+/** Texto para comparar: minúsculas, sem acentos, espaços simples. */
+export const normalizeText = (s: string) =>
+  s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+
+/**
+ * Busca por nome (coluna de título) nos pontos ao redor de um centro, lendo os tiles do zoom
+ * dos pontos. Só decodifica a geometria dos que batem. Ordena por relevância e distância.
+ */
+export async function searchPoints(
+  pmtiles: PMTiles,
+  options: { query: string; center: Position; radiusM: number; zoom: number; titleProperty: string; categoryProperty: string; limit: number },
+): Promise<SearchHit[]> {
+  const q = normalizeText(options.query);
+  if (q.length < 2) return [];
+  const words = q.split(" ");
+  const { center, radiusM, zoom, titleProperty, categoryProperty } = options;
+  // O raio encolhe até caber no limite de tiles (zonas muito ao norte/sul ou zoom alto).
+  let r = radiusM;
+  let range: { x0: number; x1: number; y0: number; y1: number };
+  for (;;) {
+    const [w, s, e, n] = areaBounds(circleArea(center, r / 1000, 32));
+    range = { x0: lonToTile(w, zoom), x1: lonToTile(e, zoom), y0: latToTile(n, zoom), y1: latToTile(s, zoom) };
+    if ((range.x1 - range.x0 + 1) * (range.y1 - range.y0 + 1) <= MAX_TILES || r < 500) break;
+    r *= 0.75;
+  }
+  const jobs: Promise<SearchHit[]>[] = [];
+  for (let x = range.x0; x <= range.x1; x++) {
+    for (let y = range.y0; y <= range.y1; y++) {
+      jobs.push(
+        cachedTile(pmtiles, zoom, x, y).then((layer) => {
+          if (!layer) return [];
+          const out: SearchHit[] = [];
+          for (let i = 0; i < layer.length; i++) {
+            const feature = layer.feature(i);
+            const title = feature.properties[titleProperty];
+            if (typeof title !== "string") continue;
+            const t = normalizeText(title);
+            if (!words.every((w) => t.includes(w))) continue;
+            const rank = t.startsWith(q) ? 0 : t.split(" ").some((tw) => tw.startsWith(words[0]!)) ? 1 : 2;
+            const g = feature.toGeoJSON(x, y, zoom) as unknown as { geometry: { type: string; coordinates: Position } };
+            if (g.geometry.type !== "Point") continue;
+            const lngLat: Position = [g.geometry.coordinates[0], g.geometry.coordinates[1]];
+            const { [categoryProperty]: c, ...properties } = feature.properties as Record<string, string | number>;
+            out.push({
+              id: Number(feature.id),
+              title,
+              rank,
+              lngLat,
+              distanceM: geodesicDistanceM(center, lngLat),
+              category: typeof c === "number" ? c : null,
+              properties: { ...properties },
+            });
+          }
+          return out;
+        }),
+      );
+    }
+  }
+  return (await Promise.all(jobs))
+    .flat()
+    .sort((a, b) => a.rank - b.rank || a.distanceM - b.distanceM)
+    .slice(0, options.limit);
+}

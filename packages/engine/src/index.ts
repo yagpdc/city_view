@@ -11,7 +11,8 @@ export {
   type PointsRender,
 } from "./catalog";
 export { geodesicDistanceM } from "./geo";
-export type { NearbyPoint, NearbySummary } from "./nearby";
+export { normalizeText } from "./nearby";
+export type { NearbyPoint, NearbySummary, SearchHit } from "./nearby";
 export { CityMap, type Camera, type CityMapEvent, type CityMapOptions, type MapOverlay, type MapPick } from "./cityMap";
 export {
   CATEGORY_COLORS,

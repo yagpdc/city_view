@@ -19,7 +19,7 @@ import { CATEGORY_COLORS, DatasetLayer, OTHER_COLOR, categoryColor, readDatasetM
 import type { HexFeature } from "./areaHexes";
 import { paintBuildings, type BuildingPaintResult, type BuildingRecord } from "./buildingPaint";
 import { areaBounds, circleArea, worldMask, type AreaGeometry } from "./geo";
-import type { NearbySummary } from "./nearby";
+import type { NearbySummary, SearchHit } from "./nearby";
 import { BUILDINGS_3D_LAYER, BUILDINGS_SOURCE, BASEMAP_SOURCE, TERRAIN_SOURCE, buildStyle, type BasemapLook, type StyleOptions, type Theme } from "./style";
 
 export interface Camera {
@@ -648,6 +648,28 @@ export class CityMap {
     const dataset = this.datasets.find((d) => d.id === datasetId);
     if (!dataset) return Promise.reject(new Error(`dataset desconhecido: ${datasetId}`));
     return dataset.nearby(center, radiusM);
+  }
+
+  /**
+   * Busca por nome em todos os datasets com título (ou só nos indicados), ao redor de um centro.
+   * Devolve até `limit` por dataset, já com o id do dataset.
+   */
+  async searchDatasets(
+    query: string,
+    options: { center?: [number, number]; radiusM?: number; datasetIds?: string[]; limit?: number } = {},
+  ): Promise<(SearchHit & { datasetId: string })[]> {
+    const c = this.map.getCenter();
+    const center = options.center ?? ([c.lng, c.lat] as [number, number]);
+    const targets = this.datasets.filter((d) => !options.datasetIds || options.datasetIds.includes(d.id));
+    const results = await Promise.all(
+      targets.map((d) =>
+        d
+          .search(query, center, options.radiusM ?? 6000, options.limit ?? 8)
+          .then((hits) => hits.map((h) => ({ ...h, datasetId: d.id })))
+          .catch(() => []),
+      ),
+    );
+    return results.flat();
   }
 
   /** Desenha (ou apaga, com null) o círculo de um raio em metros. */

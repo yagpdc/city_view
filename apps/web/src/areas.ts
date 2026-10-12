@@ -69,3 +69,33 @@ export async function areaAt(lngLat: [number, number]): Promise<Area> {
     population: found.population,
   };
 }
+
+const fold = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+
+/** Municípios pelo nome ("curitiba", "sao paulo sp"); os maiores primeiro entre os que batem igual. */
+export async function searchMunicipios(query: string, limit = 4): Promise<{ code: string; name: string; bounds: Bounds; population: number }[]> {
+  const q = fold(query).replace(/[·,-]/g, " ").replace(/\s+/g, " ");
+  if (q.length < 2) return [];
+  const words = q.split(" ");
+  const all = await loadMunicipios();
+  return all
+    .map((m) => {
+      const name = fold(m.name).replace(/[·,-]/g, " ").replace(/\s+/g, " ");
+      if (!words.every((w) => name.includes(w))) return null;
+      return { m, rank: name.startsWith(q) ? 0 : 1 };
+    })
+    .filter((x): x is { m: Municipio; rank: number } => x !== null)
+    .sort((a, b) => a.rank - b.rank || b.m.population - a.m.population)
+    .slice(0, limit)
+    .map(({ m }) => ({ code: m.code, name: m.name, bounds: m.bounds, population: m.population }));
+}
+
+/** "-23.56, -46.65" ou "-23.56 -46.65" (lat, lon) → [lon, lat]. */
+export function parseCoordinates(query: string): [number, number] | null {
+  const m = /^\s*(-?\d{1,2}(?:[.,]\d+)?)\s*[,; ]\s*(-?\d{1,3}(?:[.,]\d+)?)\s*$/.exec(query.replace(/(\d),(\d)(?=.*[,; ]\s*-?\d)/, "$1.$2"));
+  if (!m) return null;
+  const lat = Number(m[1]!.replace(",", "."));
+  const lon = Number(m[2]!.replace(",", "."));
+  if (!(Math.abs(lat) <= 90 && Math.abs(lon) <= 180)) return null;
+  return [lon, lat];
+}
