@@ -206,6 +206,44 @@ export class DatasetLayer {
   }
 
   /** Soma os hexágonos (respeitando o filtro de categorias). */
+  /**
+   * Resumo do que está desenhado na tela agora (para os widgets "Na tela"): pontos no zoom de rua,
+   * hexágonos nos demais. Hexágonos repetidos na borda dos tiles contam uma vez (pelo centro).
+   */
+  viewportSummary(): (AreaSummary & { mode: "points" | "hex" }) | null {
+    if (!this.visible) return null;
+    const usePoints = this.map.getZoom() >= this.meta.pointsZoom && this.map.getLayer(this.pointsLayerId);
+    if (usePoints) {
+      const seen = new Set<string | number>();
+      const byCategory = this.meta.categories.map(() => 0);
+      const visible = this.activeCategories();
+      let count = 0;
+      for (const f of this.map.queryRenderedFeatures({ layers: [this.pointsLayerId] })) {
+        const key = f.id ?? JSON.stringify((f.geometry as { coordinates?: unknown }).coordinates);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const c = Number(f.properties[this.meta.categoryProperty]);
+        if (Number.isInteger(c) && c >= 0 && c < byCategory.length) {
+          if (visible && !visible.includes(c)) continue;
+          byCategory[c]!++;
+        }
+        count++;
+      }
+      return { count, byCategory, cells: count, mode: "points" };
+    }
+    if (!this.map.getLayer(this.hexLayerId)) return null;
+    const unique = new Map<string, HexFeature>();
+    for (const f of this.map.queryRenderedFeatures({ layers: [this.hexLayerId] })) {
+      const ring = (f.geometry as { type: string; coordinates: [number, number][][] }).coordinates?.[0];
+      if (!ring?.length) continue;
+      const cx = ring.reduce((s, p) => s + p[0], 0) / ring.length;
+      const cy = ring.reduce((s, p) => s + p[1], 0) / ring.length;
+      const key = `${cx.toFixed(4)},${cy.toFixed(4)}`;
+      if (!unique.has(key)) unique.set(key, { type: "Feature", geometry: { type: "Polygon", coordinates: [ring] }, properties: f.properties as Record<string, number> });
+    }
+    return { ...this.summarize([...unique.values()]), mode: "hex" };
+  }
+
   summarize(features: HexFeature[]): AreaSummary {
     const prefix = this.meta.categoryCountPrefix;
     const visible = this.activeCategories();

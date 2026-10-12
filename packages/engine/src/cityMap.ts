@@ -643,6 +643,33 @@ export class CityMap {
    * Marcador de posição com direção (ex.: câmera da foto de rua). `bearing` em graus a partir do norte.
    * `null` remove.
    */
+  /** O que um dataset tem desenhado na tela agora (widgets "Na tela"); null se escondido. */
+  viewportSummary(datasetId: string): (AreaSummary & { mode: "points" | "hex" }) | null {
+    if (!this.styleReady) return null;
+    return this.datasets.find((d) => d.id === datasetId)?.viewportSummary() ?? null;
+  }
+
+  /** Avisa quando o mapa para de mexer (ou carrega dados novos), para recalcular widgets. */
+  onViewChange(fn: () => void): () => void {
+    let timer = 0;
+    const run = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(fn, 250);
+    };
+    this.map.on("moveend", run);
+    this.map.on("idle", run);
+    return () => {
+      window.clearTimeout(timer);
+      this.map.off("moveend", run);
+      this.map.off("idle", run);
+    };
+  }
+
+  /** Inclinação para 3D (com prédios) ou 2D (de cima). */
+  setPerspective(mode: "2d" | "3d"): void {
+    this.map.easeTo({ pitch: mode === "3d" ? 55 : 0, bearing: mode === "3d" ? this.map.getBearing() : 0, duration: 800 });
+  }
+
   /** Resumo do que um dataset tem num raio (ex.: Lugares em 500 m de um registro). */
   nearby(datasetId: string, center: [number, number], radiusM: number): Promise<NearbySummary> {
     const dataset = this.datasets.find((d) => d.id === datasetId);
