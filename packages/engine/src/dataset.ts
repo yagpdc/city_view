@@ -8,6 +8,7 @@ import type {
 import type { PMTiles } from "pmtiles";
 import { loadAreaHexes, type HexFeature } from "./areaHexes";
 import type { AreaGeometry, Position } from "./geo";
+import { whereExpressions, type WhereClause } from "./filter";
 import { loadNearby, searchPoints, type NearbySummary, type SearchHit } from "./nearby";
 
 /** Metadados gravados pelo cityview-tiler (`cityview` no JSON do PMTiles, versão 2). */
@@ -32,12 +33,12 @@ export interface DatasetMeta {
   hasRowIndex?: boolean;
 }
 
-export type WhereClause = { in?: (string | number)[]; gte?: number; lte?: number };
+export type { WhereClause };
 
 export interface DatasetFilter {
   /** Categorias de cor visíveis (índices). Vazio/ausente = todas. Vale para pontos e agregados. */
   categories?: number[];
-  /** Condições por coluna. Por enquanto só afetam os pontos individuais (zoom alto). */
+  /** Condições por coluna. Só afetam os pontos individuais (zoom alto): os hexágonos não têm as colunas. */
   where?: Record<string, WhereClause>;
 }
 
@@ -311,6 +312,20 @@ export class DatasetLayer {
     };
   }
 
+  /** Menor e maior valor numérico de uma coluna nos pontos carregados (dica do filtro por valor). */
+  columnRange(column: string): { min: number; max: number } | null {
+    if (!this.map.getSource(this.sourceId)) return null;
+    let min = Infinity;
+    let max = -Infinity;
+    for (const f of this.map.querySourceFeatures(this.sourceId, { sourceLayer: "points" })) {
+      const v = f.properties[column];
+      if (typeof v !== "number" || !Number.isFinite(v)) continue;
+      if (v < min) min = v;
+      if (v > max) max = v;
+    }
+    return min <= max ? { min, max } : null;
+  }
+
   getFilter(): DatasetFilter {
     return { ...this.filter };
   }
@@ -446,11 +461,7 @@ export class DatasetLayer {
     const conditions: ExpressionSpecification[] = [];
     const categories = this.activeCategories();
     if (categories) conditions.push(["in", ["get", this.meta.categoryProperty], ["literal", categories]]);
-    for (const [column, clause] of Object.entries(this.filter.where ?? {})) {
-      if (clause.in) conditions.push(["in", ["to-string", ["get", column]], ["literal", clause.in.map(String)]]);
-      if (clause.gte !== undefined) conditions.push([">=", ["to-number", ["get", column]], clause.gte]);
-      if (clause.lte !== undefined) conditions.push(["<=", ["to-number", ["get", column]], clause.lte]);
-    }
+    conditions.push(...whereExpressions(this.filter.where));
     return ["all", ...conditions] as FilterSpecification;
   }
 

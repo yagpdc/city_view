@@ -123,12 +123,23 @@ export async function storageUsage(): Promise<StorageUsage | null> {
 
 const ACTIVE_KEY = "cityview.active-layers";
 
-export function loadActiveLayers(): Set<string> {
+const DEFAULTS_KEY = "cityview.default-layers";
+
+/**
+ * Camadas ligadas da última visita. `defaults` entram uma vez por navegador (inclusive para quem já
+ * tinha camadas salvas); depois disso, desligar uma delas é respeitado.
+ */
+export function loadActiveLayers(defaults: string[] = [], version = "1"): Set<string> {
   try {
     const raw = localStorage.getItem(ACTIVE_KEY);
-    return new Set(raw ? (JSON.parse(raw) as string[]) : []);
+    const active = new Set(raw ? (JSON.parse(raw) as string[]) : []);
+    if (localStorage.getItem(DEFAULTS_KEY) !== version) {
+      for (const id of defaults) active.add(id);
+      localStorage.setItem(DEFAULTS_KEY, version);
+    }
+    return active;
   } catch {
-    return new Set();
+    return new Set(defaults);
   }
 }
 

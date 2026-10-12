@@ -26,6 +26,7 @@ export {
   type DatasetPick,
   type WhereClause,
 } from "./dataset";
+export { cleanWhere, matchesWhere, whereExpressions, type Where } from "./filter";
 export { pickZoom, type HexFeature } from "./areaHexes";
 export { type BuildingPaintResult, type BuildingRecord } from "./buildingPaint";
 export { areaBounds, circleArea, pointInArea, type AreaGeometry, type Bounds } from "./geo";

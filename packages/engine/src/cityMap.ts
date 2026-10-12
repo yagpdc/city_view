@@ -15,7 +15,7 @@ import {
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import { PMTiles, Protocol } from "pmtiles";
 import { CatalogLayer, type CatalogPick, type DatapackManifest, type LayerData } from "./catalog";
-import { CATEGORY_COLORS, DatasetLayer, OTHER_COLOR, categoryColor, readDatasetMeta, type AreaSummary, type DatasetPick } from "./dataset";
+import { CATEGORY_COLORS, DatasetLayer, OTHER_COLOR, categoryColor, readDatasetMeta, type AreaSummary, type DatasetFilter, type DatasetPick } from "./dataset";
 import type { HexFeature } from "./areaHexes";
 import { paintBuildings, type BuildingPaintResult, type BuildingRecord } from "./buildingPaint";
 import { areaBounds, circleArea, worldMask, type AreaGeometry } from "./geo";
@@ -92,8 +92,8 @@ export class CityMap {
   private readonly resizeObserver: ResizeObserver;
   private readonly datasets: DatasetLayer[] = [];
   private readonly catalog = new Map<string, CatalogLayer>();
-  /** Filtro de categorias por camada (dataset ou catálogo), guardado mesmo antes de a camada existir. */
-  private readonly categoryFilters = new Map<string, number[] | null>();
+  /** Filtro por camada (dataset ou catálogo), guardado mesmo antes de a camada existir. */
+  private readonly layerFilters = new Map<string, DatasetFilter>();
   /** Camadas externas genéricas (ex.: cobertura de fotos de rua); voltam após troca de estilo. */
   private readonly overlays = new Map<string, MapOverlay>();
   private locationMarker: Marker | null = null;
@@ -202,8 +202,8 @@ export class CityMap {
     const meta = await readDatasetMeta(pmtiles);
     const layer = new DatasetLayer(this.map, id, url, meta, pmtiles, options.attribution);
     layer.labelTheme = this.styleOptions.theme ?? "light";
-    const categories = this.categoryFilters.get(id);
-    if (categories) layer.setFilter({ ...layer.getFilter(), categories });
+    const filter = this.layerFilters.get(id);
+    if (filter) layer.setFilter(filter);
     this.datasets.push(layer);
     this.whenStyleReady(() => layer.attach());
     return layer;
@@ -214,7 +214,8 @@ export class CityMap {
     let layer = this.catalog.get(manifest.id);
     if (!layer) {
       layer = new CatalogLayer(this.map, manifest, data);
-      layer.setCategoryFilter(this.categoryFilters.get(manifest.id) ?? null);
+      const filter = this.layerFilters.get(manifest.id);
+      layer.setFilter(filter?.categories ?? null, filter?.where ?? null);
       this.catalog.set(manifest.id, layer);
       const created = layer;
       this.whenStyleReady(() => this.attachCatalog(created));
@@ -224,21 +225,28 @@ export class CityMap {
   }
 
   /**
-   * Mostra só algumas categorias de uma camada (índices da legenda); null mostra todas.
-   * Vale para datasets em tiles (pontos, hexágonos, "Na tela") e camadas GeoJSON com `colorBy`.
+   * Filtra uma camada: `categories` são os índices da legenda visíveis, `where` as condições por coluna
+   * (faixa numérica, texto contém). null mostra tudo. Vale para datasets em tiles (categorias em pontos,
+   * hexágonos e "Na tela"; condições só nos pontos, que têm as colunas) e camadas GeoJSON.
    */
-  setCategoryFilter(id: string, categories: number[] | null): void {
-    this.categoryFilters.set(id, categories);
-    const dataset = this.datasets.find((d) => d.id === id);
-    if (dataset) {
-      const { categories: _, ...rest } = dataset.getFilter();
-      dataset.setFilter(categories ? { ...rest, categories } : rest);
-    }
-    this.catalog.get(id)?.setCategoryFilter(categories);
+  setLayerFilter(id: string, filter: DatasetFilter | null): void {
+    const next: DatasetFilter = {};
+    if (filter?.categories) next.categories = filter.categories;
+    if (filter?.where && Object.keys(filter.where).length) next.where = filter.where;
+    if (Object.keys(next).length) this.layerFilters.set(id, next);
+    else this.layerFilters.delete(id);
+    this.datasets.find((d) => d.id === id)?.setFilter(next);
+    this.catalog.get(id)?.setFilter(next.categories ?? null, next.where ?? null);
   }
 
-  getCategoryFilter(id: string): number[] | null {
-    return this.categoryFilters.get(id) ?? null;
+  getLayerFilter(id: string): DatasetFilter | null {
+    return this.layerFilters.get(id) ?? null;
+  }
+
+  /** Faixa de valores de uma coluna numérica no que já foi carregado da camada (dica para o filtro). */
+  columnRange(id: string, column: string): { min: number; max: number } | null {
+    if (!this.styleReady) return null;
+    return (this.datasets.find((d) => d.id === id) ?? this.catalog.get(id))?.columnRange(column) ?? null;
   }
 
   hideCatalogLayer(id: string): void {

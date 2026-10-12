@@ -1,4 +1,4 @@
-import { categoryColor, type CityMap, type MapPick, type NearbySummary } from "@cityview/engine";
+import { categoryColor, matchesWhere, type CityMap, type MapPick, type NearbySummary, type Where } from "@cityview/engine";
 import { useEffect, useState } from "react";
 /** Campos que formam a linha de resumo sob o título (o primeiro que existir). */
 const SUMMARY_KEYS = ["endereco", "address", "endereço", "cidade"];
@@ -21,6 +21,8 @@ export interface NearbySource {
   info: DatasetInfo;
   /** Categorias visíveis pelo filtro do cartão da camada (null = todas). */
   categories?: number[] | null;
+  /** Condições por coluna do filtro do cartão. */
+  where?: Where | null;
 }
 
 /**
@@ -173,8 +175,14 @@ function Nearby({
   const summary = state.summary;
   // O próprio lugar clicado não conta como "perto".
   const allowed = source.categories;
+  const where = source.where ?? undefined;
   const points =
-    summary?.points.filter((p) => !(exclude !== null && p.distanceM < 1) && (!allowed || (p.category !== null && allowed.includes(p.category)))) ?? [];
+    summary?.points.filter(
+      (p) =>
+        !(exclude !== null && p.distanceM < 1) &&
+        (!allowed || (p.category !== null && allowed.includes(p.category))) &&
+        matchesWhere(p.properties, where),
+    ) ?? [];
   const total = summary ? points.length : 0;
   const byCategory = info.categories.map((label, i) => ({
     i,
@@ -210,7 +218,7 @@ function Nearby({
         <>
           <p className="muted">
             {int.format(total)} {source.name.toLowerCase()} em {meters(radius)}
-            {allowed && " · com o filtro da camada"}
+            {(allowed || where) && " · com o filtro da camada"}
           </p>
           {top.length > 0 && (
             <ul className="bars">

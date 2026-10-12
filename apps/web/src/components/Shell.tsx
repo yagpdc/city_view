@@ -2,12 +2,11 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Icon, type IconName } from "./Icon";
 
 /** Painéis do trilho à esquerda: uma tarefa por vez (docs/DESIGN.md · Estrutura). */
-export type PanelId = "layers" | "add" | "explore" | "details" | "settings";
+export type PanelId = "layers" | "add" | "details" | "settings";
 
 const RAIL: { id: PanelId; label: string; icon: IconName }[] = [
   { id: "layers", label: "Camadas", icon: "layers" },
   { id: "add", label: "Adicionar", icon: "addCircle" },
-  { id: "explore", label: "Explorar", icon: "compass" },
   { id: "details", label: "Detalhes", icon: "info" },
   { id: "settings", label: "Ajustes", icon: "sliders" },
 ];

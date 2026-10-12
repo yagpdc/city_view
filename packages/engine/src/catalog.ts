@@ -1,3 +1,4 @@
+import { whereExpressions, type Where } from "./filter";
 import type { AreaGeometry } from "./geo";
 import type {
   ExpressionSpecification,
@@ -67,6 +68,8 @@ export class CatalogLayer {
   private extruded = false;
   /** Índices de `render.colorBy.categories` visíveis; null = todas. */
   private categories: number[] | null = null;
+  /** Condições por coluna (faixa numérica, texto). */
+  private where: Where | null = null;
   private readonly sourceId: string;
 
   constructor(
@@ -92,21 +95,40 @@ export class CatalogLayer {
     });
     for (const layer of this.layers()) this.map.addLayer(layer, beforeId);
     this.applyVisibility();
-    this.applyCategoryFilter();
+    this.applyFilter();
   }
 
-  /** Mostra só algumas categorias (pontos com `colorBy`); null mostra todas. */
-  setCategoryFilter(categories: number[] | null): void {
+  /** Mostra só algumas categorias (pontos com `colorBy`) e/ou só o que atende às condições; null mostra tudo. */
+  setFilter(categories: number[] | null, where: Where | null = null): void {
     this.categories = categories;
-    this.applyCategoryFilter();
+    this.where = where;
+    this.applyFilter();
   }
 
-  private applyCategoryFilter(): void {
+  /** Menor e maior valor numérico de uma coluna (dica do filtro por valor). */
+  columnRange(column: string): { min: number; max: number } | null {
+    if (!this.map.getSource(this.sourceId)) return null;
+    let min = Infinity;
+    let max = -Infinity;
+    for (const f of this.map.querySourceFeatures(this.sourceId)) {
+      const v = f.properties[column];
+      if (typeof v !== "number" || !Number.isFinite(v)) continue;
+      if (v < min) min = v;
+      if (v > max) max = v;
+    }
+    return min <= max ? { min, max } : null;
+  }
+
+  private applyFilter(): void {
     const render = this.manifest.render;
-    const id = `${this.sourceId}-points`;
-    if (render.type !== "points" || !render.colorBy || !this.map.getLayer(id)) return;
-    const values = this.categories?.map((i) => render.colorBy!.categories[i]).filter((v): v is string => v !== undefined);
-    this.map.setFilter(id, values ? ["in", ["to-string", ["get", render.colorBy.property]], ["literal", values]] : null);
+    const conditions: ExpressionSpecification[] = whereExpressions(this.where ?? undefined);
+    if (render.type === "points" && render.colorBy && this.categories) {
+      const values = this.categories.map((i) => render.colorBy!.categories[i]).filter((v): v is string => v !== undefined);
+      conditions.push(["in", ["to-string", ["get", render.colorBy.property]], ["literal", values]]);
+    }
+    for (const id of this.layerIds) {
+      if (this.map.getLayer(id)) this.map.setFilter(id, conditions.length ? ["all", ...conditions] : null);
+    }
   }
 
   detach(): void {

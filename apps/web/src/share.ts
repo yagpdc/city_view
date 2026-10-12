@@ -2,7 +2,7 @@
  * Links compartilháveis: o estado vai no hash, ao lado da câmera do MapLibre (`#map=z/lat/lon…`).
  * Nada passa por servidor; camadas da biblioteca vão como "receita" e são buscadas de novo na fonte.
  */
-import type { BasemapLook, Theme } from "@cityview/engine";
+import type { BasemapLook, DatasetFilter, Theme } from "@cityview/engine";
 import type { ItemChoice } from "./library/types";
 
 /** Como refazer uma camada da biblioteca: fonte, item, escolhas e a variável. */
@@ -18,6 +18,8 @@ export interface SharedState {
   lib?: LibraryRecipe[];
   theme?: Theme;
   look?: BasemapLook;
+  /** Filtros das camadas (id no mapa → categorias e condições por coluna). */
+  f?: Record<string, DatasetFilter>;
 }
 
 /** Parâmetro do hash usado pela câmera (MapLibre `hash: "map"`). */

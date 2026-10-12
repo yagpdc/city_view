@@ -1,5 +1,4 @@
 import type { DatapackManifest } from "@cityview/engine";
-import objectivesJson from "../../../datapacks/objectives.json";
 
 /** Manifestos versionados no repositório; os dados vêm de data/out/datapacks (gerados por datapacks/build.py). */
 const manifests = import.meta.glob<DatapackManifest>("../../../datapacks/*/manifest.json", {
@@ -10,17 +9,6 @@ const manifests = import.meta.glob<DatapackManifest>("../../../datapacks/*/manif
 export const DATAPACKS: DatapackManifest[] = Object.values(manifests).sort((a, b) =>
   a.category === b.category ? a.name.localeCompare(b.name) : a.category.localeCompare(b.category),
 );
-
-export interface Objective {
-  id: string;
-  name: string;
-  description: string;
-  /** Ids de datapacks; `dataset:<id>` para dados do cliente. */
-  layers: string[];
-  camera: { center: [number, number]; zoom: number };
-}
-
-export const OBJECTIVES = objectivesJson as Objective[];
 
 export const dataUrl = (id: string) => `${location.origin}/data/datapacks/${id}.geojson`;
 

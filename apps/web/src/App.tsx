@@ -5,12 +5,13 @@ import { areaAt, parseCoordinates, radiusArea, searchMunicipios, type Area } fro
 import { SearchBox, type SearchResult } from "./components/SearchBox";
 import { CategoryLegend, LayerCard, Panel, PanelCard, Rail, ScaleLegend, type LayerAction, type PanelId } from "./components/Shell";
 import { WidgetsPanel, type ViewportWidget } from "./components/WidgetsPanel";
+import { ValueFilter, type FilterColumn } from "./components/ValueFilter";
 import { Icon } from "./components/Icon";
 import { AddRow, DatapackMeta } from "./components/AddRow";
 import { MeasurePanel } from "./components/MeasurePanel";
-import type { MeasureMode, MeasureState } from "@cityview/engine";
+import type { DatasetFilter, MeasureMode, MeasureState, Where } from "@cityview/engine";
 import type { Comparison } from "./compare";
-import { DATAPACKS, OBJECTIVES, dataUrl, type Objective } from "./catalog";
+import { DATAPACKS, dataUrl } from "./catalog";
 import { DioramaPanel, type AreaChoice } from "./components/DioramaPanel";
 import { PickDetails, type DatasetInfo } from "./components/PickDetails";
 import { MapPopup, type NearbySource } from "./components/MapPopup";
@@ -35,14 +36,15 @@ import { useCityMap } from "./useCityMap";
 const CLIENT_DATASET = { id: "empresas", name: "Exemplo: 30 milhões de registros", url: "/data/empresas/tiles.pmtiles" };
 const DATASET_KEY = `dataset:${CLIENT_DATASET.id}`;
 /** Lugares do Overture Maps gerados por `pnpm places` (Brasil inteiro ou só a Grande SP). */
-const PLACES = { id: "lugares", name: "Lugares (Overture Maps)", areas: ["brasil", "sao-paulo"] };
+const PLACES = { id: "lugares", name: "Estabelecimentos (Overture Maps)", areas: ["brasil", "sao-paulo"] };
 const PLACES_KEY = `dataset:${PLACES.id}`;
 /** Camada de cobertura das fotos de rua (Mapillary). */
 const STREET_KEY = "overlay:mapillary";
-const PLACES_ATTRIBUTION = '<a href="https://docs.overturemaps.org/attribution/">Lugares: Overture Maps Foundation</a>';
+const PLACES_ATTRIBUTION = '<a href="https://docs.overturemaps.org/attribution/">Estabelecimentos: Overture Maps Foundation</a>';
 /** Chave de visibilidade de um dataset vetorial (o exemplo e os lugares usam o prefixo "dataset:"). */
 const datasetKey = (id: string) => (id === CLIENT_DATASET.id ? DATASET_KEY : id === PLACES.id ? PLACES_KEY : id);
-const EXPLORE = OBJECTIVES.find((o) => o.id === "explorar")!;
+/** Câmera inicial: o Brasil inteiro. */
+const START_CAMERA = { center: [-52, -14.5] as [number, number], zoom: 3.8 };
 // Rótulos do dataset de demonstração (no produto real, vêm do mapeamento de colunas do cliente).
 const SECTORS = [
   "Comércio varejista",
@@ -59,6 +61,14 @@ const SECTORS = [
 
 /** Estado de um link compartilhado, lido uma vez ao abrir. */
 const SHARED = readShared();
+
+/**
+ * Coropléticos (municípios, UFs, camadas da biblioteca) pintam o mapa inteiro: nunca abrem ligados.
+ * Ficam no projeto com o olho fechado; só um link compartilhado os mostra direto.
+ */
+const isChoropleth = (id: string) => id.startsWith("lib-") || DATAPACKS.some((d) => d.id === id && d.geometry === "polygon");
+/** Abrem ligadas por padrão: fotos de rua e estabelecimentos (Lugares). */
+const RESTORED = loadActiveLayers([PLACES_KEY, STREET_KEY]);
 
 const isNarrowScreen = () => window.matchMedia("(max-width: 767px)").matches;
 
@@ -81,15 +91,21 @@ function loadHiddenLayers(): Set<string> {
   }
 }
 const FILTERS_KEY = "cityview.category-filters";
-/** Filtro de categorias por camada (id da camada no mapa → índices visíveis). */
-type CategoryFilters = Record<string, number[]>;
-function loadFilters(): CategoryFilters {
+/** Filtro por camada (id da camada no mapa → categorias visíveis e condições por coluna). */
+type LayerFilters = Record<string, DatasetFilter>;
+function loadFilters(): LayerFilters {
   try {
-    return JSON.parse(localStorage.getItem(FILTERS_KEY) ?? "{}") as CategoryFilters;
+    const raw = JSON.parse(localStorage.getItem(FILTERS_KEY) ?? "{}") as Record<string, DatasetFilter | number[]>;
+    // Versão anterior guardava só a lista de categorias.
+    return Object.fromEntries(Object.entries(raw).map(([id, f]) => [id, Array.isArray(f) ? { categories: f } : f]));
   } catch {
     return {};
   }
 }
+/** Id da camada no mapa a partir da chave de camada do projeto. */
+const mapIdOf = (key: string) => (key === DATASET_KEY ? CLIENT_DATASET.id : key === PLACES_KEY ? PLACES.id : key);
+/** Onde o filtro por valor vale num dataset em tiles. */
+const POINTS_ONLY_NOTE = "As condições valem para os pontos: aproxime o mapa. A densidade em hexágonos não muda.";
 const int = new Intl.NumberFormat("pt-BR");
 const compact = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1, notation: "compact" });
 
@@ -103,8 +119,17 @@ export function App() {
   /** Painel aberto pelo trilho (null = só o mapa). */
   const [panel, setPanel] = useState<PanelId | null>(() => (isNarrowScreen() ? null : "layers"));
   /** Camadas no projeto mas escondidas (o olho fechado); "active" são as visíveis. */
-  const [hidden, setHidden] = useState<Set<string>>(loadHiddenLayers);
-  const [filters, setFilters] = useState<CategoryFilters>(loadFilters);
+  const [hidden, setHidden] = useState<Set<string>>(() =>
+    SHARED?.layers ? loadHiddenLayers() : new Set([...loadHiddenLayers(), ...[...RESTORED].filter(isChoropleth)]),
+  );
+  const [filters, setFilters] = useState<LayerFilters>(() => {
+    const saved = loadFilters();
+    if (!SHARED?.layers) return saved;
+    // Link compartilhado: as camadas do link vêm com o filtro do link (ou sem filtro).
+    const shared = new Set(SHARED.layers.map(mapIdOf));
+    return { ...Object.fromEntries(Object.entries(saved).filter(([id]) => !shared.has(id))), ...(SHARED.f ?? {}) };
+  });
+  const initialFilters = useRef(filters);
   const [widgetsOpen, setWidgetsOpen] = useState(() => window.innerWidth >= 1280);
   const [widgets, setWidgets] = useState<ViewportWidget[]>([]);
   const [perspective, setPerspective] = useState<"2d" | "3d">("2d");
@@ -122,8 +147,9 @@ export function App() {
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [libraryLayers, setLibraryLayers] = useState<LibraryLayer[]>([]);
   const [buildingResult, setBuildingResult] = useState<BuildingPaintResult | null>(null);
-  const [objective, setObjective] = useState<string | null>(null);
-  const [active, setActive] = useState<Set<string>>(() => (SHARED?.layers ? new Set(SHARED.layers) : loadActiveLayers()));
+  const [active, setActive] = useState<Set<string>>(() =>
+    SHARED?.layers ? new Set(SHARED.layers) : new Set([...RESTORED].filter((id) => !isChoropleth(id))),
+  );
   const [demoMeta, setDemoMeta] = useState<DatasetMeta | null>(null);
   const [places, setPlaces] = useState<{ meta: DatasetMeta; release: string; area: string } | null>(null);
   const [serverMetas, setServerMetas] = useState<Record<string, DatasetMeta>>({});
@@ -148,7 +174,7 @@ export function App() {
     // Prédios 3D vêm do extrato detalhado (Grande SP); o mapa do Brasil vai só até z12.
     buildingsUrl: `${location.origin}/data/sao-paulo.pmtiles`,
     theme,
-    camera: { ...EXPLORE.camera, pitch: 0, bearing: 0 },
+    camera: { ...START_CAMERA, pitch: 0, bearing: 0 },
     hash: CAMERA_PARAM,
   });
 
@@ -297,7 +323,8 @@ export function App() {
         DATAPACKS.some((d) => d.id === id) || id === DATASET_KEY || id === PLACES_KEY || id === STREET_KEY || id in serverMetas,
     );
     const lib = libraryLayers.filter((l) => active.has(l.manifest.id)).map(recipeOf);
-    const url = shareUrl({ layers: shareable, lib, theme, look });
+    const f = Object.fromEntries(shareable.map(mapIdOf).filter((id) => filters[id]).map((id) => [id, filters[id]!]));
+    const url = shareUrl({ layers: shareable, lib, theme, look, ...(Object.keys(f).length ? { f } : {}) });
     const local = user.datasets.filter((d) => active.has(d.id)).length;
     try {
       await navigator.clipboard.writeText(url);
@@ -336,15 +363,21 @@ export function App() {
   // Filtros lembrados valem assim que o mapa existe (o motor guarda até a camada carregar).
   useEffect(() => {
     if (!map) return;
-    for (const [id, categories] of Object.entries(loadFilters())) map.setCategoryFilter(id, categories);
+    for (const [id, filter] of Object.entries(initialFilters.current)) map.setLayerFilter(id, filter);
   }, [map]);
-  const setCategoryFilter = (id: string, categories: number[] | null) => {
-    map?.setCategoryFilter(id, categories);
+  const updateFilter = (id: string, change: Partial<DatasetFilter>) => {
+    const merged: DatasetFilter = { ...filters[id], ...change };
+    const next: DatasetFilter = {};
+    if (merged.categories) next.categories = merged.categories;
+    if (merged.where && Object.keys(merged.where).length) next.where = merged.where;
+    map?.setLayerFilter(id, next);
     setFilters((prev) => {
       const { [id]: _, ...rest } = prev;
-      return categories ? { ...rest, [id]: categories } : rest;
+      return Object.keys(next).length ? { ...rest, [id]: next } : rest;
     });
   };
+  const setCategoryFilter = (id: string, categories: number[] | null) => updateFilter(id, { categories: categories ?? undefined });
+  const setWhere = (id: string, where: Where | null) => updateFilter(id, { where: where ?? undefined });
   useEffect(() => {
     try {
       localStorage.setItem(HIDDEN_KEY, JSON.stringify([...hidden]));
@@ -388,6 +421,7 @@ export function App() {
         colorBy: places.meta.colorBy,
         title: places.meta.title,
         fieldLabels: {
+          nome: "Nome",
           endereco: "Endereço",
           telefone: "Telefone",
           site: "Site",
@@ -435,9 +469,9 @@ export function App() {
           const bars = info.categories
             .map((c, i) => ({ label: info.label ? info.label(c) : c, color: categoryColor(i, info.categories), n: summary.byCategory[i] ?? 0, i }))
             // Nos hexágonos a contagem por categoria vem completa; o filtro do cartão decide o que aparece.
-            .filter((b) => b.n > 0 && (!filters[id] || filters[id]!.includes(b.i)))
+            .filter((b) => b.n > 0 && (!filters[id]?.categories || filters[id]!.categories!.includes(b.i)))
             .sort((a, b) => b.n - a.n);
-          return [{ key: id, title: info.name, count: summary.count, mode: summary.mode, bars, filtered: filters[id]?.length }];
+          return [{ key: id, title: info.name, count: summary.count, mode: summary.mode, bars, filtered: Boolean(filters[id]) }];
         }),
       );
     compute();
@@ -445,7 +479,7 @@ export function App() {
   }, [map, widgetsOpen, active, demoMeta, places, serverMetas, datasetInfos, filters]);
 
   const nearbySource: NearbySource | null =
-    places && datasetInfos[PLACES.id] ? { datasetId: PLACES.id, name: "Lugares", info: datasetInfos[PLACES.id]!, categories: filters[PLACES.id] ?? null } : null;
+    places && datasetInfos[PLACES.id] ? { datasetId: PLACES.id, name: "Estabelecimentos", info: datasetInfos[PLACES.id]!, categories: filters[PLACES.id]?.categories ?? null, where: filters[PLACES.id]?.where ?? null } : null;
 
 
   const openImport = useCallback((file: File) => setImportFile(file), []);
@@ -507,7 +541,6 @@ export function App() {
 
   /** Olho do cartão / adicionar: visível ↔ escondida (a camada continua no projeto). */
   const toggle = (id: string, on: boolean) => {
-    setObjective(null);
     setActive((prev) => (on ? new Set(prev).add(id) : without(prev, id)));
     setHidden((prev) => (on ? without(prev, id) : new Set(prev).add(id)));
   };
@@ -540,12 +573,6 @@ export function App() {
   const changePerspective = (mode: "2d" | "3d") => {
     setPerspective(mode);
     map?.setPerspective(mode);
-  };
-
-  const chooseObjective = (o: Objective) => {
-    setObjective(o.id);
-    setActive(new Set(o.layers));
-    map?.flyTo({ center: o.camera.center, zoom: o.camera.zoom, pitch: 0, bearing: 0 });
   };
 
   const changeTheme = (next: Theme) => {
@@ -722,8 +749,28 @@ export function App() {
     return (
       <CategoryLegend
         items={info.categories.map((c, i) => ({ label: info.label ? info.label(c) : c, color: categoryColor(i, info.categories) }))}
-        selected={filters[id] ?? null}
+        selected={filters[id]?.categories ?? null}
         onChange={(categories) => setCategoryFilter(id, categories)}
+      />
+    );
+  };
+  const datasetMeta = (id: string): DatasetMeta | undefined =>
+    id === CLIENT_DATASET.id ? (demoMeta ?? undefined) : id === PLACES.id ? places?.meta : serverMetas[id];
+  /** Filtro por valor de um dataset em tiles: colunas que vão nos pontos. */
+  const datasetValueFilter = (id: string) => {
+    const meta = datasetMeta(id);
+    if (!meta) return null;
+    const labels = datasetInfos[id]?.fieldLabels ?? {};
+    const columns: FilterColumn[] = meta.columns
+      .filter((c) => c.name !== meta.categoryProperty)
+      .map((c) => ({ key: c.name, label: labels[c.name] ?? c.name, type: c.type === "number" ? "number" : "text" }));
+    return (
+      <ValueFilter
+        columns={columns}
+        where={filters[id]?.where ?? null}
+        onChange={(where) => setWhere(id, where)}
+        range={(column) => map?.columnRange(id, column) ?? null}
+        note={POINTS_ONLY_NOTE}
       />
     );
   };
@@ -774,6 +821,7 @@ export function App() {
       node: (badge, tone) => (
         <LayerCard badge={badge} tone={tone} title={d.name} origin="user" meta={meta} visible={active.has(d.id)} onVisible={d.status === "ready" ? (v) => toggle(d.id, v) : undefined} actions={actions} status={working ? "working" : d.status === "error" ? "error" : undefined} progress={working ? d.progress : undefined}>
           {datasetLegend(d.id)}
+          {datasetValueFilter(d.id)}
           {datasetOptions}
         </LayerCard>
       ),
@@ -803,12 +851,18 @@ export function App() {
           {r.type === "points" && r.colorBy ? (
             <CategoryLegend
               items={r.colorBy.categories.map((c, i) => ({ label: c, color: r.colorBy!.colors[i] ?? r.color }))}
-              selected={filters[d.id] ?? null}
+              selected={filters[d.id]?.categories ?? null}
               onChange={(categories) => setCategoryFilter(d.id, categories)}
             />
           ) : (
             <CategoryLegend items={[{ label: "Registros", color: r.type === "points" ? r.color : "#6b7485" }]} />
           )}
+          <ValueFilter
+            columns={d.manifest.fields.map((f) => ({ key: f.key, label: f.label, type: f.format === "decimal" || f.format === "int" ? "number" : "text" }))}
+            where={filters[d.id]?.where ?? null}
+            onChange={(where) => setWhere(d.id, where)}
+            range={(column) => map?.columnRange(d.id, column) ?? null}
+          />
         </LayerCard>
       ),
     });
@@ -844,7 +898,7 @@ export function App() {
         <LayerCard
           badge={badge}
           tone={tone}
-          title="Lugares"
+          title="Estabelecimentos"
           origin="public"
           meta={<>Overture Maps · <span className="num">{int.format(places.meta.records)}</span> · versão {places.release}</>}
           visible={active.has(PLACES_KEY)}
@@ -855,6 +909,7 @@ export function App() {
           ]}
         >
           {datasetLegend(PLACES.id)}
+          {datasetValueFilter(PLACES.id)}
           {datasetOptions}
         </LayerCard>
       ),
@@ -875,6 +930,7 @@ export function App() {
           actions={[{ label: "Tirar do mapa", icon: "eyeOff", onClick: () => removeFromMap(DATASET_KEY) }]}
         >
           {datasetLegend(CLIENT_DATASET.id)}
+          {datasetValueFilter(CLIENT_DATASET.id)}
           {datasetOptions}
         </LayerCard>
       ),
@@ -1026,7 +1082,7 @@ export function App() {
         <p className="panel-text">Fontes abertas prontas para o mapa. Os dados vêm direto de cada fonte.</p>
         <div className="add-list">
           <AddRow
-            title="Lugares"
+            title="Estabelecimentos"
             meta={places ? `Overture Maps · ${int.format(places.meta.records)} · comércio, serviços, saúde, turismo` : "Gere com pnpm places"}
             added={inProject(PLACES_KEY)}
             disabled={!places}
@@ -1055,25 +1111,6 @@ export function App() {
         <div className="add-list">
           <AddRow title={CLIENT_DATASET.name} meta={demoMeta ? "Dados sintéticos para testar volume" : "Gere com pnpm synth && pnpm tiles"} added={inProject(DATASET_KEY)} disabled={!demoMeta} onAdd={() => toggle(DATASET_KEY, true)} />
         </div>
-      </PanelCard>
-    </Panel>
-  );
-
-  const explorePanel = (
-    <Panel title="Explorar" onClose={() => setPanel(null)}>
-      <PanelCard title="Pontos de partida">
-        <p className="panel-text">Cada um liga as camadas certas e leva o mapa até a região.</p>
-        <div className="objectives">
-          {OBJECTIVES.map((o) => (
-            <button key={o.id} type="button" className={`objective ${objective === o.id ? "is-active" : ""}`} onClick={() => chooseObjective(o)} title={o.description}>
-              <strong>{o.name}</strong>
-              <span>{o.description}</span>
-            </button>
-          ))}
-        </div>
-      </PanelCard>
-      <PanelCard title="Visualização avançada">
-        <p className="panel-text">Clique nos seus dados no mapa e escolha "Maquete 3D" para ver a área em relevo, com colunas e prédios acesos.</p>
       </PanelCard>
     </Panel>
   );
@@ -1130,7 +1167,7 @@ export function App() {
     </Panel>
   );
 
-  const panels: Record<PanelId, ReactNode> = { layers: layersPanel, add: addPanel, explore: explorePanel, details: detailsPanel, settings: settingsPanel };
+  const panels: Record<PanelId, ReactNode> = { layers: layersPanel, add: addPanel, details: detailsPanel, settings: settingsPanel };
 
   return (
     <div className={`app theme-${theme}`}>

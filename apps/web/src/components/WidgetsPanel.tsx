@@ -10,8 +10,8 @@ export interface ViewportWidget {
   /** "points": contagem exata do que está na tela; "hex": soma dos hexágonos visíveis (aproximada nas bordas). */
   mode: "points" | "hex";
   bars: { label: string; color: string; n: number }[];
-  /** Quantas categorias o filtro do cartão deixa visíveis (ausente = todas). */
-  filtered?: number;
+  /** O cartão da camada tem filtro (categorias ou valores). */
+  filtered?: boolean;
 }
 
 /** Painel "Na tela" à direita: números do que está visível agora, atualizados ao mover o mapa. */
@@ -31,7 +31,7 @@ export function WidgetsPanel({ widgets, onClose }: { widgets: ViewportWidget[]; 
               <Icon name="chart" size={24} />
             </span>
             <b>Nada para contar aqui</b>
-            <span className="muted">Ligue uma camada de pontos (seus dados, Lugares) para ver quantos aparecem na tela e de que tipo.</span>
+            <span className="muted">Ligue uma camada de pontos (seus dados, Estabelecimentos) para ver quantos aparecem na tela e de que tipo.</span>
           </section>
         )}
         {widgets.map((w) => {
@@ -40,7 +40,7 @@ export function WidgetsPanel({ widgets, onClose }: { widgets: ViewportWidget[]; 
             <section key={w.key} className="panel-card widget">
               <header className="panel-card-header">
                 <h3>{w.title}</h3>
-                {w.filtered !== undefined && (
+                {w.filtered && (
                   <span className="widget-filter" title="O filtro do cartão da camada vale aqui">
                     <Icon name="filter" size={16} />
                     filtrado

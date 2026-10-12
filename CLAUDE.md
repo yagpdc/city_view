@@ -30,7 +30,7 @@ Especialistas em `.claude/agents/`. Delegue ao agente quando o assunto for dele:
 [trilho][painel][          mapa + busca flutuante          ][Na tela]
 ```
 
-- **Trilho** (`components/Shell.tsx` · `Rail`): Camadas · Adicionar · Explorar · Detalhes · Ajustes. Um painel por vez (clicar de novo fecha).
+- **Trilho** (`components/Shell.tsx` · `Rail`): Camadas · Adicionar · Detalhes · Ajustes. Um painel por vez (clicar de novo fecha).
 - **Painel** (`Panel` + `PanelCard`): fundo cinza, conteúdo em cartões brancos, título 18/600. Camadas = um `LayerCard` por camada no projeto (olho = visível/escondida, ⋯ = ações, legenda dentro, que também filtra por categoria via `CityMap.setCategoryFilter`). "Adicionar" lista o que dá para pôr no mapa.
 - **Na tela** (`WidgetsPanel`, à direita): números do que está visível, recalculados ao parar de mexer o mapa (`CityMap.viewportSummary`).
 - Sobre o mapa, só o que é do lugar: busca (`SearchBox`), cartão do clique (`MapPopup`), maquete (`DioramaPanel`), visualizador de rua (`StreetViewer`), controles do mapa.
