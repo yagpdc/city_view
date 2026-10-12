@@ -260,6 +260,7 @@ fn points_zoom(writer: &mut Writer, t: &Table) -> Result<ZoomStats, Error> {
                     ColumnData::Category { ids, dict } if ids[i] != u32::MAX => {
                         props.push((&col.name, Value::Str(&dict[ids[i] as usize])))
                     }
+                    ColumnData::Text(v) if !v[i].is_empty() => props.push((&col.name, Value::Str(&v[i]))),
                     _ => {}
                 }
             }
@@ -340,6 +341,7 @@ pub fn build(t: &Table, out_dir: &Path, opts: &BuildOptions, progress: &(dyn Fn(
             kind: match c.data {
                 ColumnData::Number(_) => "number",
                 ColumnData::Category { .. } => "category",
+                ColumnData::Text(_) => "text",
             },
         })
         .collect();

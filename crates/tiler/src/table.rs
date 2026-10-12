@@ -40,6 +40,8 @@ pub enum ColumnData {
     Number(Vec<f64>),
     /// Índice no dicionário; `u32::MAX` = vazio.
     Category { ids: Vec<u32>, dict: Vec<String> },
+    /// Texto livre, só nos tiles de pontos (não entra nos hexágonos). `""` = vazio.
+    Text(Vec<String>),
 }
 
 pub struct TileColumn {
@@ -135,6 +137,7 @@ impl Interner {
 enum Builder {
     Number(Vec<f64>, NumberLocale),
     Category(Vec<u32>, Interner),
+    Text(Vec<String>),
 }
 
 /// Acumula linhas válidas antes de projetar/indexar em paralelo.
@@ -156,7 +159,10 @@ impl RawTable {
             .filter_map(|c| match c.kind {
                 ColumnKind::Number => Some((c.name.clone(), Builder::Number(Vec::new(), c.locale.unwrap_or_default()))),
                 ColumnKind::Category => Some((c.name.clone(), Builder::Category(Vec::new(), Interner::default()))),
-                // Texto e datas não vão para os tiles: saem do arquivo de origem no clique.
+                // Título e textos marcados vão nos pontos; o resto sai do arquivo de origem no clique.
+                ColumnKind::Text if c.in_tiles || spec.title.as_deref() == Some(c.name.as_str()) => {
+                    Some((c.name.clone(), Builder::Text(Vec::new())))
+                }
                 ColumnKind::Date | ColumnKind::Text => None,
             })
             .collect();
@@ -267,6 +273,7 @@ impl RawTable {
                 data: match b {
                     Builder::Number(v, _) => ColumnData::Number(v),
                     Builder::Category(ids, dict) => ColumnData::Category { ids, dict: dict.values },
+                    Builder::Text(v) => ColumnData::Text(v),
                 },
             })
             .collect();
@@ -362,6 +369,7 @@ pub fn read_csv(path: &Path, spec: &ImportSpec, finest: Resolution, progress: &d
             match builder {
                 Builder::Number(values, locale) => values.push(parse_number(v, *locale).unwrap_or(f64::NAN)),
                 Builder::Category(ids, dict) => ids.push(dict.id(v)),
+                Builder::Text(values) => values.push(v.trim().to_owned()),
             }
         }
         if line % 65_536 == 0 {
@@ -438,6 +446,7 @@ pub fn read_parquet(path: &Path, spec: &ImportSpec, finest: Resolution, progress
                 match builder {
                     Builder::Number(values, _) => values.push(number_at(array, i).unwrap_or(f64::NAN)),
                     Builder::Category(ids, dict) => ids.push(dict.id(&text_at(array, i))),
+                    Builder::Text(values) => values.push(text_at(array, i).trim().to_owned()),
                 }
             }
         }

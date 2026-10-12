@@ -83,6 +83,7 @@ INPE (queimadas, desmatamento PRODES/DETER), DATASUS (CNES, mortalidade), INEP (
 | IBGE (servicodados, apisidra) | permitido (sem restrições no robots) | ✅ na biblioteca |
 | Ipeadata (OData) | permitido | ✅ na biblioteca |
 | Portais CKAN do BCB, TSE, ANEEL | **robots.txt proíbe `/api/`** e pede 10 s entre acessos; sem catálogo DCAT público | ❌ não indexar por robô |
+| Overture Maps — Places (lugares: comércio, serviços, turismo) | download oficial de GeoParquet no S3 público (sem crawler); CDLA Permissive 2.0 / Apache 2.0 / CC0, atribuição obrigatória | ✅ camada "Lugares" (`pnpm places`, release mensal) |
 | dados.gov.br (agrega muitos órgãos federais) | API oficial **com chave gratuita** (cadastro) | ⏳ próximo passo, com a chave do usuário |
 
 ## Princípios

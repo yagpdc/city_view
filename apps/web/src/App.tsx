@@ -27,6 +27,12 @@ import { useCityMap } from "./useCityMap";
 
 const CLIENT_DATASET = { id: "empresas", name: "Exemplo: 30 milhões de registros", url: "/data/empresas/tiles.pmtiles" };
 const DATASET_KEY = `dataset:${CLIENT_DATASET.id}`;
+/** Lugares do Overture Maps gerados por `pnpm places` (Brasil inteiro ou só a Grande SP). */
+const PLACES = { id: "lugares", name: "Lugares (Overture Maps)", areas: ["brasil", "sao-paulo"] };
+const PLACES_KEY = `dataset:${PLACES.id}`;
+const PLACES_ATTRIBUTION = '<a href="https://docs.overturemaps.org/attribution/">Lugares: Overture Maps Foundation</a>';
+/** Chave de visibilidade de um dataset vetorial (o exemplo e os lugares usam o prefixo "dataset:"). */
+const datasetKey = (id: string) => (id === CLIENT_DATASET.id ? DATASET_KEY : id === PLACES.id ? PLACES_KEY : id);
 const EXPLORE = OBJECTIVES.find((o) => o.id === "explorar")!;
 // Rótulos do dataset de demonstração (no produto real, vêm do mapeamento de colunas do cliente).
 const SECTORS = [
@@ -79,6 +85,7 @@ export function App() {
   const [objective, setObjective] = useState<string | null>(null);
   const [active, setActive] = useState<Set<string>>(() => (SHARED?.layers ? new Set(SHARED.layers) : loadActiveLayers()));
   const [demoMeta, setDemoMeta] = useState<DatasetMeta | null>(null);
+  const [places, setPlaces] = useState<{ meta: DatasetMeta; release: string; area: string } | null>(null);
   const [serverMetas, setServerMetas] = useState<Record<string, DatasetMeta>>({});
   const [pick, setPick] = useState<MapPick | null>(null);
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -111,6 +118,21 @@ export function App() {
       .addDataset(CLIENT_DATASET.id, `${location.origin}${CLIENT_DATASET.url}`)
       .then((layer) => !cancelled && setDemoMeta(layer.meta))
       .catch(() => setDemoMeta(null));
+    // Lugares: o recorte mais amplo que tiver sido gerado.
+    void (async () => {
+      for (const area of PLACES.areas) {
+        // Arquivo ausente: o Vite responde a página HTML com 200, então confere o tipo.
+        const info = (await fetch(`/data/places/${area}.release.json`)
+          .then((r) => (r.ok && r.headers.get("content-type")?.includes("json") ? r.json() : null))
+          .catch(() => null)) as { release: string } | null;
+        if (!info) continue;
+        const layer = await map.addDataset(PLACES.id, `${location.origin}/data/places/${area}/tiles.pmtiles`, {
+          attribution: PLACES_ATTRIBUTION,
+        });
+        if (!cancelled) setPlaces({ meta: layer.meta, release: info.release, area });
+        return;
+      }
+    })().catch((e: Error) => console.warn("[places]", e.message));
     const off = map.onMapPick(setPick);
     return () => {
       cancelled = true;
@@ -151,6 +173,7 @@ export function App() {
       else map.hideCatalogLayer(d.id);
     }
     if (demoMeta) map.setDatasetVisible(CLIENT_DATASET.id, active.has(DATASET_KEY));
+    if (places) map.setDatasetVisible(PLACES.id, active.has(PLACES_KEY));
     for (const id of Object.keys(serverMetas)) map.setDatasetVisible(id, active.has(id));
     for (const d of user.datasets) {
       if (active.has(d.id)) map.showCatalogLayer(d.manifest, d.dataUrl);
@@ -160,7 +183,7 @@ export function App() {
       if (active.has(l.manifest.id)) map.showCatalogLayer(l.manifest, l.data as never);
       else map.hideCatalogLayer(l.manifest.id);
     }
-  }, [map, active, demoMeta, serverMetas, user.datasets, libraryLayers]);
+  }, [map, active, demoMeta, places, serverMetas, user.datasets, libraryLayers]);
 
   // Camadas da biblioteca salvas neste navegador: remonta com a malha ao abrir.
   useEffect(() => {
@@ -193,7 +216,7 @@ export function App() {
   const copyShareLink = async () => {
     // Só vai o que quem abrir consegue ver: catálogo, exemplo, servidor e biblioteca (os arquivos do navegador ficam de fora).
     const shareable = [...active].filter(
-      (id) => DATAPACKS.some((d) => d.id === id) || id === DATASET_KEY || id in serverMetas,
+      (id) => DATAPACKS.some((d) => d.id === id) || id === DATASET_KEY || id === PLACES_KEY || id in serverMetas,
     );
     const lib = libraryLayers.filter((l) => active.has(l.manifest.id)).map(recipeOf);
     const url = shareUrl({ layers: shareable, lib, theme, look });
@@ -228,7 +251,9 @@ export function App() {
 
   // Prédios dos seus dados: o dataset da maquete ou o primeiro dos seus dados que estiver ligado.
   const paintTarget = diorama?.datasetId
-    ?? (active.has(DATASET_KEY) && demoMeta ? CLIENT_DATASET.id : Object.keys(serverMetas).find((id) => active.has(id)));
+    ?? (active.has(DATASET_KEY) && demoMeta
+      ? CLIENT_DATASET.id
+      : (Object.keys(serverMetas).find((id) => active.has(id)) ?? (active.has(PLACES_KEY) && places ? PLACES.id : undefined)));
   useEffect(() => {
     if (!map) return;
     map.setBuildingPaint(paintBuildingsOn && paintTarget ? paintTarget : null, setBuildingResult);
@@ -246,6 +271,14 @@ export function App() {
         label: (code) => SECTORS[Number(code)] ?? code,
       };
     }
+    if (places) {
+      infos[PLACES.id] = {
+        name: PLACES.name,
+        categories: places.meta.categories,
+        colorBy: places.meta.colorBy,
+        title: places.meta.title,
+      };
+    }
     for (const d of server.datasets) {
       const meta = serverMetas[d.id];
       if (!meta) continue;
@@ -258,7 +291,7 @@ export function App() {
       };
     }
     return infos;
-  }, [demoMeta, server.datasets, serverMetas]);
+  }, [demoMeta, places, server.datasets, serverMetas]);
 
   const openImport = useCallback((file: File) => setImportFile(file), []);
 
@@ -360,7 +393,7 @@ export function App() {
     if (!map) return;
     const exaggeration = diorama?.exaggeration ?? 1.8;
     setDiorama({ datasetId, lngLat, area, areaChoice, summary: null, columns: diorama?.columns ?? false, exaggeration, orbiting: false });
-    setActive((prev) => new Set(prev).add(datasetId === CLIENT_DATASET.id ? DATASET_KEY : datasetId));
+    setActive((prev) => new Set(prev).add(datasetKey(datasetId)));
     if (isNarrowScreen()) setSidebarOpen(false);
     await map.enterDiorama(area.geometry, {
       datasetId,
@@ -513,6 +546,20 @@ export function App() {
         </SidebarSection>
 
         <SidebarSection title="Catálogo de dados">
+          <label className="toggle">
+            <input
+              type="checkbox"
+              checked={active.has(PLACES_KEY)}
+              disabled={!places}
+              onChange={(e) => toggle(PLACES_KEY, e.target.checked)}
+            />
+            <span>{PLACES.name}</span>
+          </label>
+          <p className="catalog-meta">
+            {places
+              ? `${new Intl.NumberFormat("pt-BR").format(places.meta.records)} lugares · ${places.area === "brasil" ? "Brasil" : "Grande SP"} · versão ${places.release} · comércio, serviços, saúde, turismo…`
+              : "Gere com pnpm places (Overture Maps, atualização mensal)"}
+          </p>
           <Catalog datapacks={DATAPACKS} active={active} onToggle={toggle} />
           <LibraryLayers layers={libraryLayers} active={active} onToggle={toggle} onRemove={removeLibraryLayer} />
           <button type="button" className="refs-entry" onClick={() => setLibraryOpen(true)}>

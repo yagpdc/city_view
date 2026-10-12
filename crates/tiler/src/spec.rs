@@ -29,6 +29,10 @@ pub struct ColumnSpec {
     pub kind: ColumnKind,
     #[serde(default)]
     pub locale: Option<NumberLocale>,
+    /// Texto que também vai nos tiles de pontos (ex.: endereço, telefone). A coluna de título
+    /// sempre vai; as demais de texto ficam só no arquivo de origem (detalhe pelo servidor).
+    #[serde(default, rename = "inTiles")]
+    pub in_tiles: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

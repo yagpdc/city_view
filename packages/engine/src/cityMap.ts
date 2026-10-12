@@ -163,11 +163,11 @@ export class CityMap {
    * Carrega um dataset gerado pelo cityview-tiler (PMTiles) e o desenha no mapa.
    * Resolve depois de ler os metadados; os tiles chegam sob demanda.
    */
-  async addDataset(id: string, url: string): Promise<DatasetLayer> {
+  async addDataset(id: string, url: string, options: { attribution?: string } = {}): Promise<DatasetLayer> {
     const pmtiles = new PMTiles(url);
     initMapLibre().add(pmtiles);
     const meta = await readDatasetMeta(pmtiles);
-    const layer = new DatasetLayer(this.map, id, url, meta, pmtiles);
+    const layer = new DatasetLayer(this.map, id, url, meta, pmtiles, options.attribution);
     this.datasets.push(layer);
     this.whenStyleReady(() => layer.attach());
     return layer;

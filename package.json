@@ -14,7 +14,8 @@
     "datapacks": "python datapacks/build.py",
     "api": "cargo run --release -p cityview-api",
     "library": "python datapacks/library/build.py",
-    "assets": "python data/fetch_assets.py"
+    "assets": "python data/fetch_assets.py",
+    "places": "python data/build_places.py"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",

@@ -25,7 +25,7 @@ export interface DatasetMeta {
   colorBy?: string | null;
   title?: string | null;
   /** Colunas presentes nos pontos. */
-  columns: { name: string; type: "number" | "category" }[];
+  columns: { name: string; type: "number" | "category" | "text" }[];
   bounds?: [number, number, number, number];
   /** Há índice de linhas no servidor (detalhes completos pelo id). */
   hasRowIndex?: boolean;
@@ -117,6 +117,8 @@ export class DatasetLayer {
     private readonly url: string,
     readonly meta: DatasetMeta,
     private readonly pmtiles: PMTiles,
+    /** Crédito exibido no mapa (obrigatório para dados de terceiros, ex.: Overture). */
+    private readonly attribution?: string,
   ) {
     this.sourceId = `cv-${id}`;
     this.hexLayerId = `cv-${id}-hex`;
@@ -130,7 +132,11 @@ export class DatasetLayer {
   /** (Re)adiciona fonte e camadas. Chamado na criação e sempre que o estilo é recarregado. */
   attach(): void {
     if (this.map.getSource(this.sourceId)) return;
-    this.map.addSource(this.sourceId, { type: "vector", url: `pmtiles://${this.url}` });
+    this.map.addSource(this.sourceId, {
+      type: "vector",
+      url: `pmtiles://${this.url}`,
+      ...(this.attribution ? { attribution: this.attribution } : {}),
+    });
     // Dados acima do mapa base, mas abaixo dos rótulos.
     const beforeId = this.map.getStyle().layers.find((l) => l.type === "symbol")?.id;
     for (const layer of this.layers()) this.map.addLayer(layer, beforeId);

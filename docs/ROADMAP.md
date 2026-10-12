@@ -53,7 +53,7 @@ Ordem pensada por encanto/esforço (ver [PRODUCT.md](PRODUCT.md)).
 
 **2a. Catálogo e pontos de partida**
 - [x] Formato de datapack: manifesto (fonte, licença, atribuição, atualização, render, campos) + receita em `datapacks/build.py`
-- [ ] 5–8 camadas brasileiras abertas — feitas: população por município (IBGE), queimadas 24 h (NASA FIRMS)
+- [ ] 5–8 camadas brasileiras abertas — feitas: população por município e por estado (IBGE), queimadas 24 h (NASA FIRMS), lugares (Overture Maps, ~6,5 mi no Brasil)
   - próximas: rodovias federais (DNIT, 336 mil segmentos — exige tiler de linhas), escolas (INEP), saúde (CNES), CNPJs
 - [x] Painel de catálogo na plataforma, com fonte/licença/atualização visíveis e aviso de desatualizado
 - [x] Pontos de partida por objetivo (varejo, agro, risco, explorar)
