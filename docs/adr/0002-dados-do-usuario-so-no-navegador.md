@@ -21,8 +21,8 @@ projetos (camadas públicas, filtros, estilos, câmera, anotações). Uma camada
 como referência ao arquivo local (nome, tamanho, colunas, impressão digital), nunca com as linhas. Ao abrir o
 projeto noutra máquina, o app pede para reabrir aquele arquivo e reaplica a configuração.
 
-- A API atual (`services/api`, ingestão de arquivos) fica para dev e para gerar datasets públicos/de exemplo;
-  em produção não é instalada (`deploy/install.sh` só com `--with-api`).
+- A API atual (`services/api`, ingestão de arquivos) é a semente do **plano Enterprise** (abaixo); fora dele,
+  fica para dev e para gerar datasets públicos/de exemplo (`deploy/install.sh` só com `--with-api`).
 - A API de produto (auth, workspaces, projetos) é outro serviço, a desenhar; quando existir, entra no
   `deploy/` com o próprio banco (PostgreSQL).
 - Compartilhar por link leva só camadas públicas e filtros (já era assim).
@@ -33,5 +33,18 @@ projeto noutra máquina, o app pede para reabrir aquele arquivo e reaplica a con
 - Armazenamento e custo do servidor crescem com o número de usuários e projetos, não com o volume de dados.
 - **Lacuna a fechar**: hoje arquivos acima de ~20 MB dependem do tiler no servidor. Para manter a promessa de
   milhões de registros, o tiler precisa rodar no navegador (Rust → WASM num worker, gerando PMTiles no OPFS).
-- Colaboração em equipe sobre o mesmo dado do usuário exige que cada pessoa tenha o arquivo (ou que, no
-  futuro, o cliente opte por guardar o dado com a gente — decisão separada, com ADR próprio).
+- Colaboração em equipe sobre o mesmo dado do usuário exige que cada pessoa tenha o arquivo — fora do Enterprise.
+
+## Plano Enterprise (exceção contratada)
+
+Clientes Enterprise podem optar por guardar e processar os dados no servidor: volumes maiores do que um
+navegador aguenta, equipe vendo a mesma base, atualização por integração/API. Para isso não virar um segundo
+produto:
+
+- **Um motor, dois lugares**: o mesmo tiler (Rust) roda no navegador (WASM) e no servidor (nativo) e gera o
+  mesmo PMTiles. O front não sabe de onde o tile veio.
+- **Origem da camada é um detalhe**: a camada do projeto aponta para "arquivo local" (OPFS) ou "dado do
+  workspace" (servidor); filtros, estilos, widgets e compartilhamento funcionam igual.
+- **Isolamento por workspace** (armazenamento, cotas, permissões, apagar tudo sob pedido), contrato e
+  termos de tratamento de dados (LGPD) próprios. Quando chegar a hora, ADR específico: onde fica o dado,
+  criptografia, retenção, região.
