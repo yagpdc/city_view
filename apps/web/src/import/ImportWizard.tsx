@@ -1,7 +1,18 @@
 import type { DatapackManifest } from "@cityview/engine";
 import { CATEGORY_COLORS } from "@cityview/engine";
-import { parseNumber, type ColumnInfo, type ColumnType, type ImportMapping } from "@cityview/importer";
-import { useEffect, useMemo, useState } from "react";
+import {
+  applyCoordinateFix,
+  inBrazil,
+  readCoordinates,
+  suggestCoordinateFix,
+  type ColumnInfo,
+  type CoordinateFix,
+  type ImportMapping,
+  type ImportSummary,
+  type RecipeStep,
+} from "@cityview/importer";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { BuilderStep, type ColumnChoice } from "./BuilderStep";
 import type { ImportSpec } from "../server/api";
 import { LARGE_FILE_BYTES, SAMPLE_ROWS, SERVER_FORMATS, fileFormat, type BuildSummary, type Delimiter, type Encoding, type OpenedFile } from "./protocol";
 import { useImportWorker } from "./useImportWorker";
@@ -27,9 +38,7 @@ interface ImportWizardProps {
 }
 
 type Step = 0 | 1 | 2 | 3;
-const STEPS = ["Arquivo", "Localização", "Colunas", "Revisão"];
-
-const TYPE_LABELS: Record<ColumnType, string> = { number: "Número", category: "Categoria", date: "Data", text: "Texto" };
+const STEPS = ["Arquivo", "Localização", "Dados", "Revisão"];
 const DELIMITERS: { value: Delimiter; label: string }[] = [
   { value: ",", label: "Vírgula ( , )" },
   { value: ";", label: "Ponto e vírgula ( ; )" },
@@ -45,12 +54,6 @@ const MAX_COLOR_CATEGORIES = CATEGORY_COLORS.length;
 
 const int = new Intl.NumberFormat("pt-BR");
 const formatBytes = (b: number) => (b > 1e6 ? `${(b / 1e6).toFixed(1)} MB` : `${Math.ceil(b / 1e3)} KB`);
-
-interface ColumnChoice {
-  name: string;
-  include: boolean;
-  type: ColumnType;
-}
 
 export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSendToServer }: ImportWizardProps) {
   const worker = useImportWorker();
@@ -76,6 +79,15 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
   const [built, setBuilt] = useState<BuildSummary | null>(null);
   const [building, setBuilding] = useState(false);
   const [exporting, setExporting] = useState(false);
+  /** Ajustes do builder (receita); o arquivo original não muda. */
+  const [recipe, setRecipe] = useState<RecipeStep[]>([]);
+  const [sheet, setSheet] = useState<string | undefined>();
+  /** Localização em duas colunas (lat/lon) ou numa só ("-23.5, -46.6"). */
+  const [locMode, setLocMode] = useState<"pair" | "single">("pair");
+  const [latlon, setLatlon] = useState("");
+  const [fix, setFix] = useState<CoordinateFix | undefined>();
+  const [failed, setFailed] = useState<{ url: string; count: number } | null>(null);
+  const appliedRecipe = useRef<RecipeStep[]>([]);
 
   // Abre (ou reabre, ao trocar separador/codificação) o arquivo no worker.
   useEffect(() => {
@@ -83,12 +95,17 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
     setError(null);
     setOpened(null);
     worker
-      .open(file, { delimiter, encoding, previewRows: sampleOnly ? SAMPLE_ROWS : undefined })
+      .open(file, { delimiter, encoding, sheet, previewRows: sampleOnly ? SAMPLE_ROWS : undefined })
       .then((o) => {
         if (cancelled) return;
         setOpened(o);
+        setRecipe([]);
+        appliedRecipe.current = [];
+        setFix(undefined);
         setLat(o.location?.lat ?? "");
         setLon(o.location?.lon ?? "");
+        setLatlon(o.location?.latlon ?? "");
+        setLocMode(o.location?.latlon ? "single" : "pair");
         setChoices(o.columns.map((c) => ({ name: c.name, include: true, type: c.type })));
         setTitle(o.style.title ?? "");
         setColorBy(o.style.colorBy ?? "");
@@ -97,7 +114,27 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
     return () => {
       cancelled = true;
     };
-  }, [file, delimiter, encoding, worker.open, sampleOnly]);
+  }, [file, delimiter, encoding, sheet, worker.open, sampleOnly]);
+
+  // Receita mudou: o worker aplica na amostra e devolve colunas, prévia e tipos novos.
+  useEffect(() => {
+    if (!opened || recipe === appliedRecipe.current) return;
+    appliedRecipe.current = recipe;
+    let cancelled = false;
+    worker
+      .setRecipe(recipe)
+      .then((o) => {
+        if (cancelled) return;
+        setOpened(o);
+        // Mantém o que a pessoa já escolheu; colunas novas entram incluídas com o tipo detectado.
+        setChoices((prev) => o.columns.map((c) => { const x = prev.find((p) => p.name === c.name); return x ? { ...x, type: x.locked ? x.type : c.type } : { name: c.name, include: true, type: c.type }; }));
+      })
+      .catch((e: Error) => !cancelled && setError(e.message));
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recipe]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onCancel();
@@ -107,47 +144,72 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
 
   const columnInfo = (n: string): ColumnInfo | undefined => opened?.columns.find((c) => c.name === n);
 
+  const locationColumns = locMode === "single" ? [latlon] : [lat, lon];
   const mapping = useMemo<ImportMapping | null>(() => {
-    if (!opened || !lat || !lon) return null;
+    if (!opened) return null;
+    if (locMode === "single" ? !latlon : !lat || !lon) return null;
     return {
-      lat,
-      lon,
+      lat: locMode === "single" ? "" : lat,
+      lon: locMode === "single" ? "" : lon,
+      ...(locMode === "single" ? { latlon } : {}),
+      ...(fix ? { fix } : {}),
       latLocale: columnInfo(lat)?.locale,
       lonLocale: columnInfo(lon)?.locale,
       columns: choices
-        .filter((c) => c.include && c.name !== lat && c.name !== lon)
+        .filter((c) => c.include && !locationColumns.includes(c.name))
         .map((c) => ({ name: c.name, type: c.type, locale: columnInfo(c.name)?.locale })),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [opened, lat, lon, choices]);
+  }, [opened, lat, lon, latlon, locMode, fix, choices]);
 
-  // Validação rápida na amostra para dar confiança no passo de localização.
+  // Validação rápida na amostra (com a correção escolhida) e a correção sugerida, se houver.
   const sampleCheck = useMemo(() => {
-    if (!opened || !lat || !lon) return null;
+    if (!opened || !mapping) return null;
     let valid = 0;
     let brazil = 0;
+    const pairs: [number, number][] = [];
     for (const row of opened.preview) {
-      const y = parseNumber(row[lat], columnInfo(lat)?.locale);
-      const x = parseNumber(row[lon], columnInfo(lon)?.locale);
-      if (y === null || x === null || Math.abs(y) > 90 || Math.abs(x) > 180) continue;
+      const c = readCoordinates(row, { ...mapping, fix: undefined });
+      if (c === null || c === "empty") continue;
+      pairs.push(c);
+      const [y, x] = fix ? applyCoordinateFix(fix, c[0], c[1]) : c;
+      if (Math.abs(y) > 90 || Math.abs(x) > 180) continue;
       valid++;
-      if (y >= -34 && y <= 6 && x >= -74 && x <= -34) brazil++;
+      if (inBrazil(y, x)) brazil++;
     }
-    return { valid, brazil, total: opened.preview.length };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [opened, lat, lon]);
+    return { valid, brazil, total: opened.preview.length, suggestion: fix ? null : suggestCoordinateFix(pairs) };
+  }, [opened, mapping, fix]);
 
-  const goToReview = async () => {
-    if (!mapping) return;
+  const goToReview = async (): Promise<ImportSummary | null> => {
+    if (!mapping) return null;
     setStep(3);
     setBuilding(true);
     setBuilt(null);
+    setFailed(null);
     try {
-      setBuilt(await worker.build(mapping, colorBy || undefined));
+      const summary = await worker.build(mapping, colorBy || undefined);
+      setBuilt(summary);
+      return summary;
     } catch (e) {
       setError((e as Error).message);
+      return null;
     } finally {
       setBuilding(false);
+    }
+  };
+
+  /** Aceita o que detectamos e importa sem passar pelos ajustes. */
+  const uploadDirect = async () => {
+    const summary = await goToReview();
+    if (summary && summary.count > 0) void finish(summary);
+  };
+
+  const downloadFailed = async () => {
+    try {
+      const { blob, count } = await worker.failedRows();
+      setFailed({ url: URL.createObjectURL(blob), count });
+    } catch (e) {
+      setError((e as Error).message);
     }
   };
 
@@ -173,9 +235,9 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
     onSendToServer(file, spec);
   };
 
-  const finish = async () => {
+  const finish = async (summary: ImportSummary | null = built) => {
     if (useServer) return sendToServer();
-    if (!built?.bounds || !mapping) return;
+    if (!summary?.bounds || !mapping) return;
     setExporting(true);
     let blob: Blob;
     let format: ImportedDataset["format"] = "pmtiles";
@@ -202,6 +264,7 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
     }
     const included = mapping.columns;
     const ordered = [...included].sort((a, b) => (a.name === title ? -1 : b.name === title ? 1 : 0));
+    const cats = colorBy ? summary.categories.slice(0, MAX_COLOR_CATEGORIES) : [];
     const manifest: DatapackManifest = {
       id: `user-${Date.now()}`,
       name: name.trim() || file.name,
@@ -215,12 +278,12 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
       render: {
         type: "points",
         color: "#6b7485", // --cv-data-other
-        ...(colorBy && categories.length
+        ...(colorBy && cats.length
           ? {
               colorBy: {
                 property: colorBy,
-                categories: categories.map(([c]) => c),
-                colors: categories.map((_, i) => CATEGORY_COLORS[i]!),
+                categories: cats.map(([c]) => c),
+                colors: cats.map((_, i) => CATEGORY_COLORS[i]!),
               },
             }
           : {}),
@@ -235,15 +298,15 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
       manifest,
       data: blob,
       format,
-      count: built.count,
-      bounds: built.bounds,
+      count: summary.count,
+      bounds: summary.bounds,
       fileName: file.name,
     });
   };
 
   const canContinue =
     (step === 0 && opened !== null) ||
-    (step === 1 && Boolean(lat && lon && lat !== lon)) ||
+    (step === 1 && mapping !== null && (locMode === "single" || lat !== lon)) ||
     (step === 2 && mapping !== null) ||
     (step === 3 && Boolean(built && built.count > 0) && !exporting);
 
@@ -254,8 +317,6 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
   };
 
   const columnNames = opened?.headers ?? [];
-  const textLike = choices.filter((c) => c.include && (c.type === "text" || c.type === "category"));
-  const categoryCols = choices.filter((c) => c.include && c.type === "category" && c.name !== lat && c.name !== lon);
 
   return (
     <div className="wizard-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onCancel()}>
@@ -309,6 +370,36 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
                 </p>
               )}
               {opened.note && <p className="wizard-warn">{opened.note}</p>}
+              {opened.sheets && (
+                <div className="wizard-row">
+                  <label>
+                    Aba da planilha
+                    <select value={opened.sheet} onChange={(e) => setSheet(e.target.value)}>
+                      {opened.sheets.map((s) => (
+                        <option key={s}>{s}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              )}
+              {opened.headerRow > 0 && (
+                <p className="wizard-ok">
+                  Os nomes das colunas estão na linha {opened.headerRow + 1}; as linhas acima (títulos, datas) ficaram de fora.
+                </p>
+              )}
+              {opened.location ? (
+                <p className="wizard-ok">
+                  Localização encontrada:{" "}
+                  <b>{opened.location.latlon ? `"${opened.location.latlon}"` : `"${opened.location.lat}" e "${opened.location.lon}"`}</b>. Dá para{" "}
+                  <b>subir direto</b> ou ajustar os dados antes.
+                </p>
+              ) : (
+                <div className="wizard-warn">
+                  <b>Não achamos a localização das linhas.</b> Para aparecer no mapa, cada linha precisa de latitude e longitude
+                  (em duas colunas ou numa só, como "-23,55, -46,63"). No próximo passo você pode escolher as colunas certas.
+                  Endereço, CEP e cidade chegam em breve.
+                </div>
+              )}
               {opened.format === "csv" && (
               <div className="wizard-row">
                 <label>
@@ -341,8 +432,8 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
             <>
               <p className="wizard-lead">Como cada linha vira um lugar no mapa?</p>
               <div className="wizard-options">
-                <label className="option is-selected">
-                  <input type="radio" checked readOnly />
+                <label className={`option ${locMode === "pair" ? "is-selected" : ""}`}>
+                  <input type="radio" checked={locMode === "pair"} onChange={() => setLocMode("pair")} />
                   <div>
                     <b>Colunas de latitude e longitude</b>
                     {opened.location ? (
@@ -355,6 +446,13 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
                     )}
                   </div>
                 </label>
+                <label className={`option ${locMode === "single" ? "is-selected" : ""}`}>
+                  <input type="radio" checked={locMode === "single"} onChange={() => setLocMode("single")} />
+                  <div>
+                    <b>As duas numa coluna só</b>
+                    <span>Ex.: "-23,55; -46,63", "(-23.55, -46.63)" ou "POINT(-46.63 -23.55)".</span>
+                  </div>
+                </label>
                 <label className="option is-disabled">
                   <input type="radio" disabled />
                   <div>
@@ -363,6 +461,19 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
                   </div>
                 </label>
               </div>
+              {locMode === "single" ? (
+                <div className="wizard-row">
+                  <label>
+                    Coluna com latitude e longitude
+                    <select value={latlon} onChange={(e) => setLatlon(e.target.value)}>
+                      <option value="">Escolha…</option>
+                      {columnNames.map((c) => (
+                        <option key={c}>{c}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              ) : (
               <div className="wizard-row">
                 <label>
                   Latitude
@@ -394,86 +505,50 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
                   </select>
                 </label>
               </div>
+              )}
               {sampleCheck && (
                 <p className={sampleCheck.brazil >= sampleCheck.total * 0.8 ? "wizard-ok" : "wizard-warn"}>
                   Na amostra, {sampleCheck.valid} de {sampleCheck.total} linhas têm coordenadas válidas e{" "}
                   {sampleCheck.brazil} caem no Brasil.
-                  {sampleCheck.valid > 0 && sampleCheck.brazil === 0 && " Latitude e longitude podem estar trocadas."}
                 </p>
+              )}
+              {sampleCheck?.suggestion && sampleCheck.suggestion.kind !== "none" && (
+                <div className="wizard-warn wizard-fix">
+                  <span>
+                    {sampleCheck.suggestion.kind === "swap"
+                      ? "Parece que latitude e longitude estão trocadas."
+                      : `Parece que falta o ponto decimal nas coordenadas (ex.: -2355052 → -23,55052).`}
+                  </span>
+                  <button type="button" className="btn btn-sm" onClick={() => setFix(sampleCheck.suggestion!)}>
+                    Corrigir
+                  </button>
+                </div>
+              )}
+              {fix && (
+                <div className="wizard-ok wizard-fix">
+                  <span>{fix.kind === "swap" ? "Corrigido: latitude e longitude invertidas." : "Corrigido: ponto decimal colocado."}</span>
+                  <button type="button" className="btn btn-sm" onClick={() => setFix(undefined)}>
+                    Desfazer
+                  </button>
+                </div>
               )}
             </>
           )}
 
           {opened && step === 2 && (
-            <>
-              <p className="wizard-lead">Quais colunas levar para o mapa, e como interpretá-las?</p>
-              <table className="columns-table">
-                <thead>
-                  <tr>
-                    <th aria-label="Incluir" />
-                    <th>Coluna</th>
-                    <th>Tipo</th>
-                    <th>Exemplos</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {choices
-                    .filter((c) => c.name !== lat && c.name !== lon)
-                    .map((c) => (
-                      <tr key={c.name} className={c.include ? "" : "is-off"}>
-                        <td>
-                          <input
-                            type="checkbox"
-                            checked={c.include}
-                            aria-label={`Incluir ${c.name}`}
-                            onChange={(e) =>
-                              setChoices((all) => all.map((x) => (x.name === c.name ? { ...x, include: e.target.checked } : x)))
-                            }
-                          />
-                        </td>
-                        <td>{c.name}</td>
-                        <td>
-                          <select
-                            value={c.type}
-                            onChange={(e) =>
-                              setChoices((all) =>
-                                all.map((x) => (x.name === c.name ? { ...x, type: e.target.value as ColumnType } : x)),
-                              )
-                            }
-                          >
-                            {Object.entries(TYPE_LABELS).map(([v, l]) => (
-                              <option key={v} value={v}>
-                                {l}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="muted">{columnInfo(c.name)?.examples.join(" · ")}</td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-              <div className="wizard-row">
-                <label>
-                  Título do ponto
-                  <select value={title} onChange={(e) => setTitle(e.target.value)}>
-                    <option value="">Nenhum</option>
-                    {textLike.map((c) => (
-                      <option key={c.name}>{c.name}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Colorir por
-                  <select value={colorBy} onChange={(e) => setColorBy(e.target.value)}>
-                    <option value="">Uma cor só</option>
-                    {categoryCols.map((c) => (
-                      <option key={c.name}>{c.name}</option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-            </>
+            <BuilderStep
+              opened={opened}
+              choices={choices}
+              onChoices={setChoices}
+              recipe={recipe}
+              onRecipe={setRecipe}
+              locationColumns={locationColumns}
+              profile={worker.profile}
+              title={title}
+              onTitle={setTitle}
+              colorBy={colorBy}
+              onColorBy={setColorBy}
+            />
           )}
 
           {opened && step === 3 && (
@@ -485,7 +560,7 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
               {building && <p className="muted">Preparando os pontos…</p>}
               {built && (
                 <div className="review">
-                  {serverAvailable && serverFormat && (
+                  {serverAvailable && serverFormat && recipe.length === 0 && (
                     <label className="server-toggle">
                       <input type="checkbox" checked={useServer} onChange={(e) => setUseServer(e.target.checked)} />
                       <span>
@@ -509,7 +584,7 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
                   {built.invalidCount > 0 && (
                     <details className="wizard-warn">
                       <summary>
-                        <b>{int.format(built.invalidCount)}</b> linhas serão ignoradas
+                        <b>{int.format(built.invalidCount)}</b> {built.invalidCount === 1 ? "linha será ignorada" : "linhas serão ignoradas"}
                       </summary>
                       <ul>
                         {Object.entries(built.reasons)
@@ -523,8 +598,21 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
                       <p className="muted">
                         Exemplos (linha da planilha): {built.invalidSample.slice(0, 10).map((r) => r.line).join(", ")}
                       </p>
+                      {failed ? (
+                        <a className="btn btn-sm" href={failed.url} download={`${name || "planilha"}-linhas-com-problema.csv`}>
+                          {failed.count === 1 ? "Baixar a linha com problema" : `Baixar as ${int.format(failed.count)} linhas com problema`}
+                        </a>
+                      ) : (
+                        <button type="button" className="btn btn-sm" onClick={() => void downloadFailed()}>
+                          Preparar planilha com as linhas que ficaram de fora
+                        </button>
+                      )}
                     </details>
                   )}
+                  <p className="wizard-note">
+                    <Icon name="info" size={16} /> Seus dados ficam só <b>neste navegador</b>: não vão para nenhum servidor. Se você limpar os
+                    dados do navegador ou trocar de computador, precisa importar de novo.
+                  </p>
                   {built.outsideBrazil > 0 && (
                     <p className="wizard-warn">{int.format(built.outsideBrazil)} pontos ficam fora do Brasil.</p>
                   )}
@@ -550,8 +638,15 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
           <button type="button" className="btn" onClick={step === 0 ? onCancel : () => setStep((s) => (s - 1) as Step)}>
             {step === 0 ? "Cancelar" : "Voltar"}
           </button>
+          {step === 0 && opened?.location && (
+            <button type="button" className="btn" onClick={() => void uploadDirect()} disabled={exporting || building}>
+              Subir direto
+            </button>
+          )}
           <button type="button" className="btn btn-primary" disabled={!canContinue} onClick={next}>
-            {step === 3
+            {step === 0
+              ? "Ajustar os dados"
+              : step === 3
               ? useServer
                 ? "Enviar ao servidor"
                 : exporting

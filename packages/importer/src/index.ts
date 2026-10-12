@@ -1,5 +1,6 @@
 export {
   buildFeatures,
+  readCoordinates,
   summarize,
   type BuildResult,
   type ImportMapping,
@@ -8,7 +9,7 @@ export {
   type InvalidRow,
   type PointFeature,
 } from "./build";
-export { detectColumns, guessLocation, guessStyleColumns, type ColumnInfo, type ColumnType, type LocationGuess, type Row } from "./detect";
+export { detectColumns, guessLocation, guessLocationFromSample, guessStyleColumns, type ColumnInfo, type ColumnType, type LocationGuess, type Row } from "./detect";
 export { isEmpty, looksBrazilian, normalizeName, parseDate, parseNumber, type NumberLocale } from "./values";
 export { geoJsonToRows, geometryAnchor, type GeoJsonRows, type Geometry } from "./geojson";
 export { detectHeaderRow, excelSerialToDate, normalizeCep, parseBoolean, parseLooseDate, parseLooseNumber, uniqueHeaders } from "./clean";

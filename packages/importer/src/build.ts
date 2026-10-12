@@ -1,9 +1,14 @@
+import { applyCoordinateFix, parseCoordinate, splitLatLon, suggestCoordinateFix, type CoordinateFix } from "./coords";
 import type { ColumnType, Row } from "./detect";
 import { isEmpty, parseDate, parseNumber, type NumberLocale } from "./values";
 
 export interface ImportMapping {
   lat: string;
   lon: string;
+  /** As duas coordenadas numa coluna só ("-23.5, -46.6", WKT); quando presente, `lat`/`lon` são ignorados. */
+  latlon?: string;
+  /** Correção aplicada a todos os pares (colunas invertidas, ponto decimal faltando). */
+  fix?: CoordinateFix;
   /** Formato numérico das colunas de coordenada. */
   latLocale?: NumberLocale;
   lonLocale?: NumberLocale;
@@ -38,6 +43,8 @@ export interface ImportSummary {
   outsideBrazil: number;
   /** Contagem por valor da coluna de cor, em ordem decrescente (vazio sem `colorBy`). */
   categories: [string, number][];
+  /** Correção que traria mais pontos para dentro do Brasil (só quando nenhuma foi escolhida). */
+  suggestedFix?: CoordinateFix;
 }
 
 export interface BuildResult extends ImportSummary {
@@ -82,21 +89,21 @@ function scan(
     if (invalidSample.length < INVALID_SAMPLE) invalidSample.push({ line, reason });
   };
 
+  const probe: [number, number][] = [];
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i]!;
     const line = firstLine + i;
-    const rawLat = row[mapping.lat];
-    const rawLon = row[mapping.lon];
-    if (isEmpty(rawLat) || isEmpty(rawLon)) {
+    const coords = readCoordinates(row, mapping);
+    if (coords === "empty") {
       reject(line, "sem-coordenadas");
       continue;
     }
-    const lat = parseNumber(rawLat, mapping.latLocale);
-    const lon = parseNumber(rawLon, mapping.lonLocale);
-    if (lat === null || lon === null) {
+    if (coords === null) {
       reject(line, "coordenada-invalida");
       continue;
     }
+    if (!mapping.fix && probe.length < 2000) probe.push(coords);
+    const [lat, lon] = mapping.fix ? applyCoordinateFix(mapping.fix, coords[0], coords[1]) : coords;
     if (Math.abs(lat) > 85 || Math.abs(lon) > 180 || (lat === 0 && lon === 0)) {
       reject(line, "fora-do-mundo");
       continue;
@@ -126,7 +133,23 @@ function scan(
     bounds: count ? [w, s, e, n] : null,
     outsideBrazil,
     categories: [...counts.entries()].sort((a, b) => b[1] - a[1]),
+    ...(mapping.fix ? {} : { suggestedFix: suggestCoordinateFix(probe) }),
   };
+}
+
+/** [lat, lon] da linha conforme o mapeamento; "empty" se faltar, `null` se não der para ler. */
+export function readCoordinates(row: Row, mapping: ImportMapping): [number, number] | "empty" | null {
+  if (mapping.latlon) {
+    const raw = row[mapping.latlon];
+    if (isEmpty(raw)) return "empty";
+    return splitLatLon(raw);
+  }
+  const rawLat = row[mapping.lat];
+  const rawLon = row[mapping.lon];
+  if (isEmpty(rawLat) || isEmpty(rawLon)) return "empty";
+  const lat = parseCoordinate(rawLat, mapping.latLocale);
+  const lon = parseCoordinate(rawLon, mapping.lonLocale);
+  return lat === null || lon === null ? null : [lat, lon];
 }
 
 /** Só valida e resume (rápido: não cria objetos por linha). Usado na revisão do wizard. */

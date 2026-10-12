@@ -1,4 +1,4 @@
-import type { ColumnInfo, ImportMapping, ImportSummary, LocationGuess, Row } from "@cityview/importer";
+import type { ColumnInfo, ColumnProfile, ImportMapping, ImportSummary, LocationGuess, RecipeStep, Row } from "@cityview/importer";
 
 /** Limite do processamento no navegador; acima disso o arquivo precisa do motor local (Rust). */
 export const MAX_BROWSER_ROWS = 2_000_000;
@@ -34,6 +34,8 @@ export interface OpenOptions {
   encoding?: Encoding;
   /** Lê só as primeiras N linhas (modo servidor). */
   previewRows?: number;
+  /** Aba do Excel (padrão: a primeira com dados). */
+  sheet?: string;
 }
 
 export interface OpenedFile {
@@ -46,10 +48,15 @@ export interface OpenedFile {
   delimiter: Delimiter;
   encoding: Encoding;
   columns: ColumnInfo[];
-  location: LocationGuess | null;
+  location: (LocationGuess & { latlon?: string }) | null;
   style: { colorBy?: string; title?: string };
   /** `true` quando só uma amostra foi lida. */
   sampled: boolean;
+  /** Linha do cabeçalho no arquivo (0 = primeira). */
+  headerRow: number;
+  /** Abas do Excel (só quando há mais de uma) e a aberta. */
+  sheets?: string[];
+  sheet?: string;
 }
 
 /**
@@ -62,6 +69,11 @@ export type WorkerRequest =
   | { type: "open"; file: File; options: OpenOptions }
   | { type: "build"; mapping: ImportMapping; colorBy?: string }
   | { type: "export" }
+  /** Troca a receita do builder; responde "opened" com a nova vista. */
+  | { type: "recipe"; steps: RecipeStep[] }
+  | { type: "profile"; column: string }
+  /** CSV das linhas que ficam de fora, com o motivo. */
+  | { type: "failed" }
   /** Gera o PMTiles no navegador (motor em WASM) com o último mapeamento validado. */
   | { type: "tiles"; name: string; colorBy?: string; title?: string }
   /** Arquivo grande (aberto por amostra): relê inteiro em colunas e gera o PMTiles. */
@@ -72,6 +84,8 @@ export type WorkerResponse =
   | { type: "opened"; file: OpenedFile }
   | { type: "built"; summary: BuildSummary }
   | { type: "exported"; blob: Blob }
+  | { type: "profiled"; profile: ColumnProfile }
+  | { type: "failedRows"; blob: Blob; count: number }
   | { type: "tiling"; stage: string; fraction: number }
   | { type: "tiled"; blob: Blob; report: import("./tiles").TileReport }
   | { type: "error"; message: string };

@@ -1,3 +1,4 @@
+import { parseCoordinate, splitLatLon } from "./coords";
 import { isEmpty, looksBrazilian, normalizeName, parseDate, parseNumber, type NumberLocale } from "./values";
 
 export type ColumnType = "number" | "category" | "date" | "text";
@@ -66,6 +67,8 @@ export interface LocationGuess {
   lon: string;
   /** Como chegamos ao palpite: pelo nome das colunas ou pelos valores. */
   reason: "names" | "values";
+  /** As duas numa coluna só (então `lat`/`lon` ficam vazios). */
+  latlon?: string;
 }
 
 const inRange = (c: ColumnInfo, lo: number, hi: number) =>
@@ -102,4 +105,26 @@ export function guessStyleColumns(columns: ColumnInfo[], exclude: string[]): { c
     textual.find((c) => c.type === "text" && !isCode(normalizeName(c.name)))?.name ??
     textual.find((c) => c.type === "text")?.name;
   return { colorBy, title };
+}
+
+/**
+ * Quando os nomes e os números não bastam: coordenadas em texto (graus/minutos, com hemisfério) nas colunas
+ * com nome de lat/lon, ou as duas numa coluna só ("-23.5, -46.6", WKT). Olha a amostra.
+ */
+export function guessLocationFromSample(columns: ColumnInfo[], sample: Row[]): (LocationGuess & { latlon?: string }) | null {
+  const rows = sample.slice(0, 200);
+  const share = (name: string, ok: (v: string) => boolean) => {
+    const vals = rows.map((r) => r[name]).filter((v): v is string => !isEmpty(v));
+    return vals.length ? vals.filter(ok).length / vals.length : 0;
+  };
+  const named = (names: string[]) =>
+    columns.find((c) => names.includes(normalizeName(c.name)) || names.some((n) => normalizeName(c.name).endsWith(`_${n}`)));
+  const lat = named(LAT_NAMES);
+  const lon = named(LON_NAMES);
+  if (lat && lon && lat !== lon && share(lat.name, (v) => parseCoordinate(v) !== null) > 0.8 && share(lon.name, (v) => parseCoordinate(v) !== null) > 0.8) {
+    return { lat: lat.name, lon: lon.name, reason: "names" };
+  }
+  const single = columns.find((c) => c.type !== "number" && share(c.name, (v) => splitLatLon(v) !== null) > 0.8);
+  if (single) return { lat: "", lon: "", latlon: single.name, reason: "values" };
+  return null;
 }

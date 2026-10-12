@@ -1,20 +1,28 @@
 /// <reference lib="webworker" />
 import {
+  applyRecipe,
   buildFeatures,
+  columnsAfter,
   detectColumns,
+  detectHeaderRow,
   geoJsonToRows,
   geometryAnchor,
   type Geometry,
   guessLocation,
+  guessLocationFromSample,
   guessStyleColumns,
+  profileColumn,
+  readCoordinates,
   summarize,
+  uniqueHeaders,
   type ImportMapping,
+  type RecipeStep,
   type Row,
 } from "@cityview/importer";
 import Papa from "papaparse";
 import { parquetMetadataAsync, parquetReadObjects, type AsyncBuffer } from "hyparquet";
 import { compressors } from "hyparquet-compressors";
-import { readSheet } from "read-excel-file/web-worker";
+import readXlsxFile from "read-excel-file/web-worker";
 import { MAX_BROWSER_ROWS, fileFormat, type Delimiter, type Encoding, type WorkerRequest, type WorkerResponse } from "./protocol";
 
 declare const self: DedicatedWorkerGlobalScope;
@@ -22,8 +30,27 @@ declare const self: DedicatedWorkerGlobalScope;
 const PREVIEW_ROWS = 50;
 const DETECT_ROWS = 2000;
 
+/** Linhas como vieram do arquivo (a receita nunca as altera). */
 let rows: Row[] = [];
 let lastMapping: ImportMapping | null = null;
+/** Passos do builder; aplicados na amostra (tela) e em tudo (importação). */
+let recipe: RecipeStep[] = [];
+/** Linha do arquivo onde está o cabeçalho (0 = primeira); para relatar erros no número que a pessoa vê. */
+let headerRow = 0;
+let openedBase: Omit<import("./protocol").OpenedFile, "headers" | "preview" | "columns" | "location" | "style"> | null = null;
+
+/** Linhas com a receita aplicada (todas). */
+const applied = () => applyRecipe(rows, recipe);
+
+/** O que a tela mostra: colunas, prévia, tipos e palpites — sempre depois da receita (na amostra). */
+function view() {
+  const sample = applyRecipe(rows.slice(0, DETECT_ROWS), recipe);
+  const headers = columnsAfter(rows[0] ? Object.keys(rows[0]) : [], recipe);
+  const columns = detectColumns(headers, sample);
+  const location = guessLocation(columns) ?? guessLocationFromSample(columns, sample);
+  const style = guessStyleColumns(columns, location ? [location.lat, location.lon, location.latlon ?? ""] : []);
+  return { headers, preview: sample.slice(0, PREVIEW_ROWS), columns, location, style };
+}
 
 const post = (msg: WorkerResponse) => self.postMessage(msg);
 
@@ -38,10 +65,20 @@ async function detectEncoding(file: File): Promise<Encoding> {
   }
 }
 
-function open(file: File, delimiter: Delimiter | undefined, encoding: Encoding, previewRows?: number): Promise<Delimiter> {
+/** Linha do cabeçalho num CSV: lê o começo do arquivo e procura (títulos e linhas em branco acima). */
+async function csvHeaderRow(file: File, delimiter: Delimiter | undefined, encoding: Encoding): Promise<number> {
+  const text = new TextDecoder(encoding).decode(await file.slice(0, 256 << 10).arrayBuffer());
+  const lines = Papa.parse<string[]>(text, { preview: 40, delimiter: delimiter ?? "", skipEmptyLines: false }).data;
+  return detectHeaderRow(lines);
+}
+
+async function open(file: File, delimiter: Delimiter | undefined, encoding: Encoding, previewRows?: number): Promise<Delimiter> {
   rows = [];
   let detected: Delimiter = delimiter ?? ",";
-  let emptyHeaders = 0;
+  const skip = await csvHeaderRow(file, delimiter, encoding);
+  headerRow = skip;
+  // Nomes únicos e não vazios: "valor", "valor_2", "coluna_3".
+  const seen = new Map<string, number>();
   return new Promise((resolve, reject) => {
     Papa.parse<Row>(file, {
       header: true,
@@ -50,7 +87,13 @@ function open(file: File, delimiter: Delimiter | undefined, encoding: Encoding, 
       encoding,
       preview: previewRows ?? 0,
       chunkSize: 4 << 20,
-      transformHeader: (h) => h.trim() || `coluna_${++emptyHeaders}`,
+      beforeFirstChunk: skip > 0 ? (chunk) => chunk.split(/\r?\n/).slice(skip).join("\n") : undefined,
+      transformHeader: (h, i) => {
+        const base = h.replace(/^\uFEFF/, "").trim() || `coluna_${i + 1}`;
+        const n = (seen.get(base) ?? 0) + 1;
+        seen.set(base, n);
+        return n === 1 ? base : `${base}_${n}`;
+      },
       chunk: (results, parser) => {
         detected = results.meta.delimiter as Delimiter;
         for (const row of results.data) rows.push(row);
@@ -83,25 +126,27 @@ function excelCell(v: unknown): string {
   return String(v);
 }
 
-/** Primeira planilha do .xlsx; a primeira linha é o cabeçalho. */
-async function openExcel(file: File): Promise<void> {
-  const data = await readSheet(file);
+/**
+ * Uma aba do .xlsx (a escolhida, ou a primeira com dados). O cabeçalho pode estar abaixo de títulos e
+ * linhas em branco. Devolve os nomes das abas.
+ */
+async function openExcel(file: File, sheetName?: string): Promise<{ sheets: string[]; sheet: string }> {
+  const book = await readXlsxFile(file);
+  const sheets = book.map((s) => s.sheet);
+  const chosen = book.find((s) => s.sheet === sheetName) ?? book.find((s) => s.data.length > 1) ?? book[0];
+  if (!chosen) throw new Error("A planilha não tem abas com dados.");
+  const data = chosen.data;
   if (data.length - 1 > MAX_BROWSER_ROWS) throw new Error(TOO_MANY_ROWS);
-  let emptyHeaders = 0;
-  const seen = new Set<string>();
-  const headers = (data[0] ?? []).map((h) => {
-    let name = excelCell(h).trim() || `coluna_${++emptyHeaders}`;
-    for (let i = 2; seen.has(name); i++) name = `${excelCell(h).trim()}_${i}`;
-    seen.add(name);
-    return name;
-  });
+  headerRow = detectHeaderRow(data as unknown[][]);
+  const headers = uniqueHeaders((data[headerRow] ?? []).map((h) => excelCell(h)));
   rows = [];
-  for (const line of data.slice(1)) {
+  for (const line of data.slice(headerRow + 1)) {
     if (line.every((v) => v === null || v === "")) continue;
     const row: Row = {};
     headers.forEach((h, i) => (row[h] = excelCell(line[i])));
     rows.push(row);
   }
+  return { sheets, sheet: chosen.sheet };
 }
 
 async function openGeoJson(file: File): Promise<string | undefined> {
@@ -192,8 +237,10 @@ async function openParquet(file: File, previewRows?: number): Promise<{ total: n
   return { total, note: notes.length ? `${notes.join("; ")}.`.replace(/^./, (c) => c.toUpperCase()) : undefined };
 }
 
-self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
+self.onmessage = async (e: MessageEvent<WorkerRequest & { id?: number }>) => {
   const msg = e.data;
+  // Resposta casada com o pedido (vários pedidos podem estar em andamento ao mesmo tempo).
+  const post = (m: WorkerResponse) => self.postMessage({ ...m, id: msg.id });
   try {
     if (msg.type === "open") {
       const format = fileFormat(msg.file.name) ?? "csv";
@@ -201,7 +248,11 @@ self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
       let delimiter: Delimiter = ",";
       let note: string | undefined;
       let total: number | undefined;
-      if (format === "excel") await openExcel(msg.file);
+      let sheets: string[] | undefined;
+      let sheet: string | undefined;
+      recipe = [];
+      headerRow = 0;
+      if (format === "excel") ({ sheets, sheet } = await openExcel(msg.file, msg.options.sheet));
       else if (format === "parquet") ({ total, note } = await openParquet(msg.file, msg.options.previewRows));
       else if (format === "geojson") note = await openGeoJson(msg.file);
       else {
@@ -209,36 +260,45 @@ self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
         delimiter = await open(msg.file, msg.options.delimiter, encoding, msg.options.previewRows);
       }
       if (rows.length === 0) throw new Error("Não encontramos linhas de dados no arquivo.");
-      const headers = Object.keys(rows[0]!);
-      const columns = detectColumns(headers, rows.slice(0, DETECT_ROWS));
-      const location = guessLocation(columns);
-      const style = guessStyleColumns(columns, location ? [location.lat, location.lon] : []);
-      post({
-        type: "opened",
-        file: {
-          format,
-          note,
-          headers,
-          preview: rows.slice(0, PREVIEW_ROWS),
-          rowCount: total ?? rows.length,
-          delimiter,
-          encoding,
-          columns,
-          location,
-          style,
-          sampled: Boolean(msg.options.previewRows),
-        },
+      openedBase = {
+        format,
+        note,
+        rowCount: total ?? rows.length,
+        delimiter,
+        encoding,
+        sampled: Boolean(msg.options.previewRows),
+        headerRow,
+        ...(sheets && sheets.length > 1 ? { sheets, sheet } : {}),
+      };
+      post({ type: "opened", file: { ...openedBase, ...view() } });
+    } else if (msg.type === "recipe") {
+      recipe = msg.steps;
+      if (!openedBase) throw new Error("Abra um arquivo antes.");
+      post({ type: "opened", file: { ...openedBase, ...view() } });
+    } else if (msg.type === "profile") {
+      const sample = applyRecipe(rows.slice(0, DETECT_ROWS), recipe);
+      const [info] = detectColumns([msg.column], sample);
+      post({ type: "profiled", profile: profileColumn(info!, sample) });
+    } else if (msg.type === "failed") {
+      // Linhas que ficam de fora (sem localização legível), com o motivo, para a pessoa corrigir.
+      if (!lastMapping) throw new Error("Valide os dados antes.");
+      const out: Row[] = [];
+      applied().forEach((row, i) => {
+        const c = readCoordinates(row, lastMapping!);
+        const reason = c === "empty" ? "sem localização" : c === null ? "localização ilegível" : null;
+        if (reason) out.push({ linha_na_planilha: String(i + headerRow + 2), motivo: reason, ...row });
       });
+      post({ type: "failedRows", blob: new Blob(["\uFEFF" + Papa.unparse(out, { delimiter: ";" })], { type: "text/csv" }), count: out.length });
     } else if (msg.type === "build") {
       lastMapping = msg.mapping;
-      post({ type: "built", summary: summarize(rows, msg.mapping, msg.colorBy) });
+      post({ type: "built", summary: summarize(applied(), msg.mapping, msg.colorBy, headerRow + 2) });
     } else if (msg.type === "tilesFile") {
       // Arquivo grande: relê inteiro aos pedaços direto em colunas (sem um objeto por linha).
       if (!lastMapping) throw new Error("Nada para processar: valide os dados antes.");
       const { streamCsv, streamParquet } = await import("./stream");
       const { buildTilesFromColumns } = await import("./tiles");
       const reading = (fraction: number) => post({ type: "tiling", stage: "reading", fraction });
-      const opts = { mapping: lastMapping, colorBy: msg.colorBy, title: msg.title };
+      const opts = { mapping: lastMapping, colorBy: msg.colorBy, title: msg.title, recipe };
       let cols;
       if (fileFormat(msg.file.name) === "parquet") {
         const buffer: AsyncBuffer = { byteLength: msg.file.size, slice: (s, e2) => msg.file.slice(s, e2).arrayBuffer() };
@@ -253,12 +313,12 @@ self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
     } else if (msg.type === "tiles") {
       if (!lastMapping) throw new Error("Nada para processar: valide os dados antes.");
       const { buildTiles } = await import("./tiles");
-      const { features } = buildFeatures(rows, lastMapping);
+      const { features } = buildFeatures(applied(), lastMapping);
       const { bytes, report } = await buildTiles(features, lastMapping, msg, (stage, fraction) => post({ type: "tiling", stage, fraction }));
       post({ type: "tiled", blob: new Blob([bytes as Uint8Array<ArrayBuffer>], { type: "application/vnd.pmtiles" }), report });
     } else if (msg.type === "export") {
       if (!lastMapping) throw new Error("Nada para exportar: valide os dados antes.");
-      const { features } = buildFeatures(rows, lastMapping);
+      const { features } = buildFeatures(applied(), lastMapping);
       const json = JSON.stringify({ type: "FeatureCollection", features });
       post({ type: "exported", blob: new Blob([json], { type: "application/geo+json" }) });
     }
