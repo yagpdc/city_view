@@ -7,7 +7,7 @@ use std::sync::Once;
 
 use tiler::{
     pipeline::{self, BuildOptions, FINEST_RESOLUTION, Stage},
-    table::{InputColumn, table_from_points},
+    table::{ColorInput, InputColumn, table_from_points},
 };
 use wasm_bindgen::prelude::*;
 
@@ -58,7 +58,7 @@ pub struct TileJob {
     name: String,
     lat: Vec<f64>,
     lon: Vec<f64>,
-    color: Vec<String>,
+    color: ColorInput,
     color_by: Option<String>,
     title: Option<String>,
     columns: Vec<InputColumn>,
@@ -69,7 +69,7 @@ pub struct TileJob {
 impl TileJob {
     #[wasm_bindgen(constructor)]
     pub fn new(name: String) -> TileJob {
-        TileJob { name, lat: Vec::new(), lon: Vec::new(), color: Vec::new(), color_by: None, title: None, columns: Vec::new(), report: None }
+        TileJob { name, lat: Vec::new(), lon: Vec::new(), color: ColorInput::None, color_by: None, title: None, columns: Vec::new(), report: None }
     }
 
     /// Coordenadas em graus (`NaN` = sem coordenada; a linha sai).
@@ -81,7 +81,18 @@ impl TileJob {
     /// Coluna que colore o mapa: rótulo de cada linha (vazio = sem), unidos por `SEP`.
     pub fn set_color(&mut self, column: String, labels: String) {
         self.color_by = Some(column);
-        self.color = split(&labels);
+        self.color = ColorInput::Labels(split(&labels));
+    }
+
+    /// Coluna de cor compacta: índice por linha no dicionário (`u32::MAX` = sem); dicionário unido por `SEP`.
+    pub fn set_color_ids(&mut self, column: String, ids: Vec<u32>, dict: String) {
+        self.color_by = Some(column);
+        self.color = ColorInput::Ids(ids, split(&dict));
+    }
+
+    /// Categoria compacta: índice por linha no dicionário (`u32::MAX` = vazio); dicionário unido por `SEP`.
+    pub fn add_category_ids(&mut self, name: String, ids: Vec<u32>, dict: String) {
+        self.columns.push(InputColumn::CategoryIds(name, ids, split(&dict)));
     }
 
     /// Coluna de título (nome do lugar), mostrada nos rótulos e na busca.
@@ -107,10 +118,10 @@ impl TileJob {
     pub fn build(&mut self, progress: &js_sys::Function) -> Result<Vec<u8>, JsError> {
         init_pool();
         let columns = std::mem::take(&mut self.columns);
-        let table = table_from_points(&self.lat, &self.lon, &self.color, columns, FINEST_RESOLUTION).map_err(|e| JsError::new(&e.to_string()))?;
+        let color = std::mem::replace(&mut self.color, ColorInput::None);
+        let table = table_from_points(&self.lat, &self.lon, color, columns, FINEST_RESOLUTION).map_err(|e| JsError::new(&e.to_string()))?;
         self.lat = Vec::new();
         self.lon = Vec::new();
-        self.color = Vec::new();
         let opts = BuildOptions { name: &self.name, color_by: self.color_by.as_deref(), title: self.title.as_deref() };
         let progress = Progress(progress);
         let report_progress = |stage: Stage, f: f32| {

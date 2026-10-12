@@ -2,6 +2,8 @@ import type { ColumnInfo, ImportMapping, ImportSummary, LocationGuess, Row } fro
 
 /** Limite do processamento no navegador; acima disso o arquivo precisa do motor local (Rust). */
 export const MAX_BROWSER_ROWS = 2_000_000;
+/** Acima disso o assistente lê uma amostra e a importação relê o arquivo em colunas (sem limite de linhas). */
+export const LARGE_FILE_BYTES = 20e6;
 
 export type Delimiter = "," | ";" | "\t" | "|";
 
@@ -61,7 +63,9 @@ export type WorkerRequest =
   | { type: "build"; mapping: ImportMapping; colorBy?: string }
   | { type: "export" }
   /** Gera o PMTiles no navegador (motor em WASM) com o último mapeamento validado. */
-  | { type: "tiles"; name: string; colorBy?: string; title?: string };
+  | { type: "tiles"; name: string; colorBy?: string; title?: string }
+  /** Arquivo grande (aberto por amostra): relê inteiro em colunas e gera o PMTiles. */
+  | { type: "tilesFile"; file: File; name: string; colorBy?: string; title?: string; delimiter: Delimiter; encoding: Encoding };
 
 export type WorkerResponse =
   | { type: "progress"; loaded: number; total: number }

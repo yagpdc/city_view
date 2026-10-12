@@ -3,7 +3,7 @@ import { CATEGORY_COLORS } from "@cityview/engine";
 import { parseNumber, type ColumnInfo, type ColumnType, type ImportMapping } from "@cityview/importer";
 import { useEffect, useMemo, useState } from "react";
 import type { ImportSpec } from "../server/api";
-import { SAMPLE_ROWS, SERVER_FORMATS, SERVER_THRESHOLD_BYTES, fileFormat, type BuildSummary, type Delimiter, type Encoding, type OpenedFile } from "./protocol";
+import { LARGE_FILE_BYTES, SAMPLE_ROWS, SERVER_FORMATS, fileFormat, type BuildSummary, type Delimiter, type Encoding, type OpenedFile } from "./protocol";
 import { useImportWorker } from "./useImportWorker";
 import { Icon } from "../components/Icon";
 
@@ -57,8 +57,11 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
   // Arquivo grande + servidor de pé: o navegador só lê uma amostra; o motor em Rust faz o resto.
   // O motor em Rust lê CSV e Parquet; Excel e GeoJSON ficam no navegador.
   const serverFormat = SERVER_FORMATS.includes(fileFormat(file.name) ?? "csv");
-  const [sampleOnly] = useState(() => serverFormat && serverAvailable && file.size > SERVER_THRESHOLD_BYTES);
-  const [useServer, setUseServer] = useState(sampleOnly);
+  // Arquivo grande (CSV/Parquet): o assistente lê só uma amostra; na importação o arquivo é relido inteiro
+  // em colunas — no navegador (motor em WASM) ou, se você escolher, no servidor local.
+  const [sampleOnly] = useState(() => serverFormat && file.size > LARGE_FILE_BYTES);
+  // Seus arquivos ficam no seu computador (docs/adr/0002): servidor só se você marcar.
+  const [useServer, setUseServer] = useState(false);
   const [step, setStep] = useState<Step>(0);
   const [opened, setOpened] = useState<OpenedFile | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -178,7 +181,14 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
     let format: ImportedDataset["format"] = "pmtiles";
     try {
       // Motor de tiles no navegador: hexágonos agregados + pontos, como os datasets do servidor.
-      blob = (await worker.tiles({ name: name.trim() || file.name, colorBy: colorBy || undefined, title: title || undefined })).blob;
+      blob = (
+        await worker.tiles({
+          name: name.trim() || file.name,
+          colorBy: colorBy || undefined,
+          title: title || undefined,
+          ...(sampleOnly && opened ? { file: { file, delimiter: delimiter ?? opened.delimiter, encoding: encoding ?? opened.encoding } } : {}),
+        })
+      ).blob;
     } catch (tilesError) {
       console.warn("[import] motor de tiles indisponível; usando GeoJSON", tilesError);
       format = "geojson";
@@ -294,8 +304,8 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
               </p>
               {opened.sampled && (
                 <p className="wizard-ok">
-                  Arquivo grande: lemos uma amostra para você configurar, e o servidor local processa o arquivo
-                  inteiro no fim.
+                  Arquivo grande: lemos uma amostra para você configurar; ao importar, o arquivo inteiro é processado
+                  aqui no seu computador.
                 </p>
               )}
               {opened.note && <p className="wizard-warn">{opened.note}</p>}
@@ -475,7 +485,7 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
               {building && <p className="muted">Preparando os pontos…</p>}
               {built && (
                 <div className="review">
-                  {serverAvailable && serverFormat && !sampleOnly && (
+                  {serverAvailable && serverFormat && (
                     <label className="server-toggle">
                       <input type="checkbox" checked={useServer} onChange={(e) => setUseServer(e.target.checked)} />
                       <span>
@@ -559,11 +569,13 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
 function TilingProgress({ tiling }: { tiling: { stage: string; fraction: number } | null }) {
   const [label, overall] = !tiling
     ? ["Preparando os pontos…", 0.02]
-    : tiling.stage === "tiling"
-      ? ["Gerando os tiles do mapa…", 0.1 + Math.min(1, tiling.fraction) * 0.85]
-      : tiling.stage === "writing"
-        ? ["Guardando neste navegador…", 0.95 + tiling.fraction * 0.05]
-        : ["Agregando em hexágonos…", 0.05];
+    : tiling.stage === "reading"
+      ? ["Lendo o arquivo inteiro…", Math.min(1, tiling.fraction) * 0.4]
+      : tiling.stage === "tiling"
+        ? ["Gerando os tiles do mapa…", 0.5 + Math.min(1, tiling.fraction) * 0.45]
+        : tiling.stage === "writing"
+          ? ["Guardando neste navegador…", 0.95 + tiling.fraction * 0.05]
+          : ["Agregando em hexágonos…", 0.45];
   return (
     <div className="wizard-loading tiling-progress" aria-live="polite">
       <p>

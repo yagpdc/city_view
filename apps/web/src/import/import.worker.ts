@@ -138,6 +138,34 @@ function parquetCell(v: unknown): string {
  * Parquet lido aos pedaços direto do arquivo (só os bytes necessários). Colunas de geometria
  * (GeoParquet) viram longitude/latitude, como no GeoJSON. Devolve o total de linhas do arquivo.
  */
+/** Como as colunas do Parquet viram linhas (descoberto na amostra; reaproveitado na leitura completa). */
+let parquetLayout: { plain: string[]; geometryKey?: string; lon: string; lat: string } | null = null;
+
+function parquetRows(objects: Record<string, unknown>[]): { rows: Row[]; converted: number } {
+  const { plain, geometryKey, lon, lat } = parquetLayout!;
+  let converted = 0;
+  const out = objects.map((o) => {
+    const row: Row = {};
+    for (const k of plain) row[k] = parquetCell(o[k]);
+    if (geometryKey) {
+      const a = isGeometry(o[geometryKey]) ? geometryAnchor(o[geometryKey]) : null;
+      if (a?.converted) converted++;
+      row[lon] = a ? String(a.point[0]) : "";
+      row[lat] = a ? String(a.point[1]) : "";
+    }
+    return row;
+  });
+  return { rows: out, converted };
+}
+
+/** Um bloco de linhas do Parquet, já no formato de linha do CSV. */
+async function parquetChunk(file: File, start: number, end: number): Promise<Row[]> {
+  const buffer: AsyncBuffer = { byteLength: file.size, slice: (s, e) => file.slice(s, e).arrayBuffer() };
+  const metadata = await parquetMetadataAsync(buffer);
+  const objects = await parquetReadObjects({ file: buffer, metadata, compressors, rowStart: start, rowEnd: end });
+  return parquetRows(objects).rows;
+}
+
 async function openParquet(file: File, previewRows?: number): Promise<{ total: number; note?: string }> {
   const buffer: AsyncBuffer = { byteLength: file.size, slice: (start, end) => file.slice(start, end).arrayBuffer() };
   const metadata = await parquetMetadataAsync(buffer);
@@ -155,18 +183,9 @@ async function openParquet(file: File, previewRows?: number): Promise<{ total: n
   const geometryKey = geometryKeys[0];
   const lon = plain.includes("longitude") ? "geometria_longitude" : "longitude";
   const lat = plain.includes("latitude") ? "geometria_latitude" : "latitude";
-  let converted = 0;
-  rows = objects.map((o) => {
-    const row: Row = {};
-    for (const k of plain) row[k] = parquetCell(o[k]);
-    if (geometryKey) {
-      const a = isGeometry(o[geometryKey]) ? geometryAnchor(o[geometryKey]) : null;
-      if (a?.converted) converted++;
-      row[lon] = a ? String(a.point[0]) : "";
-      row[lat] = a ? String(a.point[1]) : "";
-    }
-    return row;
-  });
+  parquetLayout = { plain, geometryKey, lon, lat };
+  const converted = parquetRows(objects).converted;
+  rows = parquetRows(objects).rows;
   const notes = [];
   if (geometryKey) notes.push(`a coluna de geometria "${geometryKey}" virou longitude/latitude`);
   if (converted > 0) notes.push(`${converted.toLocaleString("pt-BR")} geometrias não eram ponto e viraram o centro da sua extensão`);
@@ -213,6 +232,24 @@ self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
     } else if (msg.type === "build") {
       lastMapping = msg.mapping;
       post({ type: "built", summary: summarize(rows, msg.mapping, msg.colorBy) });
+    } else if (msg.type === "tilesFile") {
+      // Arquivo grande: relê inteiro aos pedaços direto em colunas (sem um objeto por linha).
+      if (!lastMapping) throw new Error("Nada para processar: valide os dados antes.");
+      const { streamCsv, streamParquet } = await import("./stream");
+      const { buildTilesFromColumns } = await import("./tiles");
+      const reading = (fraction: number) => post({ type: "tiling", stage: "reading", fraction });
+      const opts = { mapping: lastMapping, colorBy: msg.colorBy, title: msg.title };
+      let cols;
+      if (fileFormat(msg.file.name) === "parquet") {
+        const buffer: AsyncBuffer = { byteLength: msg.file.size, slice: (s, e2) => msg.file.slice(s, e2).arrayBuffer() };
+        const total = Number((await parquetMetadataAsync(buffer)).num_rows);
+        cols = await streamParquet(total, (start, end) => parquetChunk(msg.file, start, end), opts, reading);
+      } else {
+        cols = await streamCsv(msg.file, { ...opts, delimiter: msg.delimiter, encoding: msg.encoding }, reading);
+      }
+      rows = []; // a amostra não serve mais
+      const { bytes, report } = await buildTilesFromColumns(cols, msg, (stage, fraction) => post({ type: "tiling", stage, fraction }));
+      post({ type: "tiled", blob: new Blob([bytes as Uint8Array<ArrayBuffer>], { type: "application/vnd.pmtiles" }), report });
     } else if (msg.type === "tiles") {
       if (!lastMapping) throw new Error("Nada para processar: valide os dados antes.");
       const { buildTiles } = await import("./tiles");

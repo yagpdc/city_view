@@ -2,7 +2,7 @@
 
 use tiler::{
     pipeline::{self, BuildOptions, FINEST_RESOLUTION},
-    table::{InputColumn, table_from_points},
+    table::{ColorInput, InputColumn, table_from_points},
 };
 
 #[test]
@@ -18,7 +18,7 @@ fn colunas_viram_pmtiles_em_memoria() {
     let table = table_from_points(
         &lat,
         &lon,
-        &color,
+        ColorInput::Labels(color),
         vec![InputColumn::Text("nome".into(), names), InputColumn::Number("area".into(), area)],
         FINEST_RESOLUTION,
     )
@@ -33,4 +33,23 @@ fn colunas_viram_pmtiles_em_memoria() {
     assert_eq!(bytes[7], 3);
     assert_eq!(report.records, n - 1);
     assert_eq!(report.tiles_bytes, bytes.len() as u64);
+}
+
+#[test]
+fn categorias_compactas_dao_o_mesmo_resultado() {
+    let lat = vec![-23.55, -23.56, -23.57, -23.58];
+    let lon = vec![-46.63, -46.64, -46.65, -46.66];
+    let dict = vec!["Mercado".to_owned(), "Padaria".to_owned()];
+    let table = table_from_points(
+        &lat,
+        &lon,
+        ColorInput::Ids(vec![0, 1, 1, u32::MAX], dict.clone()),
+        vec![InputColumn::CategoryIds("tipo".into(), vec![1, 0, u32::MAX, 1], dict)],
+        FINEST_RESOLUTION,
+    )
+    .expect("tabela");
+    assert_eq!(table.len(), 4);
+    // Padaria aparece mais: fica com o índice 0 nas categorias de cor.
+    assert_eq!(table.categories, vec!["Padaria".to_owned(), "Mercado".to_owned()]);
+    assert_eq!(table.category, vec![1, 0, 0, tiler::table::NO_CATEGORY]);
 }

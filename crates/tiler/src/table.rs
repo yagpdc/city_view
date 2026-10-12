@@ -291,13 +291,29 @@ pub enum InputColumn {
     /// `NaN` = vazio.
     Number(String, Vec<f64>),
     Category(String, Vec<String>),
+    /// Categoria compacta: índice no dicionário por linha (`u32::MAX` = vazio). Para milhões de linhas.
+    CategoryIds(String, Vec<u32>, Vec<String>),
     /// Texto livre (título etc.), só nos tiles de pontos.
     Text(String, Vec<String>),
 }
 
-/// Monta a tabela a partir de colunas prontas (sem arquivo): `lat`/`lon` em graus (`NaN` = sem coordenada),
-/// `color` = rótulo da categoria de cor por linha (vazio = sem). Linhas inválidas saem, como na leitura de CSV.
-pub fn table_from_points(lat: &[f64], lon: &[f64], color: &[String], columns: Vec<InputColumn>, finest: Resolution) -> Result<Table, Error> {
+/// Coluna que colore o mapa.
+pub enum ColorInput {
+    None,
+    /// Rótulo por linha (vazio = sem).
+    Labels(Vec<String>),
+    /// Índice no dicionário por linha (`u32::MAX` = sem).
+    Ids(Vec<u32>, Vec<String>),
+}
+
+/// Reaproveita um dicionário vindo de fora num `Interner` (rótulos repetidos/vazios viram o mesmo id).
+fn remap(dict: &[String], into: &mut Interner) -> Vec<u32> {
+    dict.iter().map(|v| into.id(v)).collect()
+}
+
+/// Monta a tabela a partir de colunas prontas (sem arquivo): `lat`/`lon` em graus (`NaN` = sem coordenada).
+/// Linhas inválidas saem, como na leitura de CSV.
+pub fn table_from_points(lat: &[f64], lon: &[f64], color: ColorInput, columns: Vec<InputColumn>, finest: Resolution) -> Result<Table, Error> {
     if lat.len() != lon.len() {
         return Err("lat e lon com tamanhos diferentes".into());
     }
@@ -310,33 +326,48 @@ pub fn table_from_points(lat: &[f64], lon: &[f64], color: &[String], columns: Ve
         offsets: Vec::new(),
         stats: ReadStats::default(),
     };
-    let mut builders: Vec<(String, Builder, InputColumn)> = Vec::new();
+    let color_map = match &color {
+        ColorInput::Ids(_, dict) => remap(dict, &mut raw.color_dict),
+        _ => Vec::new(),
+    };
+    let mut builders: Vec<(String, Builder, InputColumn, Vec<u32>)> = Vec::new();
     for c in columns {
-        let (name, b) = match &c {
-            InputColumn::Number(n, _) => (n.clone(), Builder::Number(Vec::new(), NumberLocale::default())),
-            InputColumn::Category(n, _) => (n.clone(), Builder::Category(Vec::new(), Interner::default())),
-            InputColumn::Text(n, _) => (n.clone(), Builder::Text(Vec::new())),
+        let (name, b, map) = match &c {
+            InputColumn::Number(n, _) => (n.clone(), Builder::Number(Vec::new(), NumberLocale::default()), Vec::new()),
+            InputColumn::Category(n, _) => (n.clone(), Builder::Category(Vec::new(), Interner::default()), Vec::new()),
+            InputColumn::CategoryIds(n, _, dict) => {
+                let mut interner = Interner::default();
+                let map = remap(dict, &mut interner);
+                (n.clone(), Builder::Category(Vec::new(), interner), map)
+            }
+            InputColumn::Text(n, _) => (n.clone(), Builder::Text(Vec::new()), Vec::new()),
         };
-        builders.push((name, b, c));
+        builders.push((name, b, c, map));
     }
+    let mapped = |map: &[u32], id: Option<&u32>| id.and_then(|&i| map.get(i as usize).copied()).unwrap_or(u32::MAX);
     for i in 0..lat.len() {
         let coords = if lat[i].is_nan() || lon[i].is_nan() { Err(InvalidReason::SemCoordenadas) } else { Ok((lat[i], lon[i])) };
         if !raw.accept_coords(i as u64 + 2, coords) {
             continue;
         }
-        if !color.is_empty() {
-            let id = raw.color_dict.id(color.get(i).map_or("", String::as_str));
-            raw.color.push(id);
+        match &color {
+            ColorInput::None => {}
+            ColorInput::Labels(labels) => {
+                let id = raw.color_dict.id(labels.get(i).map_or("", String::as_str));
+                raw.color.push(id);
+            }
+            ColorInput::Ids(ids, _) => raw.color.push(mapped(&color_map, ids.get(i))),
         }
-        for (_, builder, input) in builders.iter_mut() {
+        for (_, builder, input, map) in builders.iter_mut() {
             match (builder, &*input) {
                 (Builder::Number(v, _), InputColumn::Number(_, src)) => v.push(src.get(i).copied().unwrap_or(f64::NAN)),
                 (Builder::Category(ids, dict), InputColumn::Category(_, src)) => ids.push(dict.id(src.get(i).map_or("", String::as_str))),
+                (Builder::Category(ids, _), InputColumn::CategoryIds(_, src, _)) => ids.push(mapped(map, src.get(i))),
                 (Builder::Text(v), InputColumn::Text(_, src)) => v.push(src.get(i).map_or_else(String::new, |s| s.trim().to_owned())),
                 _ => unreachable!("builder e coluna do mesmo tipo"),
             }
         }
     }
-    raw.columns = builders.into_iter().map(|(name, b, _)| (name, b)).collect();
+    raw.columns = builders.into_iter().map(|(name, b, _, _)| (name, b)).collect();
     raw.finish(finest)
 }

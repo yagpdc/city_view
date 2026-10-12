@@ -1,6 +1,6 @@
 import type { ImportMapping } from "@cityview/importer";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { BuildSummary, OpenOptions, OpenedFile, WorkerRequest, WorkerResponse } from "./protocol";
+import type { BuildSummary, Delimiter, Encoding, OpenOptions, OpenedFile, WorkerRequest, WorkerResponse } from "./protocol";
 import type { TileReport } from "./tiles";
 
 /** Um worker por wizard: guarda as linhas do arquivo e responde a "open" e "build". */
@@ -53,10 +53,11 @@ export function useImportWorker() {
 
   /** PMTiles gerado no navegador (motor em Rust/WASM) com hexágonos e pontos. */
   const tiles = useCallback(
-    async (options: { name: string; colorBy?: string; title?: string }) => {
-      setTiling({ stage: "indexing", fraction: 0 });
+    async (options: { name: string; colorBy?: string; title?: string; file?: { file: File; delimiter: Delimiter; encoding: Encoding } }) => {
+      setTiling({ stage: options.file ? "reading" : "indexing", fraction: 0 });
+      const { file, ...rest } = options;
       try {
-        return await request<{ blob: Blob; report: TileReport }>({ type: "tiles", ...options });
+        return await request<{ blob: Blob; report: TileReport }>(file ? { type: "tilesFile", ...rest, ...file } : { type: "tiles", ...rest });
       } finally {
         setTiling(null);
       }

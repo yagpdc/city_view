@@ -43,7 +43,7 @@ Especialistas em `.claude/agents/`. Delegue ao agente quando o assunto for dele:
 - `pnpm dev`: tudo em http://localhost:5173 — plataforma, demo do SDK em `/demo/` e o servidor Rust (`/api`, iniciado automaticamente; `CITYVIEW_NO_API=1` desliga)
 - Avulsos, se precisar: `pnpm api` (só o servidor, :8787) · `pnpm demo` (só a demo, :5174)
 - **Windows:** rode `cargo` pelo PowerShell. No Git Bash, `/usr/bin/link.exe` esconde o linker da Microsoft.
-- **Só o disco D:** nada de temporários, caches ou ferramentas no C: (está cheio e o usuário pediu). Rascunhos em `target/scratch`; em comandos, `TMP`/`TEMP` em `D:\city_view\target\tmp`; Rust com `CARGO_HOME=D:\city_view\target\cargo-home`; ferramentas em `target/tools`.
+- **Só o disco D:** nada de temporários, caches ou ferramentas no C: (está cheio e o usuário pediu). Rascunhos em `target/scratch`; em comandos, `TMP`/`TEMP` em `D:\city_view\target\tmp`; Rust (`~\.cargo`, `~\.rustup`) já mora em `D:\dev` (junções no lugar antigo); pnpm store em `D:\.pnpm-store`; ferramentas em `target/tools`.
 - `pnpm places [-- --area sao-paulo]` gera a camada "Lugares" (Overture Maps: comércio, serviços, turismo…; Brasil ~6,5 mi de pontos, release mensal) em `data/out/places/`.
 - `pnpm cidades` gera `data/out/cidades.pmtiles`: mapa detalhado (prédios 3D, z15) das capitais e grandes cidades em `data/specs/cidades.json` (prédios do mapa e maquete).
 - `pnpm wasm` recompila o motor de tiles para o navegador (`crates/tiler-wasm` → `packages/tiler-wasm/pkg`, versionado). Precisa de `rustup target add wasm32-unknown-unknown` e `wasm-bindgen-cli` 0.2.95.

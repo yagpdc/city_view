@@ -28,6 +28,20 @@ export class TileJob {
    */
   add_category(name: string, values: string): void;
   /**
+   * Coluna de cor compacta: índice por linha no dicionário (`u32::MAX` = sem); dicionário unido por `SEP`.
+   * @param {string} column
+   * @param {Uint32Array} ids
+   * @param {string} dict
+   */
+  set_color_ids(column: string, ids: Uint32Array, dict: string): void;
+  /**
+   * Categoria compacta: índice por linha no dicionário (`u32::MAX` = vazio); dicionário unido por `SEP`.
+   * @param {string} name
+   * @param {Uint32Array} ids
+   * @param {string} dict
+   */
+  add_category_ids(name: string, ids: Uint32Array, dict: string): void;
+  /**
    * @param {string} name
    */
   constructor(name: string);
@@ -68,12 +82,14 @@ export interface InitOutput {
   readonly __wbg_tilejob_free: (a: number, b: number) => void;
   readonly last_panic: () => Array;
   readonly tilejob_add_category: (a: number, b: number, c: number, d: number, e: number) => void;
+  readonly tilejob_add_category_ids: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
   readonly tilejob_add_number: (a: number, b: number, c: number, d: number, e: number) => void;
   readonly tilejob_add_text: (a: number, b: number, c: number, d: number, e: number) => void;
   readonly tilejob_build: (a: number, b: number) => Array;
   readonly tilejob_new: (a: number, b: number) => number;
   readonly tilejob_report: (a: number) => Array;
   readonly tilejob_set_color: (a: number, b: number, c: number, d: number, e: number) => void;
+  readonly tilejob_set_color_ids: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
   readonly tilejob_set_points: (a: number, b: number, c: number, d: number, e: number) => void;
   readonly tilejob_set_title: (a: number, b: number, c: number) => void;
   readonly __wbindgen_export_0: WebAssembly.Table;
