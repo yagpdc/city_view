@@ -92,6 +92,8 @@ export class CityMap {
   private readonly resizeObserver: ResizeObserver;
   private readonly datasets: DatasetLayer[] = [];
   private readonly catalog = new Map<string, CatalogLayer>();
+  /** Filtro de categorias por camada (dataset ou catálogo), guardado mesmo antes de a camada existir. */
+  private readonly categoryFilters = new Map<string, number[] | null>();
   /** Camadas externas genéricas (ex.: cobertura de fotos de rua); voltam após troca de estilo. */
   private readonly overlays = new Map<string, MapOverlay>();
   private locationMarker: Marker | null = null;
@@ -200,6 +202,8 @@ export class CityMap {
     const meta = await readDatasetMeta(pmtiles);
     const layer = new DatasetLayer(this.map, id, url, meta, pmtiles, options.attribution);
     layer.labelTheme = this.styleOptions.theme ?? "light";
+    const categories = this.categoryFilters.get(id);
+    if (categories) layer.setFilter({ ...layer.getFilter(), categories });
     this.datasets.push(layer);
     this.whenStyleReady(() => layer.attach());
     return layer;
@@ -210,12 +214,31 @@ export class CityMap {
     let layer = this.catalog.get(manifest.id);
     if (!layer) {
       layer = new CatalogLayer(this.map, manifest, data);
+      layer.setCategoryFilter(this.categoryFilters.get(manifest.id) ?? null);
       this.catalog.set(manifest.id, layer);
       const created = layer;
       this.whenStyleReady(() => this.attachCatalog(created));
     }
     layer.setVisible(true);
     return layer;
+  }
+
+  /**
+   * Mostra só algumas categorias de uma camada (índices da legenda); null mostra todas.
+   * Vale para datasets em tiles (pontos, hexágonos, "Na tela") e camadas GeoJSON com `colorBy`.
+   */
+  setCategoryFilter(id: string, categories: number[] | null): void {
+    this.categoryFilters.set(id, categories);
+    const dataset = this.datasets.find((d) => d.id === id);
+    if (dataset) {
+      const { categories: _, ...rest } = dataset.getFilter();
+      dataset.setFilter(categories ? { ...rest, categories } : rest);
+    }
+    this.catalog.get(id)?.setCategoryFilter(categories);
+  }
+
+  getCategoryFilter(id: string): number[] | null {
+    return this.categoryFilters.get(id) ?? null;
   }
 
   hideCatalogLayer(id: string): void {

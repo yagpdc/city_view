@@ -577,3 +577,25 @@ a { color: var(--cv-link); }
 @media (max-width: 1100px) {
   .widgets { z-index: 6; }
 }
+
+/* ---------- Legenda que filtra (cartão de camada) ---------- */
+.legend-filter { display: flex; flex-direction: column; gap: 6px; }
+.legend-filter-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 20px; font-size: 12px; }
+.legend-filter-state { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: var(--cv-action-subtle-text); }
+.link-button { padding: 0; border: 0; background: none; font: inherit; font-size: 12px; font-weight: 600; color: var(--cv-action-subtle-text); cursor: pointer; }
+.link-button:hover { text-decoration: underline; }
+.legend-list.is-interactive { gap: 0; margin: 0 -6px; }
+.legend-list.is-interactive li { gap: 0; border-radius: var(--cv-radius-sm); }
+.legend-list.is-interactive li:hover { background: var(--cv-surface); }
+.legend-item { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; padding: 4px 6px; border: 0; border-radius: var(--cv-radius-sm); background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.legend-item > span:first-of-type { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.legend-list.is-interactive i { box-sizing: border-box; border: 2px solid transparent; }
+.legend-list li.is-off .legend-item { color: var(--cv-text-muted); }
+.legend-list li.is-off i { background: transparent !important; }
+.legend-list li.is-off .legend-item > span:first-of-type { text-decoration: line-through; text-decoration-color: var(--cv-border-strong, var(--cv-border)); }
+.legend-only { flex: none; margin-right: 2px; padding: 2px 8px; border: 0; border-radius: var(--cv-radius-sm); background: none; font: inherit; font-size: 11px; font-weight: 600; color: var(--cv-action-subtle-text); cursor: pointer; opacity: 0; }
+.legend-list li:hover .legend-only, .legend-only:focus-visible { opacity: 1; }
+.legend-only:hover { background: var(--cv-action-subtle); }
+@media (hover: none) { .legend-only { opacity: 1; } }
+.legend-item:focus-visible, .legend-only:focus-visible, .link-button:focus-visible { outline: 2px solid var(--cv-focus, var(--cv-action)); outline-offset: 1px; }
+.widget-filter { display: inline-flex; align-items: center; gap: 4px; padding: 0 6px; border-radius: var(--cv-radius-sm); background: var(--cv-action-subtle); color: var(--cv-action-subtle-text); font-size: 11px; font-weight: 600; line-height: 18px; }

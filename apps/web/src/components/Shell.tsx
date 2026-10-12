@@ -207,8 +207,75 @@ function LayerMenu({ title, actions }: { title: string; actions: LayerAction[] }
 
 const int = new Intl.NumberFormat("pt-BR");
 
-/** Legenda de categorias: bolinha da cor do dado, nome e contagem opcional. */
-export function CategoryLegend({ items, max = 6 }: { items: { label: string; color: string; count?: number }[]; max?: number }) {
+/**
+ * Legenda de categorias: bolinha da cor do dado, nome e contagem opcional.
+ * Com `onChange`, vira o filtro da camada: clicar liga/desliga a categoria, "só" isola uma.
+ * `selected` são os índices visíveis (null = todas).
+ */
+export function CategoryLegend({
+  items,
+  max = 6,
+  selected = null,
+  onChange,
+}: {
+  items: { label: string; color: string; count?: number }[];
+  max?: number;
+  selected?: number[] | null;
+  onChange?: (selected: number[] | null) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  if (onChange && items.length > 1) {
+    const isOn = (i: number) => !selected || selected.includes(i);
+    const shown = expanded ? items : items.slice(0, max);
+    const toggleItem = (i: number) => {
+      const current = selected ?? items.map((_, k) => k);
+      const next = current.includes(i) ? current.filter((k) => k !== i) : [...current, i].sort((a, b) => a - b);
+      onChange(next.length === items.length ? null : next);
+    };
+    const only = (i: number) => onChange(selected?.length === 1 && selected[0] === i ? null : [i]);
+    return (
+      <div className="legend-filter">
+        <div className="legend-filter-head">
+          {selected ? (
+            <>
+              <span className="legend-filter-state">
+                <Icon name="filter" size={16} />
+                <span>
+                  <span className="num">{selected.length}</span> de <span className="num">{items.length}</span> categorias
+                </span>
+              </span>
+              <button type="button" className="link-button" onClick={() => onChange(null)}>
+                Mostrar todas
+              </button>
+            </>
+          ) : (
+            <span className="muted">Clique numa categoria para filtrar</span>
+          )}
+        </div>
+        <ul className="legend-list is-interactive">
+          {shown.map((it, i) => (
+            <li key={it.label} className={isOn(i) ? "" : "is-off"}>
+              <button type="button" className="legend-item" aria-pressed={isOn(i)} onClick={() => toggleItem(i)} title={isOn(i) ? `Esconder ${it.label}` : `Mostrar ${it.label}`}>
+                <i style={{ background: it.color, borderColor: it.color }} />
+                <span>{it.label}</span>
+                {it.count !== undefined && <span className="num">{int.format(it.count)}</span>}
+              </button>
+              <button type="button" className="legend-only" onClick={() => only(i)} aria-label={`Mostrar só ${it.label}`} title={`Só ${it.label}`}>
+                só
+              </button>
+            </li>
+          ))}
+          {items.length > max && (
+            <li>
+              <button type="button" className="link-button" onClick={() => setExpanded((e) => !e)}>
+                {expanded ? "Mostrar menos" : `+ ${items.length - max} categorias`}
+              </button>
+            </li>
+          )}
+        </ul>
+      </div>
+    );
+  }
   const shown = items.slice(0, max);
   return (
     <ul className="legend-list">

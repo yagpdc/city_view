@@ -88,6 +88,6 @@ Inspirada no CARTO Builder: regiões claras, uma tarefa por painel, hierarquia f
 
 - Barra superior: marca, perspectiva 2D/3D, botão do painel "Na tela", Compartilhar (principal).
 - Trilho de ícones (76 px): Camadas, Adicionar, Explorar, Detalhes, Ajustes.
-- Painel (360 px) sobre `--cv-surface`, com cartões `--cv-float` de cantos 12 px; cada camada é um cartão com letra, nome, fonte/quantidade, olho, menu ⋯ e legenda.
+- Painel (360 px) sobre `--cv-surface`, com cartões `--cv-float` de cantos 12 px; cada camada é um cartão com letra, nome, fonte/quantidade, olho, menu ⋯ e legenda. A legenda de categorias é o filtro da camada: clicar liga/desliga, "só" isola uma, "Mostrar todas" limpa; o filtro vale no mapa, em "Na tela" (selo *filtrado*) e no "Por perto" do cartão do clique, e fica lembrado no navegador.
 - Mapa no centro, com a busca flutuando no canto superior esquerdo.
 - "Na tela" (320 px) à direita: contagem visível e barras por categoria de cada camada de pontos.

@@ -19,6 +19,8 @@ export interface NearbySource {
   datasetId: string;
   name: string;
   info: DatasetInfo;
+  /** Categorias visíveis pelo filtro do cartão da camada (null = todas). */
+  categories?: number[] | null;
 }
 
 /**
@@ -170,7 +172,9 @@ function Nearby({
   const { info } = source;
   const summary = state.summary;
   // O próprio lugar clicado não conta como "perto".
-  const points = summary?.points.filter((p) => !(exclude !== null && p.distanceM < 1)) ?? [];
+  const allowed = source.categories;
+  const points =
+    summary?.points.filter((p) => !(exclude !== null && p.distanceM < 1) && (!allowed || (p.category !== null && allowed.includes(p.category)))) ?? [];
   const total = summary ? points.length : 0;
   const byCategory = info.categories.map((label, i) => ({
     i,
@@ -206,6 +210,7 @@ function Nearby({
         <>
           <p className="muted">
             {int.format(total)} {source.name.toLowerCase()} em {meters(radius)}
+            {allowed && " · com o filtro da camada"}
           </p>
           {top.length > 0 && (
             <ul className="bars">

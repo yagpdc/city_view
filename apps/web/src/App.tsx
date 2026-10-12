@@ -80,6 +80,16 @@ function loadHiddenLayers(): Set<string> {
     return new Set();
   }
 }
+const FILTERS_KEY = "cityview.category-filters";
+/** Filtro de categorias por camada (id da camada no mapa → índices visíveis). */
+type CategoryFilters = Record<string, number[]>;
+function loadFilters(): CategoryFilters {
+  try {
+    return JSON.parse(localStorage.getItem(FILTERS_KEY) ?? "{}") as CategoryFilters;
+  } catch {
+    return {};
+  }
+}
 const int = new Intl.NumberFormat("pt-BR");
 const compact = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1, notation: "compact" });
 
@@ -94,6 +104,7 @@ export function App() {
   const [panel, setPanel] = useState<PanelId | null>(() => (isNarrowScreen() ? null : "layers"));
   /** Camadas no projeto mas escondidas (o olho fechado); "active" são as visíveis. */
   const [hidden, setHidden] = useState<Set<string>>(loadHiddenLayers);
+  const [filters, setFilters] = useState<CategoryFilters>(loadFilters);
   const [widgetsOpen, setWidgetsOpen] = useState(() => window.innerWidth >= 1280);
   const [widgets, setWidgets] = useState<ViewportWidget[]>([]);
   const [perspective, setPerspective] = useState<"2d" | "3d">("2d");
@@ -317,6 +328,25 @@ export function App() {
   useEffect(() => saveActiveLayers(active), [active]);
   useEffect(() => {
     try {
+      localStorage.setItem(FILTERS_KEY, JSON.stringify(filters));
+    } catch {
+      // Modo privado: segue sem lembrar.
+    }
+  }, [filters]);
+  // Filtros lembrados valem assim que o mapa existe (o motor guarda até a camada carregar).
+  useEffect(() => {
+    if (!map) return;
+    for (const [id, categories] of Object.entries(loadFilters())) map.setCategoryFilter(id, categories);
+  }, [map]);
+  const setCategoryFilter = (id: string, categories: number[] | null) => {
+    map?.setCategoryFilter(id, categories);
+    setFilters((prev) => {
+      const { [id]: _, ...rest } = prev;
+      return categories ? { ...rest, [id]: categories } : rest;
+    });
+  };
+  useEffect(() => {
+    try {
       localStorage.setItem(HIDDEN_KEY, JSON.stringify([...hidden]));
     } catch {
       // Modo privado: segue sem lembrar.
@@ -403,18 +433,19 @@ export function App() {
           const summary = map.viewportSummary(id);
           if (!info || !summary) return [];
           const bars = info.categories
-            .map((c, i) => ({ label: info.label ? info.label(c) : c, color: categoryColor(i, info.categories), n: summary.byCategory[i] ?? 0 }))
-            .filter((b) => b.n > 0)
+            .map((c, i) => ({ label: info.label ? info.label(c) : c, color: categoryColor(i, info.categories), n: summary.byCategory[i] ?? 0, i }))
+            // Nos hexágonos a contagem por categoria vem completa; o filtro do cartão decide o que aparece.
+            .filter((b) => b.n > 0 && (!filters[id] || filters[id]!.includes(b.i)))
             .sort((a, b) => b.n - a.n);
-          return [{ key: id, title: info.name, count: summary.count, mode: summary.mode, bars }];
+          return [{ key: id, title: info.name, count: summary.count, mode: summary.mode, bars, filtered: filters[id]?.length }];
         }),
       );
     compute();
     return map.onViewChange(compute);
-  }, [map, widgetsOpen, active, demoMeta, places, serverMetas, datasetInfos]);
+  }, [map, widgetsOpen, active, demoMeta, places, serverMetas, datasetInfos, filters]);
 
   const nearbySource: NearbySource | null =
-    places && datasetInfos[PLACES.id] ? { datasetId: PLACES.id, name: "Lugares", info: datasetInfos[PLACES.id]! } : null;
+    places && datasetInfos[PLACES.id] ? { datasetId: PLACES.id, name: "Lugares", info: datasetInfos[PLACES.id]!, categories: filters[PLACES.id] ?? null } : null;
 
 
   const openImport = useCallback((file: File) => setImportFile(file), []);
@@ -691,6 +722,8 @@ export function App() {
     return (
       <CategoryLegend
         items={info.categories.map((c, i) => ({ label: info.label ? info.label(c) : c, color: categoryColor(i, info.categories) }))}
+        selected={filters[id] ?? null}
+        onChange={(categories) => setCategoryFilter(id, categories)}
       />
     );
   };
@@ -768,7 +801,11 @@ export function App() {
           ]}
         >
           {r.type === "points" && r.colorBy ? (
-            <CategoryLegend items={r.colorBy.categories.map((c, i) => ({ label: c, color: r.colorBy!.colors[i] ?? r.color }))} />
+            <CategoryLegend
+              items={r.colorBy.categories.map((c, i) => ({ label: c, color: r.colorBy!.colors[i] ?? r.color }))}
+              selected={filters[d.id] ?? null}
+              onChange={(categories) => setCategoryFilter(d.id, categories)}
+            />
           ) : (
             <CategoryLegend items={[{ label: "Registros", color: r.type === "points" ? r.color : "#6b7485" }]} />
           )}

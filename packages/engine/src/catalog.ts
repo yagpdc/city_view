@@ -65,6 +65,8 @@ export type LayerData = GeoJSONSourceSpecification["data"];
 export class CatalogLayer {
   private visible = true;
   private extruded = false;
+  /** Índices de `render.colorBy.categories` visíveis; null = todas. */
+  private categories: number[] | null = null;
   private readonly sourceId: string;
 
   constructor(
@@ -90,6 +92,21 @@ export class CatalogLayer {
     });
     for (const layer of this.layers()) this.map.addLayer(layer, beforeId);
     this.applyVisibility();
+    this.applyCategoryFilter();
+  }
+
+  /** Mostra só algumas categorias (pontos com `colorBy`); null mostra todas. */
+  setCategoryFilter(categories: number[] | null): void {
+    this.categories = categories;
+    this.applyCategoryFilter();
+  }
+
+  private applyCategoryFilter(): void {
+    const render = this.manifest.render;
+    const id = `${this.sourceId}-points`;
+    if (render.type !== "points" || !render.colorBy || !this.map.getLayer(id)) return;
+    const values = this.categories?.map((i) => render.colorBy!.categories[i]).filter((v): v is string => v !== undefined);
+    this.map.setFilter(id, values ? ["in", ["to-string", ["get", render.colorBy.property]], ["literal", values]] : null);
   }
 
   detach(): void {
