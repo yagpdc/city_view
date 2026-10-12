@@ -85,6 +85,15 @@ export interface ItemOptions {
   variables: { id: string; name: string; unit: string }[];
   /** Recortes que dá para pôr no mapa, do mais detalhado ao menos. */
   mapLevels: MapLevel[];
+  /** Classificações (sexo, idade, atividade…); sem escolha = total. */
+  classifications?: Classification[];
+}
+
+export interface Classification {
+  id: string;
+  name: string;
+  /** `level` 0 = total; maior = mais detalhado (para indentar). */
+  categories: { id: string; name: string; level: number }[];
 }
 
 /** Escolhas do usuário; campos ausentes = padrão (mais recente, mais detalhado, todas). */
@@ -94,6 +103,8 @@ export interface ItemChoice {
   variable?: string;
   /** Recorte do mapa (padrão: o mais detalhado disponível). */
   mapLevel?: MapLevel;
+  /** Classificação → categoria escolhida; ausente = total. */
+  categories?: Record<string, string>;
 }
 
 /** O que cada fonte sabe fazer, direto do navegador para a fonte oficial. */

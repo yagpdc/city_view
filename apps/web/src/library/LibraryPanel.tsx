@@ -47,6 +47,8 @@ type OptionsState = { open: boolean; loading?: boolean; error?: string; options?
 
 /** Listas longas (ex.: 562 meses do IPCA) mostram só os mais recentes. */
 const MAX_PERIOD_OPTIONS = 240;
+/** Classificações como CNAE têm milhares de categorias; acima disso, use o site do SIDRA. */
+const MAX_CATEGORY_OPTIONS = 600;
 
 const years = (it: LibraryItem) =>
   !it.yearFrom && !it.yearTo ? "" : it.yearFrom && it.yearTo && it.yearFrom !== it.yearTo ? `${it.yearFrom}–${it.yearTo}` : `${it.yearTo ?? it.yearFrom}`;
@@ -395,6 +397,26 @@ function ItemOptionsPanel({
           </select>
         </label>
       )}
+      {o.classifications?.map((c) => (
+        <label key={c.id}>
+          {c.name}
+          <select
+            value={choice.categories?.[c.id] ?? ""}
+            onChange={(e) => onChoice({ categories: { ...choice.categories, [c.id]: e.target.value } })}
+          >
+            <option value="">Total</option>
+            {c.categories
+              .filter((x) => x.level > 0)
+              .slice(0, MAX_CATEGORY_OPTIONS)
+              .map((x) => (
+                <option key={x.id} value={x.id}>
+                  {"\u00a0\u00a0".repeat(Math.max(0, x.level - 1))}
+                  {x.name}
+                </option>
+              ))}
+          </select>
+        </label>
+      ))}
       {canMap && o.mapLevels.length > 1 && (
         <label>
           Recorte (mapa)

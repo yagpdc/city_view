@@ -61,7 +61,7 @@ interface LibraryAdapter {
 
 | Fonte | Adaptador | Download | Mapa | Observações |
 |---|---|---|---|---|
-| IBGE SIDRA | `sidra` | recorte mais detalhado + período mais recente | municípios (N6) ou estados (N3) | API aceita recorte/período na consulta |
+| IBGE SIDRA | `sidra` | recorte, período, variável e categorias (sexo, idade…) escolhidos | municípios (N6) ou estados (N3) | API aceita tudo isso na consulta (`/c{classificação}/{categoria}`); sem categoria = total |
 | Ipeadata | `ipeadata` | série completa | municípios ou estados | API devolve sempre a série inteira (pode ter dezenas de MB) |
 
 ## Próximas fontes (Brasil)

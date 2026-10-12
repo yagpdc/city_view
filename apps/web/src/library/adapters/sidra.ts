@@ -29,6 +29,18 @@ type Row = Record<string, string>;
 interface Metadata {
   nivelTerritorial?: { Administrativo?: string[] };
   variaveis?: { id: number; nome: string; unidade: string }[];
+  classificacoes?: { id: number; nome: string; categorias: { id: number; nome: string; nivel: number }[] }[];
+}
+
+/** Categorias escolhidas (fora o total) com seus nomes, na ordem da tabela. */
+function chosenCategories(meta: Metadata, categories: Record<string, string> = {}): { classId: string; id: string; name: string }[] {
+  const chosen = [];
+  for (const c of meta.classificacoes ?? []) {
+    const id = categories[String(c.id)];
+    const cat = id ? c.categorias.find((x) => String(x.id) === id) : undefined;
+    if (cat && cat.nivel > 0) chosen.push({ classId: String(c.id), id: String(cat.id), name: cat.nome });
+  }
+  return chosen;
 }
 
 const metaCache = new Map<string, Promise<Metadata>>();
@@ -45,8 +57,16 @@ function metadata(id: string): Promise<Metadata> {
   return pending;
 }
 
-async function values(id: string, level: string, period = "last", variable = "all"): Promise<{ labels: Row; rows: Row[] }> {
-  const url = VALUES.replace("{id}", id).replace("{level}", level.toLowerCase()).replace("{variable}", variable).replace("{period}", period);
+async function values(
+  id: string,
+  level: string,
+  period = "last",
+  variable = "all",
+  categories: { classId: string; id: string }[] = [],
+): Promise<{ labels: Row; rows: Row[] }> {
+  const url =
+    VALUES.replace("{id}", id).replace("{level}", level.toLowerCase()).replace("{variable}", variable).replace("{period}", period) +
+    categories.map((c) => `/c${c.classId}/${c.id}`).join("");
   const res = await fetch(url);
   const text = await res.text();
   let data: Row[];
@@ -80,29 +100,43 @@ export const sidraAdapter: LibraryAdapter = {
       levels: LEVELS.filter((l) => available.includes(l.code)),
       variables: (meta.variaveis ?? []).map((v) => ({ id: String(v.id), name: v.nome, unit: v.unidade })),
       mapLevels: mapLevelsOf(available),
+      classifications: (meta.classificacoes ?? []).map((c) => ({
+        id: String(c.id),
+        name: c.nome,
+        categories: c.categorias.map((x) => ({ id: String(x.id), name: x.nome, level: x.nivel })),
+      })),
     };
   },
 
   async download(item: LibraryItem, choice: ItemChoice = {}) {
-    const available = (await metadata(item.id)).nivelTerritorial?.Administrativo ?? [];
+    const meta = await metadata(item.id);
+    const available = meta.nivelTerritorial?.Administrativo ?? [];
+    const chosen = chosenCategories(meta, choice.categories);
     const level = LEVELS.find((l) => (choice.level ? l.code === choice.level : available.includes(l.code)));
     if (!level) throw new Error("esta tabela usa recortes territoriais especiais; baixe pelo site do SIDRA");
-    const { labels, rows } = await values(item.id, level.code, choice.period, choice.variable);
+    const { labels, rows } = await values(item.id, level.code, choice.period, choice.variable, chosen);
     const keys = Object.keys(labels);
     const period = periodOf(labels, rows);
-    const fileName = `sidra-${item.id}-${level.code.toLowerCase()}-${safeName(period)}.csv`;
+    const suffix = chosen.map((c) => `-${safeName(c.name)}`).join("");
+    const fileName = `sidra-${item.id}-${level.code.toLowerCase()}-${safeName(period)}${suffix}.csv`;
     saveCsv(
       fileName,
       keys.map((k) => labels[k] ?? k),
       rows.map((r) => keys.map((k) => (k === "V" ? brNumber(r[k]) : (r[k] ?? "")))),
     );
-    return { rows: rows.length, detail: `${level.name.toLowerCase()} · ${period}`, fileName };
+    const filter = chosen.map((c) => ` · ${c.name}`).join("");
+    return { rows: rows.length, detail: `${level.name.toLowerCase()} · ${period}${filter}`, fileName };
   },
 
   async mapData(item: LibraryItem, choice: ItemChoice = {}): Promise<MapData> {
-    const level = choice.mapLevel ?? mapLevelsOf((await metadata(item.id)).nivelTerritorial?.Administrativo ?? [])[0];
+    const meta = await metadata(item.id);
+    const level = choice.mapLevel ?? mapLevelsOf(meta.nivelTerritorial?.Administrativo ?? [])[0];
     if (!level) throw new Error("esta tabela não tem recorte por município nem por estado");
-    const { labels, rows } = await values(item.id, MAP[level].code, choice.period, choice.variable);
+    const chosen = chosenCategories(meta, choice.categories);
+    const { labels, rows } = await values(item.id, MAP[level].code, choice.period, choice.variable, chosen);
+    // A categoria entra no nome e no id da variável: vira outra camada (e outro registro salvo).
+    const filterName = chosen.map((c) => c.name).join(" · ");
+    const filterId = chosen.map((c) => `c${c.classId}_${c.id}`).join("-");
     const code = keyByLabel(labels, (l) => MAP[level].column.test(l));
     const varCode = keyByLabel(labels, (l) => /^Variável \(Código\)$/i.test(l));
     const varName = keyByLabel(labels, (l) => /^Variável$/i.test(l));
@@ -114,7 +148,16 @@ export const sidraAdapter: LibraryAdapter = {
       if (r.V === undefined || r.V === "" || !Number.isFinite(v)) continue; // "-", "...", "X" = sem valor/sigilo
       const id = r[varCode]!;
       let variable = byVariable.get(id);
-      if (!variable) byVariable.set(id, (variable = { id, name: r[varName] ?? id, unit: r.MN ?? "", values: new Map() }));
+      if (!variable) {
+        const name = r[varName] ?? id;
+        variable = {
+          id: filterId ? `${id}-${filterId}` : id,
+          name: filterName ? `${name} — ${filterName}` : name,
+          unit: r.MN ?? "",
+          values: new Map(),
+        };
+        byVariable.set(id, variable);
+      }
       // Com classificações, a API pode repetir o território; fica o primeiro (total).
       if (!variable.values.has(r[code]!)) variable.values.set(r[code]!, v);
     }
