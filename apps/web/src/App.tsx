@@ -6,6 +6,8 @@ import { DATAPACKS, OBJECTIVES, dataUrl, type Objective } from "./catalog";
 import { DioramaPanel, type AreaChoice } from "./components/DioramaPanel";
 import { Catalog } from "./components/Catalog";
 import { PickDetails, type DatasetInfo } from "./components/PickDetails";
+import { MapPopup, type NearbySource } from "./components/MapPopup";
+import { createPortal } from "react-dom";
 import { LibraryLayers } from "./components/LibraryLayers";
 import { LibraryPanel } from "./library/LibraryPanel";
 import { LIBRARY_SOURCES, LIBRARY_TOTAL } from "./library/load";
@@ -94,6 +96,8 @@ export function App() {
   const [pick, setPick] = useState<MapPick | null>(null);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [streetImageId, setStreetImageId] = useState<string | null>(null);
+  /** Elemento do cartão sobre o mapa (o conteúdo vem por portal React). */
+  const popupEl = useMemo(() => document.createElement("div"), []);
   const user = useUserDatasets();
   const server = useServerDatasets();
   const fileInput = useRef<HTMLInputElement>(null);
@@ -233,6 +237,18 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- só quando o clique muda
   }, [pick]);
 
+  // Cartão no mapa acompanha o clique; fechar o cartão limpa a seleção.
+  useEffect(() => {
+    if (!map) return;
+    if (pick) map.showPopup(pick.dataset?.lngLat ?? pick.lngLat, popupEl, () => setPick(null));
+    else map.hidePopup();
+  }, [map, pick, popupEl]);
+
+  const showPickDetails = () => {
+    setSidebarOpen(true);
+    window.setTimeout(() => document.getElementById("pick-details")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+  };
+
   const openStreetView = (imageId: string) => {
     setStreetImageId(imageId);
     setActive((prev) => new Set(prev).add(STREET_KEY));
@@ -309,17 +325,17 @@ export function App() {
         colorBy: places.meta.colorBy,
         title: places.meta.title,
         fieldLabels: {
-          categoria: "Categoria",
-          grupo: "Grupo",
-          marca: "Marca",
           endereco: "Endereço",
-          cidade: "Cidade",
-          uf: "UF",
-          cep: "CEP",
           telefone: "Telefone",
           site: "Site",
+          cidade: "Cidade",
+          categoria: "Categoria",
+          marca: "Marca",
+          uf: "UF",
+          cep: "CEP",
           email: "E-mail",
           redes: "Redes sociais",
+          grupo: "Grupo",
           origem: "Fonte do dado",
           atualizado: "Atualizado na fonte",
           confianca: "Confiança (0–1)",
@@ -339,6 +355,10 @@ export function App() {
     }
     return infos;
   }, [demoMeta, places, server.datasets, serverMetas]);
+
+  const nearbySource: NearbySource | null =
+    places && datasetInfos[PLACES.id] ? { datasetId: PLACES.id, name: "Lugares", info: datasetInfos[PLACES.id]! } : null;
+
 
   const openImport = useCallback((file: File) => setImportFile(file), []);
 
@@ -625,6 +645,7 @@ export function App() {
         </SidebarSection>
 
         <SidebarSection title="Neste ponto">
+          <div id="pick-details" />
           <PickDetails
             pick={pick}
             datasets={datasetInfos}
@@ -701,6 +722,20 @@ export function App() {
       <main className="map-area">
         <div ref={containerRef} className="map" />
         <DropZone onFile={openImport} />
+        {map &&
+          pick &&
+          createPortal(
+            <MapPopup
+              map={map}
+              pick={pick}
+              datasets={datasetInfos}
+              nearbySource={nearbySource}
+              onDetails={showPickDetails}
+              onStreetView={streetImageryEnabled ? openStreetView : undefined}
+              onAdvanced={(p) => void startAdvanced(p)}
+            />,
+            popupEl,
+          )}
         {streetImageId && (
           <StreetViewer imageId={streetImageId} onCamera={(c) => map?.setLocationMarker(c)} onClose={closeStreetView} />
         )}

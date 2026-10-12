@@ -36,7 +36,7 @@ function linkLabel(url: string): string {
 }
 
 /** Valor de uma coluna: links, e-mail e telefone clicáveis; datas ISO em dd/mm/aaaa. */
-function FieldValue({ value }: { value: string | number }) {
+export function FieldValue({ value }: { value: string | number }) {
   if (typeof value === "number") return <>{formatValue(value)}</>;
   const text = value.trim();
   if (!text) return <>–</>;
@@ -64,13 +64,13 @@ function FieldValue({ value }: { value: string | number }) {
 }
 
 /** Ordena pelas colunas com rótulo e troca o nome técnico pelo rótulo. */
-function labelled(entries: [string, string | number][], labels: Record<string, string> = {}) {
+export function labelled(entries: [string, string | number][], labels: Record<string, string> = {}) {
   const order = Object.keys(labels);
   const rank = (k: string) => (order.includes(k) ? order.indexOf(k) : order.length);
   return [...entries].sort((a, b) => rank(a[0]) - rank(b[0])).map(([k, v]) => ({ key: k, label: labels[k] ?? k, value: v }));
 }
 
-function formatField(field: DatapackField, value: unknown): string {
+export function formatField(field: DatapackField, value: unknown): string {
   if (value === undefined || value === null) return "–";
   if (field.format === "date" && typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
     const [y, m, d] = value.split("-");

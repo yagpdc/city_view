@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { areaBounds, circleArea, pointInArea, ringCentroid, worldMask, type AreaGeometry } from "./geo";
+import { areaBounds, circleArea, geodesicDistanceM, pointInArea, ringCentroid, worldMask, type AreaGeometry } from "./geo";
 
 const square: AreaGeometry = {
   type: "Polygon",
@@ -45,5 +45,14 @@ describe("geo", () => {
     const mask = worldMask(square);
     expect(mask.geometry.type).toBe("Polygon");
     expect(mask.geometry.coordinates).toHaveLength(2);
+  });
+});
+
+describe("geodesicDistanceM", () => {
+  it("bate com valores de referência no WGS84", () => {
+    // Um grau de latitude e um de longitude no equador (valores do elipsoide WGS84).
+    expect(geodesicDistanceM([0, 0], [0, 1])).toBeCloseTo(110574.4, 0);
+    expect(geodesicDistanceM([0, 0], [1, 0])).toBeCloseTo(111319.5, 0);
+    expect(geodesicDistanceM([-46.6333, -23.5505], [-46.6333, -23.5505])).toBe(0);
   });
 });

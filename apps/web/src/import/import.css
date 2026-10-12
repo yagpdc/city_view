@@ -436,3 +436,36 @@
   border-left: 12px solid transparent; border-right: 12px solid transparent; border-bottom: 22px solid rgba(255, 196, 0, .85);
 }
 .cv-location-marker.has-bearing .cv-location-cone { display: block; }
+
+/* Cartão sobre o mapa (popup do MapLibre com conteúdo React) */
+.cv-popup .maplibregl-popup-content {
+  padding: 12px 14px 10px;
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--fg);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+  max-height: min(70vh, 560px);
+  overflow-y: auto;
+  font-size: 13px;
+}
+.cv-popup .maplibregl-popup-close-button { font-size: 18px; padding: 2px 8px; color: var(--fg-muted); }
+.cv-popup.maplibregl-popup-anchor-bottom .maplibregl-popup-tip { border-top-color: var(--bg); }
+.cv-popup.maplibregl-popup-anchor-top .maplibregl-popup-tip { border-bottom-color: var(--bg); }
+.cv-popup.maplibregl-popup-anchor-left .maplibregl-popup-tip { border-right-color: var(--bg); }
+.cv-popup.maplibregl-popup-anchor-right .maplibregl-popup-tip { border-left-color: var(--bg); }
+.map-popup { width: 300px; max-width: 100%; }
+.map-popup h4 { margin: 0 20px 4px 0; font-size: 15px; line-height: 1.25; }
+.map-popup .pick-category { margin: 0 0 8px; }
+.map-popup dl { margin: 0 0 10px; display: grid; gap: 3px; }
+.map-popup dl div { display: grid; grid-template-columns: 76px 1fr; gap: 6px; }
+.map-popup dt { color: var(--fg-muted); font-size: 12px; }
+.map-popup dd { margin: 0; overflow-wrap: anywhere; }
+.map-popup .street-photo img { aspect-ratio: 2 / 1; }
+.map-popup-nearby { border-top: 1px solid var(--border); padding-top: 8px; margin-top: 4px; }
+.map-popup-nearby header { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 4px; }
+.map-popup-nearby .segmented button { font-size: 11px; padding: 2px 6px; }
+.map-popup-nearby p { margin: 0 0 6px; font-size: 12px; }
+.map-popup-nearest { margin: 6px 0 0; padding-left: 18px; font-size: 12px; display: grid; gap: 2px; }
+.map-popup-actions { display: flex; gap: 6px; margin-top: 10px; }
+.map-popup-actions .btn { flex: 1; }
+@media (max-width: 767px) { .map-popup { width: 250px; } }

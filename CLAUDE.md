@@ -30,7 +30,8 @@ Especialistas em `.claude/agents/`. Delegue ao agente quando o assunto for dele:
 ```
 
 - Barra superior: botão de opções/filtros à esquerda, busca ao lado.
-- Opções, filtros e camadas ficam na Sidebar, organizados em `SidebarSection`. Nada de painel flutuando sobre o mapa.
+- Opções, filtros e camadas ficam na Sidebar, organizados em `SidebarSection`.
+- Sobre o mapa, só o que é do lugar: o cartão do clique (`MapPopup`, com o que é, foto da rua e o que tem por perto), a maquete (`DioramaPanel`) e o visualizador de rua (`StreetViewer`). Detalhes completos continuam na Sidebar ("Neste ponto").
 - Em telas < 768px a Sidebar sobrepõe o mapa e começa fechada.
 - Cores e medidas vêm dos tokens CSS em `apps/web/src/styles.css` (tema claro/escuro).
 

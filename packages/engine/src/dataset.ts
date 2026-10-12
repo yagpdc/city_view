@@ -7,7 +7,8 @@ import type {
 } from "maplibre-gl";
 import type { PMTiles } from "pmtiles";
 import { loadAreaHexes, type HexFeature } from "./areaHexes";
-import type { AreaGeometry } from "./geo";
+import type { AreaGeometry, Position } from "./geo";
+import { loadNearby, type NearbySummary } from "./nearby";
 
 /** Metadados gravados pelo cityview-tiler (`cityview` no JSON do PMTiles, versão 2). */
 export interface DatasetMeta {
@@ -260,6 +261,17 @@ export class DatasetLayer {
     return { ...this.filter };
   }
 
+  /** Pontos do dataset num raio (metros, no elipsoide), lidos no zoom dos pontos. */
+  nearby(center: Position, radiusM: number): Promise<NearbySummary> {
+    return loadNearby(this.pmtiles, {
+      center,
+      radiusM,
+      zoom: this.meta.pointsZoom,
+      categoryProperty: this.meta.categoryProperty,
+      categories: this.meta.categories.length,
+    });
+  }
+
   pick(point: PointLike): DatasetPick | null {
     if (!this.visible) return null;
     // Antes do estilo carregar (ou durante a troca de tema) as camadas ainda não existem.
@@ -272,13 +284,15 @@ export class DatasetLayer {
     const lngLat: [number, number] = [at.lng, at.lat];
     if (feature.layer.id === this.pointsLayerId) {
       const { [this.meta.categoryProperty]: category, ...properties } = p;
+      // Registro: a posição é a do ponto, não a do clique.
+      const coords = feature.geometry.type === "Point" ? (feature.geometry.coordinates as [number, number]) : lngLat;
       return {
         kind: "record",
         datasetId: this.id,
         id: Number(feature.id),
         category: category === undefined ? null : Number(category),
         properties,
-        lngLat,
+        lngLat: [coords[0], coords[1]],
       };
     }
     const prefix = this.meta.categoryCountPrefix;

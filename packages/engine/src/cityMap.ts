@@ -5,6 +5,7 @@ import {
   Map as MapLibreMap,
   Marker,
   NavigationControl,
+  Popup,
   type SourceSpecification,
   ScaleControl,
   addProtocol,
@@ -17,7 +18,8 @@ import { CatalogLayer, type CatalogPick, type DatapackManifest, type LayerData }
 import { CATEGORY_COLORS, DatasetLayer, OTHER_COLOR, categoryColor, readDatasetMeta, type AreaSummary, type DatasetPick } from "./dataset";
 import type { HexFeature } from "./areaHexes";
 import { paintBuildings, type BuildingPaintResult, type BuildingRecord } from "./buildingPaint";
-import { areaBounds, worldMask, type AreaGeometry } from "./geo";
+import { areaBounds, circleArea, worldMask, type AreaGeometry } from "./geo";
+import type { NearbySummary } from "./nearby";
 import { BUILDINGS_3D_LAYER, BUILDINGS_SOURCE, BASEMAP_SOURCE, TERRAIN_SOURCE, buildStyle, type BasemapLook, type StyleOptions, type Theme } from "./style";
 
 export interface Camera {
@@ -80,6 +82,7 @@ export class CityMap {
   /** Camadas externas genéricas (ex.: cobertura de fotos de rua); voltam após troca de estilo. */
   private readonly overlays = new Map<string, MapOverlay>();
   private locationMarker: Marker | null = null;
+  private popup: Popup | null = null;
   /**
    * Estilo carregado (fontes e camadas podem ser adicionadas). Diferente de `isStyleLoaded()`
    * do MapLibre, que só fica verdadeiro quando todos os tiles terminaram de carregar.
@@ -639,6 +642,54 @@ export class CityMap {
    * Marcador de posição com direção (ex.: câmera da foto de rua). `bearing` em graus a partir do norte.
    * `null` remove.
    */
+  /** Resumo do que um dataset tem num raio (ex.: Lugares em 500 m de um registro). */
+  nearby(datasetId: string, center: [number, number], radiusM: number): Promise<NearbySummary> {
+    const dataset = this.datasets.find((d) => d.id === datasetId);
+    if (!dataset) return Promise.reject(new Error(`dataset desconhecido: ${datasetId}`));
+    return dataset.nearby(center, radiusM);
+  }
+
+  /** Desenha (ou apaga, com null) o círculo de um raio em metros. */
+  setRadius(radius: { center: [number, number]; radiusM: number } | null): void {
+    if (!radius) return this.removeOverlay("cv-radius");
+    const circle = circleArea(radius.center, radius.radiusM / 1000);
+    this.setOverlay({
+      id: "cv-radius",
+      source: { type: "geojson", data: { type: "Feature", properties: {}, geometry: circle } },
+      layers: [
+        { id: "cv-radius-fill", type: "fill", source: "cv-radius", paint: { "fill-color": "#ff7a00", "fill-opacity": 0.06 } },
+        {
+          id: "cv-radius-line",
+          type: "line",
+          source: "cv-radius",
+          paint: { "line-color": "#ff7a00", "line-width": 1.5, "line-dasharray": [2, 2] },
+        },
+      ],
+    });
+  }
+
+  /**
+   * Cartão sobre o mapa num ponto (conteúdo é um elemento do app, ex.: um portal React).
+   * `onClose` roda quando o usuário fecha o cartão. Chamar de novo move o cartão.
+   */
+  showPopup(lngLat: [number, number], content: HTMLElement, onClose?: () => void): void {
+    this.popup?.off("close", this.popupClose);
+    this.popupClose = () => onClose?.();
+    if (!this.popup) {
+      this.popup = new Popup({ closeButton: true, closeOnClick: false, maxWidth: "340px", offset: 12, className: "cv-popup" });
+    }
+    this.popup.setLngLat(lngLat).setDOMContent(content);
+    if (!this.popup.isOpen()) this.popup.addTo(this.map);
+    this.popup.on("close", this.popupClose);
+  }
+
+  hidePopup(): void {
+    this.popup?.off("close", this.popupClose);
+    this.popup?.remove();
+  }
+
+  private popupClose: () => void = () => {};
+
   setLocationMarker(location: { lngLat: [number, number]; bearing?: number } | null): void {
     if (!location) {
       this.locationMarker?.remove();

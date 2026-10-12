@@ -85,7 +85,8 @@ Ordem pensada por encanto/esforço (ver [PRODUCT.md](PRODUCT.md)).
 - [x] Tiler genérico: colunas numéricas/categóricas nos tiles, texto/datas pelo índice de linhas
 
 **2c. Primeira análise e colaboração**
-- [ ] "O que tem ao redor": clique/área → resumo cruzando todas as camadas
+- [x] Cartão no mapa ao clicar + "por perto" (Lugares em 200 m/500 m/1 km, por grupo e os mais próximos, distância geodésica)
+- [ ] "O que tem ao redor" em áreas desenhadas e cruzando todas as camadas
 - [x] Link compartilhável com câmera, camadas, camadas da biblioteca (refeitas na fonte) e aparência
 - [ ] Link: filtros do dataset, seleção e maquete (visualização avançada)
 - [ ] Widgets do viewport (contagem, categorias, histograma)
