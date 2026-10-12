@@ -36,14 +36,25 @@ if (-not $Rclone) {
 }
 
 # Chaves: digitadas agora, só na memória deste processo.
-Write-Host "Cole os dados do token do R2 (R2 > Manage API Tokens). Nada é gravado." -ForegroundColor Cyan
-$endpoint = (Read-Host "Endereço S3 (termina em .r2.cloudflarestorage.com)").Trim().TrimEnd("/")
+Write-Host "Dados do token do R2 (R2 > Manage API Tokens). Nada é gravado." -ForegroundColor Cyan
+Write-Host "Para cada campo: COPIE o valor na Cloudflare e aperte ENTER aqui (ou cole com o botão direito e aperte Enter)." -ForegroundColor Cyan
+# Se o terminal não deixa colar (Ctrl+V), Enter vazio usa o que está na área de transferência.
+function Ask([string] $label) {
+  $typed = Read-Host "$label  [copie e aperte Enter]"
+  $value = if ($typed.Trim()) { $typed } else { (Get-Clipboard -Raw) }
+  if (-not $value -or -not $value.Trim()) { throw "Nada copiado para '$label'." }
+  return $value.Trim()
+}
+$endpoint = (Ask "Endereço S3 (termina em .r2.cloudflarestorage.com)").TrimEnd("/")
 if ($endpoint -match '^cfat_') { throw "Isso é o 'Token value' (cfat_...). Use o endereço S3/Endpoint, que termina em .r2.cloudflarestorage.com. Por segurança, apague esse token e crie outro." }
 if ($endpoint -notmatch '^https?://') { $endpoint = "https://$endpoint" }
 if ($endpoint -notmatch '^https://[a-z0-9]+\.(eu\.|fedramp\.)?r2\.cloudflarestorage\.com$') { throw "Endereço S3 inválido: '$endpoint'. Deve ser algo como https://<id-da-conta>.r2.cloudflarestorage.com (em R2 > bucket > Settings > S3 API)." }
-$keyId = (Read-Host "Access Key ID").Trim()
-$secretSecure = Read-Host "Secret Access Key" -AsSecureString
-$secret = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($secretSecure))
+$keyId = Ask "Access Key ID (32 caracteres)"
+$secret = Ask "Secret Access Key (64 caracteres)"
+if ($keyId -notmatch '^[a-f0-9]{32}$') { throw "Access Key ID com formato inesperado (esperado: 32 letras/números). Confira se copiou o campo certo." }
+if ($secret -notmatch '^[a-f0-9]{64}$') { throw "Secret Access Key com formato inesperado (esperado: 64 letras/números). Confira se copiou o campo certo." }
+Set-Clipboard -Value " "   # limpa a área de transferência (o segredo não fica lá)
+Write-Host ("Chave {0}… recebida." -f $keyId.Substring(0, 4)) -ForegroundColor Green
 
 $env:RCLONE_CONFIG = Join-Path $Tools "rclone.conf"   # vazio; a configuração vem das variáveis abaixo
 $env:RCLONE_CACHE_DIR = Join-Path $Tools "cache"
