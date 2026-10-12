@@ -358,3 +358,19 @@
 .legend-scale { display: flex; height: 8px; margin: 4px 0 0 24px; border-radius: 4px; overflow: hidden; }
 .legend-scale span { flex: 1; }
 .legend-labels { display: flex; justify-content: space-between; margin: 2px 0 0 24px; font-size: 10px; color: var(--fg-muted); }
+
+.library-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: flex-end;
+  margin-top: 6px;
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--bg-subtle);
+  font-size: 12px !important;
+}
+.library-options label { display: flex; flex-direction: column; gap: 3px; color: var(--fg-muted); }
+.library-options select { min-width: 160px; max-width: 280px; padding: 5px 6px; font-size: 12px; }
+.library-options-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.library-options-actions .btn { font-size: 12px; }

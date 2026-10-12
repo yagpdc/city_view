@@ -1,5 +1,6 @@
 import type { DatapackManifest } from "@cityview/engine";
 import { dataUrl } from "../catalog";
+import type { SavedLibraryLayer } from "../storage/datasets";
 import type { LibraryItem, MunicipalData, MunicipalVariable } from "./types";
 
 /** Camada do mapa criada a partir de um item da biblioteca. */
@@ -15,6 +16,8 @@ export interface LibraryLayer {
   /** Quebras e cores da legenda. */
   breaks: number[];
   colors: string[];
+  /** O que vai para o armazenamento do navegador. */
+  saved: SavedLibraryLayer;
 }
 
 const COLORS = ["#f1eef6", "#d0d1e6", "#a6bddb", "#74a9cf", "#3690c0", "#0570b0", "#034e7b"];
@@ -65,8 +68,8 @@ export async function buildMunicipalLayer(item: LibraryItem, data: MunicipalData
   const colors = COLORS.slice(0, breaks.length + 1);
   const label = variable.name === data.title ? data.title : `${variable.name}`;
   const manifest: DatapackManifest = {
-    id: `lib-${item.source.id}-${item.id}-${variable.id}`.replace(/[^\w-]/g, "_"),
-    name: label,
+    id: `lib-${item.source.id}-${item.id}-${variable.id}-${data.period}`.replace(/[^\w-]/g, "_"),
+    name: `${label} · ${data.period}`,
     description: `${data.title} · ${data.period}`,
     category: "Biblioteca",
     geometry: "polygon",
@@ -82,6 +85,16 @@ export async function buildMunicipalLayer(item: LibraryItem, data: MunicipalData
     ],
   };
   return {
+    saved: {
+      id: manifest.id,
+      savedAt: Date.now(),
+      source: item.source,
+      item: { id: item.id, title: item.title, url: item.url, group: item.group, subject: item.subject },
+      title: data.title,
+      period: data.period,
+      variable: { id: variable.id, name: variable.name, unit: variable.unit },
+      values: [...variable.values],
+    },
     manifest,
     data: { type: "FeatureCollection", features: joined },
     item: { sourceName: item.source.name, title: item.title, url: item.url },
@@ -93,4 +106,24 @@ export async function buildMunicipalLayer(item: LibraryItem, data: MunicipalData
     breaks,
     colors,
   };
+}
+
+/** Remonta uma camada salva (valores + malha municipal). */
+export function restoreMunicipalLayer(saved: SavedLibraryLayer): Promise<LibraryLayer> {
+  const item: LibraryItem = {
+    source: saved.source,
+    id: saved.item.id,
+    title: saved.item.title,
+    group: saved.item.group,
+    subject: saved.item.subject,
+    yearFrom: null,
+    yearTo: null,
+    flags: 0,
+    url: saved.item.url,
+  };
+  const variable = { ...saved.variable, values: new Map(saved.values) };
+  return buildMunicipalLayer(item, { title: saved.title, period: saved.period, variables: [variable] }, variable).then((layer) => ({
+    ...layer,
+    saved: { ...layer.saved, savedAt: saved.savedAt },
+  }));
 }

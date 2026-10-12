@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ADAPTERS } from "./adapters";
 import { LIBRARY_SOURCES, loadAllSources } from "./load";
 import { buildMunicipalLayer, type LibraryLayer } from "./mapLayer";
-import { FLAG, decodeItem, type LibraryItem, type LibrarySourceIndex, type MunicipalData } from "./types";
+import { FLAG, decodeItem, type ItemChoice, type ItemOptions, type LibraryItem, type LibrarySourceIndex, type MunicipalData } from "./types";
 
 const MAX_RESULTS = 200;
 const int = new Intl.NumberFormat("pt-BR");
@@ -42,6 +42,12 @@ interface Entry {
 
 type ActionState = { busy?: "download" | "map"; ok?: string; error?: string; choose?: MunicipalData };
 
+/** Painel "Opções" de um item: opções carregadas da fonte e escolhas do usuário. */
+type OptionsState = { open: boolean; loading?: boolean; error?: string; options?: ItemOptions; choice: ItemChoice };
+
+/** Listas longas (ex.: 562 meses do IPCA) mostram só os mais recentes. */
+const MAX_PERIOD_OPTIONS = 240;
+
 const years = (it: LibraryItem) =>
   !it.yearFrom && !it.yearTo ? "" : it.yearFrom && it.yearTo && it.yearFrom !== it.yearTo ? `${it.yearFrom}–${it.yearTo}` : `${it.yearTo ?? it.yearFrom}`;
 
@@ -52,6 +58,7 @@ export function LibraryPanel({ onClose, onAddLayer }: { onClose: () => void; onA
   const [group, setGroup] = useState("");
   const [municipalOnly, setMunicipalOnly] = useState(false);
   const [actions, setActions] = useState<Record<string, ActionState>>({});
+  const [itemOptions, setItemOptions] = useState<Record<string, OptionsState>>({});
   const input = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -108,24 +115,46 @@ export function LibraryPanel({ onClose, onAddLayer }: { onClose: () => void; onA
   const key = (it: LibraryItem) => `${it.source.id}:${it.id}`;
   const setAction = (it: LibraryItem, state: ActionState) => setActions((a) => ({ ...a, [key(it)]: state }));
 
-  const download = async (it: LibraryItem) => {
+  const toggleOptions = async (it: LibraryItem) => {
+    const k = key(it);
+    const current = itemOptions[k];
+    if (current?.open) return setItemOptions((o) => ({ ...o, [k]: { ...current, open: false } }));
+    setItemOptions((o) => ({ ...o, [k]: { open: true, loading: !current?.options, choice: current?.choice ?? {}, options: current?.options } }));
+    if (current?.options) return;
+    const adapter = ADAPTERS[it.source.adapter];
+    try {
+      const options = await adapter!.options!(it);
+      setItemOptions((o) => ({ ...o, [k]: { ...o[k]!, loading: false, options } }));
+    } catch (e) {
+      setItemOptions((o) => ({ ...o, [k]: { ...o[k]!, loading: false, error: (e as Error).message } }));
+    }
+  };
+
+  const setChoice = (it: LibraryItem, patch: ItemChoice) =>
+    setItemOptions((o) => {
+      const cur = o[key(it)]!;
+      return { ...o, [key(it)]: { ...cur, choice: { ...cur.choice, ...patch } } };
+    });
+
+  const download = async (it: LibraryItem, choice?: ItemChoice) => {
     const adapter = ADAPTERS[it.source.adapter];
     if (!adapter) return;
     setAction(it, { busy: "download" });
     try {
-      const r = await adapter.download(it);
+      const r = await adapter.download(it, choice);
       setAction(it, { ok: `Baixado: ${int.format(r.rows)} linhas · ${r.detail}` });
     } catch (e) {
       setAction(it, { error: `Não deu para baixar direto: ${(e as Error).message}` });
     }
   };
 
-  const showOnMap = async (it: LibraryItem, data?: MunicipalData, variableId?: string) => {
+  const showOnMap = async (it: LibraryItem, data?: MunicipalData, variableId?: string, choice?: ItemChoice) => {
     const adapter = ADAPTERS[it.source.adapter];
     if (!adapter?.municipal) return;
     setAction(it, { busy: "map" });
     try {
-      const d = data ?? (await adapter.municipal(it));
+      const d = data ?? (await adapter.municipal(it, choice));
+      variableId ??= choice?.variable;
       if (d.variables.length > 1 && !variableId) return setAction(it, { choose: d });
       const variable = d.variables.find((v) => v.id === variableId) ?? d.variables[0]!;
       onAddLayer(await buildMunicipalLayer(it, d, variable));
@@ -241,6 +270,17 @@ export function LibraryPanel({ onClose, onAddLayer }: { onClose: () => void; onA
                         ))}
                       </span>
                     )}
+                    {itemOptions[key(it)]?.open && (
+                      <ItemOptionsPanel
+                        state={itemOptions[key(it)]!}
+                        busy={Boolean(state.busy)}
+                        canMap={canMap}
+                        canDownload={Boolean(it.flags & FLAG.DOWNLOAD)}
+                        onChoice={(patch) => setChoice(it, patch)}
+                        onDownload={(choice) => void download(it, choice)}
+                        onMap={(choice) => void showOnMap(it, undefined, undefined, choice)}
+                      />
+                    )}
                     {state.ok && <span className="refs-ok">{state.ok}</span>}
                     {state.error && <span className="refs-error">{state.error}</span>}
                   </div>
@@ -255,6 +295,17 @@ export function LibraryPanel({ onClose, onAddLayer }: { onClose: () => void; onA
                         {state.busy === "download" ? "Baixando…" : "Baixar CSV"}
                       </button>
                     ) : null}
+                    {adapter?.options && (
+                      <button
+                        type="button"
+                        className="btn"
+                        aria-expanded={Boolean(itemOptions[key(it)]?.open)}
+                        onClick={() => void toggleOptions(it)}
+                        title="Escolher período, recorte e variável"
+                      >
+                        Opções {itemOptions[key(it)]?.open ? "▴" : "▾"}
+                      </button>
+                    )}
                     {it.url && (
                       <a className="btn" href={it.url} target="_blank" rel="noreferrer" title="Abrir na fonte oficial">
                         Fonte ↗
@@ -278,5 +329,85 @@ export function LibraryPanel({ onClose, onAddLayer }: { onClose: () => void; onA
         </footer>
       </div>
     </div>
+  );
+}
+
+function ItemOptionsPanel({
+  state,
+  busy,
+  canMap,
+  canDownload,
+  onChoice,
+  onDownload,
+  onMap,
+}: {
+  state: OptionsState;
+  busy: boolean;
+  canMap: boolean;
+  canDownload: boolean;
+  onChoice: (patch: ItemChoice) => void;
+  onDownload: (choice: ItemChoice) => void;
+  onMap: (choice: ItemChoice) => void;
+}) {
+  if (state.loading) return <span className="library-options muted">Carregando opções da fonte…</span>;
+  if (state.error) return <span className="library-options refs-error">Não deu para carregar as opções: {state.error}</span>;
+  const o = state.options;
+  if (!o) return null;
+  const { choice } = state;
+  const periods = o.periods.slice(0, MAX_PERIOD_OPTIONS);
+  return (
+    <span className="library-options">
+      <label>
+        Período
+        <select value={choice.period ?? ""} onChange={(e) => onChoice({ period: e.target.value || undefined })}>
+          <option value="">Mais recente{o.periods[0] ? ` (${o.periods[0].label})` : ""}</option>
+          {periods.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      {o.levels.length > 0 && (
+        <label>
+          Recorte (download)
+          <select value={choice.level ?? ""} onChange={(e) => onChoice({ level: e.target.value || undefined })}>
+            <option value="">Mais detalhado ({o.levels[0]!.name})</option>
+            {o.levels.map((l) => (
+              <option key={l.code} value={l.code}>
+                {l.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {o.variables.length > 1 && (
+        <label>
+          Variável
+          <select value={choice.variable ?? ""} onChange={(e) => onChoice({ variable: e.target.value || undefined })}>
+            <option value="">Todas (no mapa, você escolhe uma)</option>
+            {o.variables.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.name}
+                {v.unit ? ` (${v.unit})` : ""}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      <span className="library-options-actions">
+        {canDownload && (
+          <button type="button" className="btn" disabled={busy} onClick={() => onDownload(choice)}>
+            Baixar com essas opções
+          </button>
+        )}
+        {canMap && o.municipal && (
+          <button type="button" className="btn btn-primary" disabled={busy} onClick={() => onMap(choice)}>
+            Ver no mapa
+          </button>
+        )}
+        {!o.municipal && <span className="muted">Sem recorte por município: só download.</span>}
+      </span>
+    </span>
   );
 }

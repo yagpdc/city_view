@@ -23,4 +23,11 @@ export function saveCsv(fileName: string, header: string[], rows: (string | numb
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
-export const safeName = (s: string) => s.replace(/[^\w-]+/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "");
+/** Nome de arquivo seguro: tira acentos ("Municípios" → "Municipios") e troca o resto por "_". */
+export const safeName = (s: string) =>
+  s
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^\w-]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_|_$/g, "");

@@ -69,11 +69,28 @@ export interface MunicipalData {
   variables: MunicipalVariable[];
 }
 
+/** Opções de um item: períodos (mais recente primeiro), recortes e variáveis. */
+export interface ItemOptions {
+  periods: { id: string; label: string }[];
+  levels: { code: string; name: string }[];
+  variables: { id: string; name: string; unit: string }[];
+  /** Há recorte municipal (dá para pôr no mapa). */
+  municipal: boolean;
+}
+
+/** Escolhas do usuário; campos ausentes = padrão (mais recente, mais detalhado, todas). */
+export interface ItemChoice {
+  period?: string;
+  level?: string;
+  variable?: string;
+}
+
 /** O que cada fonte sabe fazer, direto do navegador para a fonte oficial. */
 export interface LibraryAdapter {
-  download(item: LibraryItem): Promise<DownloadResult>;
-  /** Valores por município do período mais recente (para o mapa). */
-  municipal?(item: LibraryItem): Promise<MunicipalData>;
+  options?(item: LibraryItem): Promise<ItemOptions>;
+  download(item: LibraryItem, choice?: ItemChoice): Promise<DownloadResult>;
+  /** Valores por município (período escolhido ou o mais recente), para o mapa. */
+  municipal?(item: LibraryItem, choice?: ItemChoice): Promise<MunicipalData>;
 }
 
 export function decodeItem(index: LibrarySourceIndex, raw: RawItem): LibraryItem {

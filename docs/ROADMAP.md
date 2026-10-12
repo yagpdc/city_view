@@ -62,7 +62,8 @@ Ordem pensada por encanto/esforço (ver [PRODUCT.md](PRODUCT.md)).
   - busca sem acento, sinônimos, anos, relevância; filtros por fonte, grupo e "por município"
   - "Baixar CSV" direto da fonte (Excel BR) e "Ver no mapa": valores por município cruzados com a malha IBGE, legenda por quantis
 - [ ] Próximas fontes: INPE, DATASUS, INEP, ANATEL, ANP, TSE, Banco Central (SGS), dados.gov.br, MapBiomas; depois internacionais
-- [ ] Escolher período/recorte/classificação antes de baixar ou mapear; salvar camadas da biblioteca
+- [x] Opções por item (período, recorte, variável) antes de baixar ou mapear; camadas da biblioteca salvas no navegador
+- [ ] Classificações do SIDRA (ex.: sexo, idade) e mapas de UF/região além de município
 - [x] Clique cruzando camadas: dado do cliente + todas as camadas do catálogo no mesmo ponto
 - [ ] Atualização automática das camadas vivas (hoje: rodar `pnpm datapacks`)
 

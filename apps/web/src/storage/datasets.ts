@@ -16,8 +16,9 @@ export interface StoredDataset {
 }
 
 const DB_NAME = "cityview";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE = "datasets";
+const LIBRARY_STORE = "library-layers";
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -27,6 +28,7 @@ function openDb(): Promise<IDBDatabase> {
     req.onupgradeneeded = () => {
       const db = req.result;
       if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: "id" });
+      if (!db.objectStoreNames.contains(LIBRARY_STORE)) db.createObjectStore(LIBRARY_STORE, { keyPath: "id" });
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => {
@@ -37,12 +39,12 @@ function openDb(): Promise<IDBDatabase> {
   return dbPromise;
 }
 
-function run<T>(mode: IDBTransactionMode, fn: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
+function run<T>(mode: IDBTransactionMode, fn: (store: IDBObjectStore) => IDBRequest<T>, storeName = STORE): Promise<T> {
   return openDb().then(
     (db) =>
       new Promise<T>((resolve, reject) => {
-        const tx = db.transaction(STORE, mode);
-        const req = fn(tx.objectStore(STORE));
+        const tx = db.transaction(storeName, mode);
+        const req = fn(tx.objectStore(storeName));
         tx.oncomplete = () => resolve(req.result);
         tx.onerror = () => reject(tx.error ?? req.error);
         tx.onabort = () => reject(tx.error ?? new Error("Gravação cancelada (espaço insuficiente?)."));
@@ -68,6 +70,34 @@ export async function updateManifest(id: string, update: (m: DatapackManifest) =
 
 export async function deleteDataset(id: string): Promise<void> {
   await run("readwrite", (s) => s.delete(id));
+}
+
+// ---------- Camadas da biblioteca ----------
+
+/** Só o necessário para remontar a camada: valores por município (a geometria vem da malha). */
+export interface SavedLibraryLayer {
+  id: string;
+  savedAt: number;
+  source: import("../library/types").LibrarySourceMeta;
+  item: { id: string; title: string; url: string | null; group: string; subject: string };
+  title: string;
+  period: string;
+  variable: { id: string; name: string; unit: string };
+  values: [string, number][];
+}
+
+export const listLibraryLayers = () =>
+  run<SavedLibraryLayer[]>("readonly", (s) => s.getAll() as IDBRequest<SavedLibraryLayer[]>, LIBRARY_STORE).then((all) =>
+    all.sort((a, b) => a.savedAt - b.savedAt),
+  );
+
+export async function saveLibraryLayer(layer: SavedLibraryLayer): Promise<void> {
+  await run("readwrite", (s) => s.put(layer), LIBRARY_STORE);
+  void navigator.storage?.persist?.();
+}
+
+export async function deleteLibraryLayer(id: string): Promise<void> {
+  await run("readwrite", (s) => s.delete(id), LIBRARY_STORE);
 }
 
 export interface StorageUsage {

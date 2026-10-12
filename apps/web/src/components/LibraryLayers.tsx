@@ -22,7 +22,9 @@ export function LibraryLayers({
         <div key={l.manifest.id} className="user-dataset">
           <label className="toggle">
             <input type="checkbox" checked={active.has(l.manifest.id)} onChange={(e) => onToggle(l.manifest.id, e.target.checked)} />
-            <span>{l.variable}</span>
+            <span>
+              {l.variable} · {l.period}
+            </span>
           </label>
           <div className="user-dataset-actions">
             <button type="button" className="link danger" onClick={() => onRemove(l.manifest.id)}>
@@ -30,7 +32,7 @@ export function LibraryLayers({
             </button>
           </div>
           <p className="catalog-meta">
-            {l.item.sourceName} · {l.period} · {new Intl.NumberFormat("pt-BR").format(l.matched)} municípios
+            {l.item.sourceName} · {new Intl.NumberFormat("pt-BR").format(l.matched)} municípios · salvo neste navegador
             {l.missing > 0 ? ` (${l.missing} sem par na malha)` : ""}
           </p>
           <div className="legend-scale" aria-label="Legenda">

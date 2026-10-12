@@ -8,7 +8,7 @@ import { PickDetails, type DatasetInfo } from "./components/PickDetails";
 import { LibraryLayers } from "./components/LibraryLayers";
 import { LibraryPanel } from "./library/LibraryPanel";
 import { LIBRARY_SOURCES, LIBRARY_TOTAL } from "./library/load";
-import type { LibraryLayer } from "./library/mapLayer";
+import { restoreMunicipalLayer, type LibraryLayer } from "./library/mapLayer";
 import { ServerDatasets } from "./components/ServerDatasets";
 import { Sidebar, SidebarSection } from "./components/Sidebar";
 import { TopBar } from "./components/TopBar";
@@ -18,7 +18,7 @@ import "./import/import.css";
 import { ImportWizard, type ImportedDataset } from "./import/ImportWizard";
 import { serverApi, type ImportSpec, type ServerDataset } from "./server/api";
 import { useServerDatasets } from "./server/useServerDatasets";
-import { loadActiveLayers, saveActiveLayers } from "./storage/datasets";
+import { deleteLibraryLayer, listLibraryLayers, loadActiveLayers, saveActiveLayers, saveLibraryLayer } from "./storage/datasets";
 import { useUserDatasets, type UserDataset } from "./storage/useUserDatasets";
 import { useCityMap } from "./useCityMap";
 
@@ -152,8 +152,23 @@ export function App() {
     }
   }, [map, active, demoMeta, serverMetas, user.datasets, libraryLayers]);
 
+  // Camadas da biblioteca salvas neste navegador: remonta com a malha ao abrir.
+  useEffect(() => {
+    let cancelled = false;
+    void listLibraryLayers()
+      .then((saved) => Promise.all(saved.map((s) => restoreMunicipalLayer(s).catch(() => null))))
+      .then((layers) => {
+        if (!cancelled) setLibraryLayers(layers.filter((l): l is LibraryLayer => l !== null));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const addLibraryLayer = (layer: LibraryLayer) => {
-    // A mesma variável de novo substitui a anterior (ex.: outro período).
+    void saveLibraryLayer(layer.saved);
+    // A mesma variável e período de novo substitui a anterior.
     map?.removeCatalogLayer(layer.manifest.id);
     setLibraryLayers((list) => [...list.filter((l) => l.manifest.id !== layer.manifest.id), layer]);
     setActive((prev) => new Set(prev).add(layer.manifest.id));
@@ -163,6 +178,7 @@ export function App() {
   };
 
   const removeLibraryLayer = (id: string) => {
+    void deleteLibraryLayer(id);
     map?.removeCatalogLayer(id);
     setLibraryLayers((list) => list.filter((l) => l.manifest.id !== id));
     setActive((prev) => without(prev, id));
