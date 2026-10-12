@@ -93,7 +93,7 @@ export function MapPopup({
           {expanded ? "Menos informações" : "Mais informações"}
           <Icon name={expanded ? "chevronUp" : "chevronDown"} size={16} />
         </button>
-        {pick.dataset && onAdvanced && (
+        {onAdvanced && (
           <button type="button" className="btn" onClick={() => onAdvanced(pick)} title="Maquete 3D da área">
             Maquete 3D
           </button>

@@ -142,7 +142,7 @@ export function PickDetails({
       </p>
       <StreetPhoto lngLat={pick.lngLat} onOpen={onStreetView} />
       {empty && <p className="muted">Nenhuma camada ligada tem dados aqui.</p>}
-      {pick.dataset && onAdvanced && (
+      {onAdvanced && (
         <button type="button" className="btn btn-primary btn-block advanced" onClick={() => onAdvanced(pick)}>
           Visualização avançada desta área
         </button>

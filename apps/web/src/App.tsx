@@ -10,6 +10,7 @@ import { placeIcon, placeIconSvgs } from "./placeIcons";
 import { Icon } from "./components/Icon";
 import { AddRow, DatapackMeta } from "./components/AddRow";
 import { MeasurePanel } from "./components/MeasurePanel";
+import { MaqueteView } from "./components/MaqueteView";
 import type { DatasetFilter, MeasureMode, MeasureState, Where } from "@cityview/engine";
 import type { Comparison } from "./compare";
 import { DATAPACKS, dataUrl } from "./catalog";
@@ -135,6 +136,8 @@ export function App() {
   const [widgets, setWidgets] = useState<ViewportWidget[]>([]);
   const [perspective, setPerspective] = useState<"2d" | "3d">("2d");
   const [measuring, setMeasuring] = useState(false);
+  /** Maquete holográfica aberta (cobre o mapa). */
+  const [maquete, setMaquete] = useState<{ center: [number, number]; title?: string; datasetIds: string[] } | null>(null);
   const [measureMode, setMeasureMode] = useState<MeasureMode>("distance");
   const [measureState, setMeasureState] = useState<MeasureState | null>(null);
   const [theme, setTheme] = useState<Theme>(SHARED?.theme ?? "light");
@@ -636,10 +639,22 @@ export function App() {
   /** A pessoa mexeu no mapa: a câmera para de girar e o controle desmarca. */
   const orbitStopped = () => setDiorama((d) => (d ? { ...d, orbiting: false } : d));
 
+  /** Maquete do ponto clicado, com os pontos das camadas de dados ligadas. */
   const startAdvanced = async (p: MapPick) => {
-    if (!p.dataset) return;
-    const area = await areaAt(p.lngLat);
-    void openDiorama(p.dataset.datasetId, p.lngLat, area, area.kind === "municipio" ? "municipio" : 5);
+    if (measuring) stopMeasure();
+    const record = p.dataset?.kind === "record" ? p.dataset : null;
+    const info = record ? datasetInfos[record.datasetId] : undefined;
+    const title = record && info?.title ? String(record.properties[info.title] ?? "") || undefined : undefined;
+    const datasetIds = [
+      demoMeta && active.has(DATASET_KEY) ? CLIENT_DATASET.id : null,
+      places && active.has(PLACES_KEY) ? PLACES.id : null,
+      ...Object.keys(serverMetas).filter((id) => active.has(id)),
+    ].filter((id): id is string => Boolean(id));
+    setPick(null);
+    // Imersiva: a maquete ganha a área toda do mapa.
+    setPanel(null);
+    setWidgetsOpen(false);
+    setMaquete({ center: p.dataset?.lngLat ?? p.lngLat, title, datasetIds });
   };
 
   const changeDioramaArea = async (choice: AreaChoice) => {
@@ -1236,6 +1251,9 @@ export function App() {
               />,
               popupEl,
             )}
+          {maquete && map && (
+            <MaqueteView map={map} center={maquete.center} title={maquete.title} datasetIds={maquete.datasetIds} onClose={() => setMaquete(null)} />
+          )}
           {measuring && (
             <MeasurePanel
               state={measureState}

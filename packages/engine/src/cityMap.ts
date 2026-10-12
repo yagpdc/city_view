@@ -21,6 +21,7 @@ import { paintBuildings, type BuildingPaintResult, type BuildingRecord } from ".
 import { areaBounds, circleArea, worldMask, type AreaGeometry } from "./geo";
 import type { NearbySummary, SearchHit } from "./nearby";
 import { lineLengthM, polygonMeasure } from "./measure";
+import { loadMaqueteData, type MaqueteData, type MaqueteInputPoint } from "./maquete/extract";
 
 export type MeasureMode = "distance" | "area";
 
@@ -306,6 +307,30 @@ export class CityMap {
   /** Contorno completo de uma feição do catálogo (ex.: município clicado). */
   getCatalogGeometry(id: string, featureId: string | number): Promise<AreaGeometry | null> {
     return this.catalog.get(id)?.getGeometry(featureId) ?? Promise.resolve(null);
+  }
+
+  // ---------- Maquete holográfica ----------
+
+  private maqueteTiles: PMTiles | null = null;
+
+  /**
+   * Dados da maquete de um ponto: prédios, ruas, água e verde num raio (do mapa base detalhado) e,
+   * se `datasetIds` vier, os pontos desses datasets na área (acendem prédios e viram feixes).
+   */
+  async maqueteData(center: [number, number], radiusM: number, datasetIds: string[] = []): Promise<MaqueteData> {
+    this.maqueteTiles ??= new PMTiles(this.styleOptions.buildingsUrl ?? this.styleOptions.basemapUrl);
+    const points: MaqueteInputPoint[] = [];
+    for (const id of datasetIds) {
+      const dataset = this.datasets.find((d) => d.id === id);
+      if (!dataset) continue;
+      const near = await dataset.nearby(center, radiusM).catch(() => null);
+      const title = dataset.meta.title ?? undefined;
+      for (const p of near?.points ?? []) {
+        const color = p.category !== null && p.category < dataset.meta.categories.length ? categoryColor(p.category, dataset.meta.categories) : OTHER_COLOR;
+        points.push({ lngLat: p.lngLat, color, ...(title && p.properties[title] ? { title: String(p.properties[title]) } : {}) });
+      }
+    }
+    return loadMaqueteData(this.maqueteTiles, { center, radiusM, points });
   }
 
   // ---------- Prédios dos seus dados ----------

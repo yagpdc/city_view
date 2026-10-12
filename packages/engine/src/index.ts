@@ -27,6 +27,8 @@ export {
   type WhereClause,
 } from "./dataset";
 export { cleanWhere, matchesWhere, whereExpressions, type Where } from "./filter";
+export { MAQUETE_VIEWS, MaqueteScene, type MaqueteView } from "./maquete/scene";
+export type { MaqueteData } from "./maquete/extract";
 export { pickZoom, type HexFeature } from "./areaHexes";
 export { type BuildingPaintResult, type BuildingRecord } from "./buildingPaint";
 export { areaBounds, circleArea, pointInArea, type AreaGeometry, type Bounds } from "./geo";
