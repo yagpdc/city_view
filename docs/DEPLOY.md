@@ -1,21 +1,22 @@
 # Pôr o City View no ar
 
-Uma VM Linux só (Ubuntu 24.04, ARM ou x86) roda tudo: site, demo do SDK, API em Rust e os tiles.
-Decisão e alternativas: [ADR 0001](adr/0001-hospedagem-vm-unica.md).
+Uma VM Linux só (Ubuntu 24.04, ARM ou x86) entrega o site, a demo do SDK e os tiles públicos.
+**Dados do usuário não vão para o servidor**: são processados no navegador ([ADR 0002](adr/0002-dados-do-usuario-so-no-navegador.md)),
+então em produção não há API. Hospedagem: [ADR 0001](adr/0001-hospedagem-vm-unica.md).
 
 ```
 navegador ──HTTPS──▶ Caddy (:443, certificado automático)
                       ├─ /            site (apps/web/dist)
                       ├─ /demo/       demo do SDK
                       ├─ /data/*      tiles e dados públicos (/opt/cityview/data, com Range)
-                      └─ /api/*  ──▶  cityview-api (:8787, systemd) → /opt/cityview/workspace
+                      └─ /api/*       404 (só com --with-api: cityview-api, uso interno)
 ```
 
 ## Máquina
 
 Oracle Cloud Always Free: `VM.Standard.A1.Flex`, 2 OCPU, 12 GB, Ubuntu 24.04, disco de 150 GB,
 região São Paulo ou Vinhedo. Passo a passo da conta e da VM: veja "Oracle, do zero" abaixo.
-Qualquer VPS com 2 GB+ de memória e 20 GB+ de disco também serve (a compilação do Rust é a parte pesada).
+Qualquer VPS com 1 GB+ de memória e 20 GB+ de disco também serve (sem a API, nem compila Rust).
 
 Na rede do provedor, libere TCP 80 e 443 de `0.0.0.0/0` (na Oracle: Subnet → Security List → Ingress Rules).
 
@@ -30,8 +31,8 @@ curl -fsSL https://raw.githubusercontent.com/yagpdc/city_view/main/deploy/instal
 - Sem `--site`, o endereço é `https://<ip-com-traços>.sslip.io` (HTTPS grátis, sem comprar domínio).
   Com domínio próprio: aponte um registro A para o IP da VM e use `--site meudominio.com.br`.
 - `--mapillary`: o token **de cliente** (o mesmo de `apps/web/.env.local`). Nunca o client secret.
-- No fim, o script pede uma senha: é a que o site pede para enviar, renomear ou apagar datasets no servidor.
-  Ver o mapa é público.
+- `--with-api` (uso interno, não para dados de usuários): instala também a API de ingestão; o script pede
+  a senha exigida para enviar, renomear ou apagar datasets. Ver o mapa é sempre público.
 
 ## Enviar os dados
 
@@ -42,7 +43,7 @@ Os tiles não estão no git. Do Windows, na raiz do repositório:
 ```
 
 Envia base do mapa, fontes, datapacks, Estabelecimentos e o exemplo (~2,5 GB). `-Only places` manda só
-uma parte; `-Workspace` inclui os datasets que você processou no servidor local.
+uma parte; `-Workspace` (só com `--with-api`) inclui os datasets processados no servidor local.
 
 ## Atualizar
 

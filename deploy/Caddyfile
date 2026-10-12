@@ -2,6 +2,7 @@
 __SITE__ {
 	encode zstd gzip
 
+	# API-INICIO (só com install.sh --with-api)
 	# Ler é público; enviar, renomear e apagar datasets pede usuário e senha.
 	@write {
 		path /api/*
@@ -14,6 +15,11 @@ __SITE__ {
 	handle /api/* {
 		reverse_proxy 127.0.0.1:8787
 	}
+	# API-FIM
+	# SEM-API (sem a API, /api responde 404 em vez de cair no site)
+#SEM-API	handle /api/* {
+#SEM-API		respond 404
+#SEM-API	}
 
 	# Tiles e dados públicos (PMTiles precisa de Range requests; o file_server atende).
 	handle_path /data/* {

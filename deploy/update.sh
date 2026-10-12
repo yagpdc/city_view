@@ -11,7 +11,8 @@ as_app "git pull --ff-only"
 as_app "pnpm install --frozen-lockfile"
 as_app "pnpm --filter @cityview/web build"
 as_app "pnpm --filter @cityview/embed-demo exec vite build --base /demo/"
-as_app "cargo build --release -p cityview-api"
+WITH_API=$(cat "$ROOT/with-api" 2>/dev/null || echo 0)
+[[ $WITH_API == 1 ]] && as_app "cargo build --release -p cityview-api"
 
 # Troca o site de uma vez (sem página pela metade durante a cópia).
 for app in web demo; do
@@ -21,8 +22,9 @@ for app in web demo; do
   rm -rf "$ROOT/$app.old"
   chmod -R a+rX "$ROOT/$app"
 done
-install -o cityview -g cityview -m 755 "$ROOT/src/target/release/cityview-api" "$ROOT/bin/cityview-api"
-
-systemctl enable cityview-api >/dev/null 2>&1
-systemctl restart cityview-api
+if [[ $WITH_API == 1 ]]; then
+  install -o cityview -g cityview -m 755 "$ROOT/src/target/release/cityview-api" "$ROOT/bin/cityview-api"
+  systemctl enable cityview-api >/dev/null 2>&1
+  systemctl restart cityview-api
+fi
 echo "Atualizado: $(git -C "$ROOT/src" log --oneline -1)"

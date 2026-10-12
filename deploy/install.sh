@@ -6,7 +6,9 @@
 # Opções (depois de `sudo bash -s --`):
 #   --site <endereço>     domínio do site (padrão: <ip-público>.sslip.io, HTTPS grátis sem comprar domínio)
 #   --mapillary <token>   token de CLIENTE do Mapillary (fotos de rua); sem ele a camada fica desligada
-#   --admin <usuário>     usuário que pode enviar/apagar datasets no servidor (padrão: admin)
+#   --with-api            também instala a API de ingestão (guarda datasets no servidor). Por padrão NÃO:
+#                         dados do usuário são processados só no navegador (docs/adr/0002).
+#   --admin <usuário>     com --with-api: usuário que pode enviar/apagar datasets (padrão: admin)
 #
 # Rodar de novo é seguro: atualiza o código, recompila e reinicia.
 set -euo pipefail
@@ -16,12 +18,14 @@ ROOT=/opt/cityview
 SITE=""
 MAPILLARY=""
 ADMIN_USER="admin"
+WITH_API=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --site) SITE="$2"; shift 2 ;;
     --mapillary) MAPILLARY="$2"; shift 2 ;;
     --admin) ADMIN_USER="$2"; shift 2 ;;
+    --with-api) WITH_API=1; shift ;;
     *) echo "opção desconhecida: $1" >&2; exit 1 ;;
   esac
 done
@@ -57,7 +61,8 @@ LOGIN_USER="${SUDO_USER:-ubuntu}"
 chown "$LOGIN_USER":"$LOGIN_USER" "$ROOT/data"
 chmod 755 "$ROOT" "$ROOT/data" "$ROOT/web" "$ROOT/demo"
 
-if [[ ! -x "$ROOT/home/.cargo/bin/cargo" ]]; then
+echo "$WITH_API" > "$ROOT/with-api"
+if [[ $WITH_API == 1 && ! -x "$ROOT/home/.cargo/bin/cargo" ]]; then
   say "Rust (para compilar o servidor)"
   sudo -u cityview -H bash -c 'curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal'
 fi
@@ -85,23 +90,30 @@ if [[ -z "$SITE" ]]; then
   SITE="${IP//./-}.sslip.io"
 fi
 
-say "Serviço da API"
-install -m 644 "$ROOT/src/deploy/cityview-api.service" /etc/systemd/system/cityview-api.service
-systemctl daemon-reload
+if [[ $WITH_API == 1 ]]; then
+  say "Serviço da API"
+  install -m 644 "$ROOT/src/deploy/cityview-api.service" /etc/systemd/system/cityview-api.service
+  systemctl daemon-reload
+fi
 
 say "Compilação (a primeira vez leva uns 10–15 min)"
 bash "$ROOT/src/deploy/update.sh"
 
 say "Caddy em https://$SITE"
-HASH_FILE="$ROOT/admin.hash"
-if [[ ! -s "$HASH_FILE" ]]; then
-  echo "Escolha a senha de '$ADMIN_USER' (para enviar/apagar datasets pelo site):"
-  read -rs PASSWORD </dev/tty
-  caddy hash-password --plaintext "$PASSWORD" > "$HASH_FILE"
-  chmod 600 "$HASH_FILE"
+if [[ $WITH_API == 1 ]]; then
+  HASH_FILE="$ROOT/admin.hash"
+  if [[ ! -s "$HASH_FILE" ]]; then
+    echo "Escolha a senha de '$ADMIN_USER' (para enviar/apagar datasets pelo site):"
+    read -rs PASSWORD </dev/tty
+    caddy hash-password --plaintext "$PASSWORD" > "$HASH_FILE"
+    chmod 600 "$HASH_FILE"
+  fi
+  sed -e "s|__SITE__|$SITE|" -e "s|__ADMIN_USER__|$ADMIN_USER|" -e "s|__ADMIN_HASH__|$(cat "$HASH_FILE")|" -e "/SEM-API/d" \
+    "$ROOT/src/deploy/Caddyfile" > /etc/caddy/Caddyfile
+else
+  # Sem API: o bloco /api some (o site detecta e esconde "enviar ao servidor").
+  sed -e "s|__SITE__|$SITE|" -e '/# API-INICIO/,/# API-FIM/d' -e '/# SEM-API/d' -e 's/^#SEM-API//' "$ROOT/src/deploy/Caddyfile" > /etc/caddy/Caddyfile
 fi
-sed -e "s|__SITE__|$SITE|" -e "s|__ADMIN_USER__|$ADMIN_USER|" -e "s|__ADMIN_HASH__|$(cat "$HASH_FILE")|" \
-  "$ROOT/src/deploy/Caddyfile" > /etc/caddy/Caddyfile
 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 systemctl enable --now caddy
 systemctl reload caddy
