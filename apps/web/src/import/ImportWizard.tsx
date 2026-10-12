@@ -3,7 +3,7 @@ import { CATEGORY_COLORS } from "@cityview/engine";
 import { parseNumber, type ColumnInfo, type ColumnType, type ImportMapping } from "@cityview/importer";
 import { useEffect, useMemo, useState } from "react";
 import type { ImportSpec } from "../server/api";
-import { SAMPLE_ROWS, SERVER_THRESHOLD_BYTES, type BuildSummary, type Delimiter, type Encoding, type OpenedFile } from "./protocol";
+import { SAMPLE_ROWS, SERVER_THRESHOLD_BYTES, fileFormat, type BuildSummary, type Delimiter, type Encoding, type OpenedFile } from "./protocol";
 import { useImportWorker } from "./useImportWorker";
 
 export interface ImportedDataset {
@@ -53,7 +53,9 @@ interface ColumnChoice {
 export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSendToServer }: ImportWizardProps) {
   const worker = useImportWorker();
   // Arquivo grande + servidor de pé: o navegador só lê uma amostra; o motor em Rust faz o resto.
-  const [sampleOnly] = useState(() => serverAvailable && file.size > SERVER_THRESHOLD_BYTES);
+  // O motor em Rust lê CSV; Excel e GeoJSON ficam no navegador.
+  const csv = fileFormat(file.name) === "csv";
+  const [sampleOnly] = useState(() => csv && serverAvailable && file.size > SERVER_THRESHOLD_BYTES);
   const [useServer, setUseServer] = useState(sampleOnly);
   const [step, setStep] = useState<Step>(0);
   const [opened, setOpened] = useState<OpenedFile | null>(null);
@@ -285,6 +287,8 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
                   inteiro no fim.
                 </p>
               )}
+              {opened.note && <p className="wizard-warn">{opened.note}</p>}
+              {opened.format === "csv" && (
               <div className="wizard-row">
                 <label>
                   Separador
@@ -304,6 +308,7 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
                   </select>
                 </label>
               </div>
+              )}
               {opened.headers.length === 1 && (
                 <p className="wizard-warn">Só encontramos uma coluna. O separador provavelmente está errado.</p>
               )}
@@ -459,7 +464,7 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
               {building && <p className="muted">Preparando os pontos…</p>}
               {built && (
                 <div className="review">
-                  {serverAvailable && !sampleOnly && (
+                  {serverAvailable && csv && !sampleOnly && (
                     <label className="server-toggle">
                       <input type="checkbox" checked={useServer} onChange={(e) => setUseServer(e.target.checked)} />
                       <span>

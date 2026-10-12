@@ -17,6 +17,7 @@ import { UserDatasets } from "./components/UserDatasets";
 import { DropZone } from "./import/DropZone";
 import "./import/import.css";
 import { ImportWizard, type ImportedDataset } from "./import/ImportWizard";
+import { ACCEPTED_EXTENSIONS } from "./import/protocol";
 import { serverApi, type ImportSpec, type ServerDataset } from "./server/api";
 import { useServerDatasets } from "./server/useServerDatasets";
 import { deleteLibraryLayer, listLibraryLayers, loadActiveLayers, saveActiveLayers, saveLibraryLayer } from "./storage/datasets";
@@ -454,7 +455,7 @@ export function App() {
           <button type="button" className="btn btn-block" onClick={() => fileInput.current?.click()}>
             Importar arquivo…
           </button>
-          <p className="hint">ou arraste um CSV para o mapa</p>
+          <p className="hint">ou arraste um CSV, Excel ou GeoJSON para o mapa</p>
           <p className={`server-status ${server.available ? "is-on" : ""}`}>
             <i />
             {server.available
@@ -464,7 +465,7 @@ export function App() {
           <input
             ref={fileInput}
             type="file"
-            accept=".csv,.tsv,.txt"
+            accept={ACCEPTED_EXTENSIONS}
             hidden
             onChange={(e) => {
               const file = e.target.files?.[0];

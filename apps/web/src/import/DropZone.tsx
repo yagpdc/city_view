@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-const ACCEPTED = /\.(csv|tsv|txt)$/i;
+import { fileFormat } from "./protocol";
 
 /** Arrastar um arquivo em qualquer lugar da janela mostra a área de soltar sobre o mapa. */
 export function DropZone({ onFile }: { onFile: (file: File) => void }) {
@@ -33,7 +33,7 @@ export function DropZone({ onFile }: { onFile: (file: File) => void }) {
       setDragging(false);
       const file = e.dataTransfer?.files[0];
       if (!file) return;
-      if (!ACCEPTED.test(file.name)) {
+      if (!fileFormat(file.name)) {
         setRejected(file.name);
         window.setTimeout(() => setRejected(null), 4000);
         return;
@@ -58,13 +58,13 @@ export function DropZone({ onFile }: { onFile: (file: File) => void }) {
         <div className="dropzone" aria-hidden="true">
           <div className="dropzone-card">
             <strong>Solte para importar</strong>
-            <span>CSV ou TSV com latitude e longitude</span>
+            <span>CSV, Excel (.xlsx) com latitude e longitude, ou GeoJSON</span>
           </div>
         </div>
       )}
       {rejected && (
         <div className="toast" role="status">
-          “{rejected}” ainda não é suportado. Por enquanto aceitamos CSV/TSV.
+          “{rejected}” ainda não é suportado. Aceitamos CSV/TSV, Excel (.xlsx) e GeoJSON.
         </div>
       )}
     </>

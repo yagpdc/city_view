@@ -4,6 +4,18 @@ import type { ColumnInfo, ImportMapping, ImportSummary, LocationGuess, Row } fro
 export const MAX_BROWSER_ROWS = 2_000_000;
 
 export type Delimiter = "," | ";" | "\t" | "|";
+
+/** Formatos aceitos no assistente. Excel e GeoJSON viram as mesmas linhas de texto do CSV. */
+export type FileFormat = "csv" | "excel" | "geojson";
+
+export const ACCEPTED_EXTENSIONS = ".csv,.tsv,.txt,.xlsx,.geojson,.json";
+
+export function fileFormat(name: string): FileFormat | null {
+  if (/\.(csv|tsv|txt)$/i.test(name)) return "csv";
+  if (/\.xlsx$/i.test(name)) return "excel";
+  if (/\.(geo)?json$/i.test(name)) return "geojson";
+  return null;
+}
 export type Encoding = "utf-8" | "windows-1252";
 
 /** Acima disso, com o servidor local de pé, o arquivo vai para o motor em Rust. */
@@ -19,6 +31,9 @@ export interface OpenOptions {
 }
 
 export interface OpenedFile {
+  format: FileFormat;
+  /** Aviso sobre a conversão (ex.: polígonos que viraram ponto). */
+  note?: string;
   headers: string[];
   preview: Row[];
   rowCount: number;

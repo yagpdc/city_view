@@ -15,7 +15,8 @@
     "@cityview/importer": "workspace:*",
     "papaparse": "^5.7.0",
     "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "react-dom": "^19.3.0",
+    "read-excel-file": "9.3.10"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",

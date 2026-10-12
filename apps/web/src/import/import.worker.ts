@@ -2,6 +2,7 @@
 import {
   buildFeatures,
   detectColumns,
+  geoJsonToRows,
   guessLocation,
   guessStyleColumns,
   summarize,
@@ -9,7 +10,8 @@ import {
   type Row,
 } from "@cityview/importer";
 import Papa from "papaparse";
-import { MAX_BROWSER_ROWS, type Delimiter, type Encoding, type WorkerRequest, type WorkerResponse } from "./protocol";
+import { readSheet } from "read-excel-file/web-worker";
+import { MAX_BROWSER_ROWS, fileFormat, type Delimiter, type Encoding, type WorkerRequest, type WorkerResponse } from "./protocol";
 
 declare const self: DedicatedWorkerGlobalScope;
 
@@ -65,12 +67,70 @@ function open(file: File, delimiter: Delimiter | undefined, encoding: Encoding, 
   });
 }
 
+const TOO_MANY_ROWS = `O arquivo tem mais de ${MAX_BROWSER_ROWS.toLocaleString("pt-BR")} linhas. O navegador processa até esse limite.`;
+
+/** Célula do Excel → texto no mesmo formato que viria de um CSV. */
+function excelCell(v: unknown): string {
+  if (v === null || v === undefined) return "";
+  if (v instanceof Date) {
+    const iso = v.toISOString();
+    return iso.endsWith("T00:00:00.000Z") ? iso.slice(0, 10) : iso.slice(0, 19).replace("T", " ");
+  }
+  return String(v);
+}
+
+/** Primeira planilha do .xlsx; a primeira linha é o cabeçalho. */
+async function openExcel(file: File): Promise<void> {
+  const data = await readSheet(file);
+  if (data.length - 1 > MAX_BROWSER_ROWS) throw new Error(TOO_MANY_ROWS);
+  let emptyHeaders = 0;
+  const seen = new Set<string>();
+  const headers = (data[0] ?? []).map((h) => {
+    let name = excelCell(h).trim() || `coluna_${++emptyHeaders}`;
+    for (let i = 2; seen.has(name); i++) name = `${excelCell(h).trim()}_${i}`;
+    seen.add(name);
+    return name;
+  });
+  rows = [];
+  for (const line of data.slice(1)) {
+    if (line.every((v) => v === null || v === "")) continue;
+    const row: Row = {};
+    headers.forEach((h, i) => (row[h] = excelCell(line[i])));
+    rows.push(row);
+  }
+}
+
+async function openGeoJson(file: File): Promise<string | undefined> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(await file.text());
+  } catch {
+    throw new Error("O arquivo não é um JSON válido.");
+  }
+  const result = geoJsonToRows(parsed);
+  if (result.rows.length > MAX_BROWSER_ROWS) throw new Error(TOO_MANY_ROWS);
+  rows = result.rows;
+  const notes = [];
+  if (result.converted > 0)
+    notes.push(`${result.converted.toLocaleString("pt-BR")} feições não eram ponto (linhas ou áreas) e viraram o centro da sua extensão`);
+  if (result.withoutGeometry > 0) notes.push(`${result.withoutGeometry.toLocaleString("pt-BR")} feições sem geometria`);
+  return notes.length ? `${notes.join("; ")}.` : undefined;
+}
+
 self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
   const msg = e.data;
   try {
     if (msg.type === "open") {
-      const encoding = msg.options.encoding ?? (await detectEncoding(msg.file));
-      const delimiter = await open(msg.file, msg.options.delimiter, encoding, msg.options.previewRows);
+      const format = fileFormat(msg.file.name) ?? "csv";
+      let encoding: Encoding = "utf-8";
+      let delimiter: Delimiter = ",";
+      let note: string | undefined;
+      if (format === "excel") await openExcel(msg.file);
+      else if (format === "geojson") note = await openGeoJson(msg.file);
+      else {
+        encoding = msg.options.encoding ?? (await detectEncoding(msg.file));
+        delimiter = await open(msg.file, msg.options.delimiter, encoding, msg.options.previewRows);
+      }
       if (rows.length === 0) throw new Error("Não encontramos linhas de dados no arquivo.");
       const headers = Object.keys(rows[0]!);
       const columns = detectColumns(headers, rows.slice(0, DETECT_ROWS));
@@ -79,6 +139,8 @@ self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
       post({
         type: "opened",
         file: {
+          format,
+          note,
           headers,
           preview: rows.slice(0, PREVIEW_ROWS),
           rowCount: rows.length,
