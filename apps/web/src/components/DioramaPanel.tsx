@@ -1,5 +1,6 @@
 import { categoryColor, type AreaSummary, type BuildingPaintResult } from "@cityview/engine";
 import type { Area } from "../areas";
+import { ratio, type Comparison } from "../compare";
 import type { DatasetInfo } from "./PickDetails";
 
 const int = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
@@ -15,6 +16,10 @@ interface DioramaPanelProps {
   columns: boolean;
   exaggeration: number;
   orbiting: boolean;
+  /** Grandezas do município para comparar (população, camadas da biblioteca). */
+  comparisons: Comparison[];
+  comparisonId: string;
+  onComparison: (id: string) => void;
   buildings: boolean;
   buildingResult: BuildingPaintResult | null;
   onBuildings: (on: boolean) => void;
@@ -41,7 +46,8 @@ export function DioramaPanel(props: DioramaPanelProps) {
     return dataset?.label ? dataset.label(raw) : raw;
   };
   const perKm2 = summary ? summary.count / area.areaKm2 : 0;
-  const perThousand = summary && area.population ? (summary.count / area.population) * 1000 : null;
+  const comparison = props.comparisons.find((c) => c.id === props.comparisonId) ?? props.comparisons[0];
+  const compared = summary && comparison ? ratio(summary.count, comparison) : null;
   const top = summary
     ? summary.byCategory
         .map((n, i) => ({ n, i }))
@@ -87,10 +93,10 @@ export function DioramaPanel(props: DioramaPanelProps) {
               <b>{dec.format(perKm2)}</b>
               <span>por km²</span>
             </div>
-            {perThousand !== null && (
+            {compared && comparison && (
               <div>
-                <b>{dec.format(perThousand)}</b>
-                <span>por mil habitantes</span>
+                <b>{dec.format(compared.value)}</b>
+                <span>{compared.per}</span>
               </div>
             )}
             {area.population !== undefined && (
@@ -100,6 +106,27 @@ export function DioramaPanel(props: DioramaPanelProps) {
               </div>
             )}
           </div>
+          {props.comparisons.length > 0 && (
+            <label className="compare-select">
+              Comparar seus registros com
+              <select value={comparison?.id ?? ""} onChange={(e) => props.onComparison(e.target.value)}>
+                {props.comparisons.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+              {comparison && (
+                <span className="muted">
+                  {area.name}: {new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 }).format(comparison.value)}
+                  {comparison.unit ? ` ${comparison.unit}` : ""}
+                </span>
+              )}
+            </label>
+          )}
+          {area.kind !== "municipio" && (
+            <p className="muted compare-note">Comparações com dados por município aparecem quando a área é um município.</p>
+          )}
           {top.length > 0 && (
             <ul className="bars">
               {top.map(({ n, i }) => (

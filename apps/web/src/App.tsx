@@ -1,6 +1,7 @@
 import type { AreaSummary, BasemapLook, BuildingPaintResult, DatasetMeta, MapPick, Theme } from "@cityview/engine";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { areaAt, radiusArea, type Area } from "./areas";
+import type { Comparison } from "./compare";
 import { DATAPACKS, OBJECTIVES, dataUrl, type Objective } from "./catalog";
 import { DioramaPanel, type AreaChoice } from "./components/DioramaPanel";
 import { Catalog } from "./components/Catalog";
@@ -64,6 +65,7 @@ export function App() {
   const [columns3d, setColumns3d] = useState(false);
   const [municipios3d, setMunicipios3d] = useState(false);
   const [diorama, setDiorama] = useState<Diorama | null>(null);
+  const [comparisonId, setComparisonId] = useState("populacao");
   const [paintBuildingsOn, setPaintBuildingsOn] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [libraryLayers, setLibraryLayers] = useState<LibraryLayer[]>([]);
@@ -366,6 +368,21 @@ export function App() {
     setDiorama((d) => (d ? { ...d, exaggeration: value } : d));
   };
 
+  /** Grandezas do município da maquete: população (IBGE) + camadas da biblioteca no mapa. */
+  const comparisons = useMemo<Comparison[]>(() => {
+    const area = diorama?.area;
+    if (!area || area.kind !== "municipio" || !area.code) return [];
+    const list: Comparison[] = [];
+    if (area.population) list.push({ id: "populacao", label: "População (IBGE 2022)", unit: "pessoas", value: area.population });
+    for (const layer of libraryLayers) {
+      const feature = (layer.data.features as { properties: { codigo: string | number; valor: number } }[]).find(
+        (f) => String(f.properties.codigo) === area.code,
+      );
+      if (feature) list.push({ id: layer.manifest.id, label: `${layer.variable} · ${layer.period}`, unit: layer.unit, value: feature.properties.valor });
+    }
+    return list;
+  }, [diorama?.area, libraryLayers]);
+
   // TODO(fase 2b): geocodificação local (Photon). Por enquanto a busca não faz nada.
   const search = (query: string) => console.info("[search]", query);
 
@@ -537,6 +554,9 @@ export function App() {
             columns={diorama.columns}
             exaggeration={diorama.exaggeration}
             orbiting={diorama.orbiting}
+            comparisons={comparisons}
+            comparisonId={comparisonId}
+            onComparison={setComparisonId}
             buildings={paintBuildingsOn}
             buildingResult={buildingResult}
             onBuildings={setPaintBuildingsOn}

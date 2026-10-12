@@ -8,10 +8,13 @@ export interface Area {
   geometry: AreaGeometry;
   areaKm2: number;
   population?: number;
+  /** Código IBGE (7 dígitos), quando a área é um município. */
+  code?: string;
   radiusKm?: number;
 }
 
 interface Municipio {
+  code: string;
   name: string;
   population: number;
   areaKm2: number;
@@ -27,6 +30,7 @@ function loadMunicipios(): Promise<Municipio[]> {
     .then((r) => (r.ok ? r.json() : { features: [] }))
     .then((fc: { features: { geometry: AreaGeometry; properties: Record<string, string | number> }[] }) =>
       fc.features.map((f) => ({
+        code: String(f.properties.codigo),
         name: `${f.properties.nome} · ${f.properties.uf}`,
         population: Number(f.properties.populacao),
         areaKm2: Number(f.properties.area_km2),
@@ -56,5 +60,12 @@ export async function areaAt(lngLat: [number, number]): Promise<Area> {
     (m) => x >= m.bounds[0] && x <= m.bounds[2] && y >= m.bounds[1] && y <= m.bounds[3] && pointInArea(lngLat, m.geometry),
   );
   if (!found) return radiusArea(lngLat, 10);
-  return { kind: "municipio", name: found.name, geometry: found.geometry, areaKm2: found.areaKm2, population: found.population };
+  return {
+    kind: "municipio",
+    name: found.name,
+    code: found.code,
+    geometry: found.geometry,
+    areaKm2: found.areaKm2,
+    population: found.population,
+  };
 }

@@ -374,3 +374,16 @@
 .library-options select { min-width: 160px; max-width: 280px; padding: 5px 6px; font-size: 12px; }
 .library-options-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .library-options-actions .btn { font-size: 12px; }
+
+.compare-select { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--fg-muted); }
+.compare-select select {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  font-size: 13px;
+}
+.compare-select .muted { font-size: 11px; }
+.compare-note { margin: 0; font-size: 11px; }
