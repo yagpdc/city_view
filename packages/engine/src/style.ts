@@ -166,3 +166,23 @@ export function buildStyle({
     layers: result,
   } as StyleSpecification;
 }
+
+/**
+ * Cores da maquete por tema e estilo: as do mapa base (Protomaps), com um pouco mais de contraste nas
+ * ruas para lerem num objeto pequeno. Prédios usam a mesma cor dos prédios 3D do mapa.
+ */
+export function maquetePalette(theme: Theme, look: BasemapLook) {
+  const dark = theme === "dark";
+  const shared = dark
+    ? { grid: "rgba(255,255,255,0.05)", building: BUILDING_COLORS.dark, buildingEdge: "#4a4f59", footprint: "rgba(255,255,255,0.05)", slabSide: "#22252b", slabBottom: "#101114", ring: "#3d434e", accent: "#7f86f7", viewBackground: "#151a24" }
+    : { grid: "rgba(21,26,36,0.05)", building: BUILDING_COLORS.light, buildingEdge: "#a9a59d", footprint: "rgba(21,26,36,0.06)", slabSide: "#e7e5e1", slabBottom: "#d5d3cf", ring: "#b9bec8", accent: "#4a50d6", viewBackground: "#f5f6f8" };
+  const ground =
+    look === "classic"
+      ? dark
+        ? { ground: "#1f1f1f", park: "#1c2421", water: "#31353f", road: "#474747", roadCasing: "#2a2a2a", path: "#3d3d3d" }
+        : { ground: "#e2dfda", park: "#cfddd5", water: "#80deea", road: "#ffffff", roadCasing: "#d0ccc5", path: "#ebebeb" }
+      : dark
+        ? { ground: "#141414", park: "#181d1a", water: "#333333", road: "#2e2e2e", roadCasing: "#1c1c1c", path: "#262626" }
+        : { ground: "#ffffff", park: "#f1f5ee", water: "#dcdcdc", road: "#ebebeb", roadCasing: "#dadada", path: "#e4e4e4" };
+  return { ...shared, ...ground, dark };
+}

@@ -129,12 +129,22 @@ function centroid(ring: XY[]): XY {
  * `points` (seus dados) acendem os prédios onde caem e viram feixes de luz.
  */
 export async function loadMaqueteData(
-  basemap: PMTiles,
+  sources: PMTiles[],
   options: { center: Position; radiusM: number; points?: MaqueteInputPoint[] },
 ): Promise<MaqueteData> {
   const { center, radiusM } = options;
-  const header = await basemap.getHeader();
-  const z = Math.min(15, header.maxZoom);
+  // Primeira fonte que cobre o centro (o mapa detalhado só existe em algumas áreas).
+  let basemap: PMTiles | null = null;
+  let z = 15;
+  for (const source of sources) {
+    const header = await source.getHeader();
+    const zz = Math.min(15, header.maxZoom);
+    if (await source.getZxy(zz, lonToTile(center[0], zz), latToTile(center[1], zz))) {
+      basemap = source;
+      z = zz;
+      break;
+    }
+  }
   const [lon0, lat0] = center;
   const mLon = M_PER_DEG_LAT * Math.cos((lat0 * Math.PI) / 180);
   const toXY = ([lon, lat]: Position): XY => [(lon - lon0) * mLon, (lat - lat0) * M_PER_DEG_LAT];
@@ -149,6 +159,8 @@ export async function loadMaqueteData(
   const tiles: [number, number][] = [];
   for (let x = lonToTile(w, z); x <= lonToTile(e, z); x++) for (let y = latToTile(n, z); y <= latToTile(s, z); y++) tiles.push([x, y]);
   if (tiles.length > 36) throw new Error("raio grande demais para a maquete");
+  if (!basemap) throw new Error("sem mapa base nesta área");
+  const source = basemap;
 
   const buildings: (MaqueteBuilding & { lngLat: Position[][] })[] = [];
   const roads: MaqueteData["roads"] = [];
@@ -157,7 +169,7 @@ export async function loadMaqueteData(
 
   await Promise.all(
     tiles.map(async ([tx, ty]) => {
-      const res = await basemap.getZxy(z, tx, ty);
+      const res = await source.getZxy(z, tx, ty);
       if (!res) return;
       const vt = new VectorTile(new PbfReader(new Uint8Array(res.data)));
       // Cada prédio fica com o tile que contém o centro dele (os tiles se sobrepõem na borda).

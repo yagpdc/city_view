@@ -7,20 +7,23 @@ const int = new Intl.NumberFormat("pt-BR");
 const meters = (m: number) => (m >= 1000 ? `${m / 1000} km` : `${m} m`);
 
 /**
- * Maquete holográfica de um ponto: a área recortada em 3D sobre fundo escuro, com os seus dados como
- * feixes de luz e as vistas técnicas (planta, fachadas). Cobre o mapa até fechar.
+ * Maquete de um ponto: a área recortada em 3D nas cores do mapa, com os seus dados como alfinetes e as
+ * vistas técnicas (planta, fachadas). Fica sobre o mapa, que continua visível atrás, esmaecido.
  */
 export function MaqueteView({
   map,
   center,
   title,
   datasetIds,
+  theme,
   onClose,
 }: {
   map: CityMap;
   center: [number, number];
   title?: string;
   datasetIds: string[];
+  /** Tema/estilo do app (troca as cores da maquete junto). */
+  theme: string;
   onClose: () => void;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -34,7 +37,7 @@ export function MaqueteView({
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
-    const scene = new MaqueteScene(host);
+    const scene = new MaqueteScene(host, map.maquetePalette());
     sceneRef.current = scene;
     const update = () => setRects(scene.viewRects());
     const ro = new ResizeObserver(update);
@@ -64,11 +67,21 @@ export function MaqueteView({
     };
   }, [map, center[0], center[1], radius, ids]);
 
+  // Tema mudou: mesmas formas, cores novas.
+  useEffect(() => {
+    const scene = sceneRef.current;
+    if (!scene) return;
+    scene.setPalette(map.maquetePalette());
+    if (state.data) scene.setData(state.data);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- só quando o tema muda
+  }, [theme]);
   useEffect(() => {
     if (sceneRef.current) sceneRef.current.autoRotate = rotating;
   }, [rotating]);
   useEffect(() => {
-    if (sceneRef.current) sceneRef.current.showViews = views;
+    if (!sceneRef.current) return;
+    sceneRef.current.showViews = views;
+    setRects(sceneRef.current.viewRects());
   }, [views]);
   useEffect(() => {
     const esc = (e: KeyboardEvent) => e.key === "Escape" && onClose();

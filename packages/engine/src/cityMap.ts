@@ -34,7 +34,8 @@ export interface MeasureState {
   perimeterM: number;
   done: boolean;
 }
-import { BUILDINGS_3D_LAYER, BUILDINGS_SOURCE, BASEMAP_SOURCE, TERRAIN_SOURCE, buildStyle, type BasemapLook, type StyleOptions, type Theme } from "./style";
+import { BUILDINGS_3D_LAYER, BUILDINGS_SOURCE, BASEMAP_SOURCE, TERRAIN_SOURCE, buildStyle, maquetePalette, type BasemapLook, type StyleOptions, type Theme } from "./style";
+import type { MaquetePalette } from "./maquete/scene";
 
 export interface Camera {
   center: [lon: number, lat: number];
@@ -311,14 +312,20 @@ export class CityMap {
 
   // ---------- Maquete holográfica ----------
 
-  private maqueteTiles: PMTiles | null = null;
+  private maqueteTiles: PMTiles[] | null = null;
+
+  /** Cores da maquete no tema e estilo atuais do mapa. */
+  maquetePalette(): MaquetePalette {
+    return maquetePalette(this.styleOptions.theme ?? "light", this.styleOptions.look ?? "data");
+  }
 
   /**
    * Dados da maquete de um ponto: prédios, ruas, água e verde num raio (do mapa base detalhado) e,
    * se `datasetIds` vier, os pontos desses datasets na área (acendem prédios e viram feixes).
    */
   async maqueteData(center: [number, number], radiusM: number, datasetIds: string[] = []): Promise<MaqueteData> {
-    this.maqueteTiles ??= new PMTiles(this.styleOptions.buildingsUrl ?? this.styleOptions.basemapUrl);
+    // Mapa detalhado (prédios) primeiro; fora da cobertura dele, o mapa base (ruas e água, sem prédios).
+    this.maqueteTiles ??= [this.styleOptions.buildingsUrl, this.styleOptions.basemapUrl].filter((u): u is string => Boolean(u)).map((u) => new PMTiles(u));
     const points: MaqueteInputPoint[] = [];
     for (const id of datasetIds) {
       const dataset = this.datasets.find((d) => d.id === id);

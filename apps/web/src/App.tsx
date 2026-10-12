@@ -1252,7 +1252,7 @@ export function App() {
               popupEl,
             )}
           {maquete && map && (
-            <MaqueteView map={map} center={maquete.center} title={maquete.title} datasetIds={maquete.datasetIds} onClose={() => setMaquete(null)} />
+            <MaqueteView map={map} center={maquete.center} title={maquete.title} datasetIds={maquete.datasetIds} theme={`${theme}-${look}`} onClose={() => setMaquete(null)} />
           )}
           {measuring && (
             <MeasurePanel

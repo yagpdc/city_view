@@ -1,6 +1,7 @@
 /**
- * Maquete holográfica: a área recortada num disco, prédios translúcidos com arestas acesas, seus dados
- * como feixes de luz, e as vistas técnicas (planta e fachadas) ao lado da vista principal.
+ * Maquete: a área recortada num disco, prédios com arestas marcadas, seus dados como alfinetes e as vistas
+ * técnicas (planta e fachadas) ao lado da vista principal. Cores do mapa base (tema claro/escuro), com o
+ * mapa visível atrás (fundo transparente).
  */
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
@@ -19,8 +20,28 @@ export const MAQUETE_VIEWS: MaqueteView[] = [
   { id: "east", label: "Fachada leste" },
 ];
 
-const HOLO = new THREE.Color("#5fd4ff");
-const SLAB_TOP = "#0b1428";
+/** Cores da maquete, tiradas do mapa base (`CityMap.maquetePalette`). */
+export interface MaquetePalette {
+  ground: string;
+  grid: string;
+  park: string;
+  water: string;
+  road: string;
+  roadCasing: string;
+  path: string;
+  building: string;
+  buildingEdge: string;
+  footprint: string;
+  slabSide: string;
+  slabBottom: string;
+  ring: string;
+  /** Ponto escolhido (cor de ação do app). */
+  accent: string;
+  /** Fundo das vistas técnicas. */
+  viewBackground: string;
+  dark: boolean;
+}
+
 const SLAB_DEPTH = 18;
 
 /** Layout das vistas técnicas: coluna à direita (ou embaixo, em tela estreita). */
@@ -33,9 +54,10 @@ function insetRects(w: number, h: number): { x: number; y: number; w: number; h:
     const ih = Math.min(iw * 0.75, h * 0.2);
     return [0, 1, 2].map((i) => ({ x: gap + i * (iw + gap), y: 128, w: iw, h: ih }));
   }
+  // Coluna à direita, abaixo do botão de fechar (72 px do topo).
   const iw = Math.min(280, w * 0.24);
-  const ih = (h - gap * 4) / 3;
-  return [0, 1, 2].map((i) => ({ x: w - iw - gap, y: h - gap - (i + 1) * ih - i * gap, w: iw, h: ih }));
+  const ih = (h - 72 - gap * 3) / 3;
+  return [0, 1, 2].map((i) => ({ x: w - iw - gap, y: gap + (2 - i) * (ih + gap), w: iw, h: ih }));
 }
 
 export class MaqueteScene {
@@ -45,9 +67,8 @@ export class MaqueteScene {
   private readonly controls: OrbitControls;
   private readonly root = new THREE.Group();
   private readonly ortho = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 20000);
-  private scan: THREE.Mesh | null = null;
-  private beams: THREE.InstancedMesh | null = null;
   private pulse: THREE.Mesh | null = null;
+  private palette: MaquetePalette;
   private radius = 300;
   private top = 60;
   private frame = 0;
@@ -56,18 +77,29 @@ export class MaqueteScene {
   private disposed = false;
   showViews = true;
 
-  constructor(private readonly container: HTMLElement) {
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  /** Vistas técnicas só quando há altura para elas (em tela baixa, o modelo ocupa tudo). */
+  private get viewsOn(): boolean {
+    return this.showViews && this.container.clientHeight >= 560;
+  }
+
+  private readonly hemi = new THREE.HemisphereLight("#ffffff", "#b9bcc4", 1.5);
+  private readonly sun = new THREE.DirectionalLight("#ffffff", 1.6);
+
+  constructor(
+    private readonly container: HTMLElement,
+    palette: MaquetePalette,
+  ) {
+    this.palette = palette;
+    // Fundo transparente: o mapa (esmaecido pela tela da maquete) aparece atrás.
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.renderer.setClearColor("#050913");
+    this.renderer.setClearColor(0x000000, 0);
     this.renderer.autoClear = false;
     container.appendChild(this.renderer.domElement);
-    this.scene.fog = new THREE.Fog("#050913", 1500, 6000);
     this.scene.add(this.root);
-    this.scene.add(new THREE.HemisphereLight("#9fc6ff", "#0a0f1e", 1.1));
-    const sun = new THREE.DirectionalLight("#ffffff", 1.6);
-    sun.position.set(600, 900, 400);
-    this.scene.add(sun);
+    this.sun.position.set(600, 900, 400);
+    this.scene.add(this.hemi, this.sun);
+    this.applyLights();
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
     this.controls.autoRotate = true;
@@ -77,6 +109,20 @@ export class MaqueteScene {
     this.resizeObserver.observe(container);
     this.resize();
     this.loop();
+  }
+
+  /** Troca as cores (ex.: tema do app mudou); redesenhe com `setData`. */
+  setPalette(palette: MaquetePalette): void {
+    this.palette = palette;
+    this.applyLights();
+  }
+
+  private applyLights(): void {
+    const dark = this.palette.dark;
+    this.hemi.color.set(dark ? "#c9d2e3" : "#ffffff");
+    this.hemi.groundColor.set(dark ? "#1a1d24" : "#b9bcc4");
+    this.hemi.intensity = dark ? 1.1 : 1.6;
+    this.sun.intensity = dark ? 1.2 : 1.5;
   }
 
   set autoRotate(on: boolean) {
@@ -90,6 +136,7 @@ export class MaqueteScene {
   /** Retângulos (em px, origem no canto superior esquerdo) das vistas técnicas, para os rótulos em HTML. */
   viewRects(): { id: MaqueteView["id"]; label: string; left: number; top: number; width: number; height: number }[] {
     const { clientWidth: w, clientHeight: h } = this.container;
+    if (!this.viewsOn) return [];
     return insetRects(w, h).map((r, i) => ({ ...MAQUETE_VIEWS[i]!, left: r.x, top: h - r.y - r.h, width: r.w, height: r.h }));
   }
 
@@ -103,8 +150,6 @@ export class MaqueteScene {
     this.root.add(...this.buildings(data));
     if (data.points.length) this.root.add(this.pointBeams(data));
     this.root.add(this.rings(R));
-    this.scan = this.scanPlane(R);
-    this.root.add(this.scan);
     this.root.add(this.centerMarker(R));
 
     this.frameModel();
@@ -150,8 +195,6 @@ export class MaqueteScene {
       }
     });
     this.root.clear();
-    this.scan = null;
-    this.beams = null;
     this.pulse = null;
   }
 
@@ -164,10 +207,11 @@ export class MaqueteScene {
     const ctx = canvas.getContext("2d")!;
     const s = size / (2 * R);
     const px = ([x, y]: XY): XY => [size / 2 + x * s, size / 2 - y * s];
-    ctx.fillStyle = SLAB_TOP;
+    const pal = this.palette;
+    ctx.fillStyle = pal.ground;
     ctx.fillRect(0, 0, size, size);
     // Grade de 50 m, como papel milimetrado.
-    ctx.strokeStyle = "rgba(95, 212, 255, 0.07)";
+    ctx.strokeStyle = pal.grid;
     ctx.lineWidth = 1;
     for (let m = -R; m <= R; m += 50) {
       const [a] = px([m, 0]);
@@ -189,23 +233,24 @@ export class MaqueteScene {
         ctx.fill("evenodd");
       }
     };
-    fillRings(data.parks, "#0f2a26");
-    fillRings(data.water, "#0d2b4d");
+    fillRings(data.parks, pal.park);
+    fillRings(data.water, pal.water);
     const widths: Record<string, number> = { highway: 14, major_road: 10, medium_road: 7, minor_road: 5, path: 2, rail: 3 };
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     for (const pass of [0, 1]) {
       for (const r of data.roads) {
         const wM = widths[r.kind] ?? 4;
-        ctx.strokeStyle = pass === 0 ? "rgba(95, 212, 255, 0.10)" : r.kind === "path" ? "rgba(140, 170, 210, 0.35)" : "rgba(150, 220, 255, 0.55)";
-        ctx.lineWidth = pass === 0 ? wM * s * 1.9 : Math.max(1.2, wM * s * 0.35);
+        // Contorno largo e miolo, como as ruas do mapa.
+        ctx.strokeStyle = pass === 0 ? pal.roadCasing : r.kind === "path" ? pal.path : pal.road;
+        ctx.lineWidth = pass === 0 ? Math.max(2, wM * s * 1.15) : Math.max(1.2, wM * s * 0.85);
         ctx.beginPath();
         r.line.forEach((p, i) => (i ? ctx.lineTo(...px(p)) : ctx.moveTo(...px(p))));
         ctx.stroke();
       }
     }
     // Sombra dos prédios no chão (planta), para a vista de cima ler bem.
-    ctx.fillStyle = "rgba(95, 212, 255, 0.12)";
+    ctx.fillStyle = pal.footprint;
     for (const b of data.buildings) {
       ctx.beginPath();
       for (const ring of b.rings) ring.forEach((p, i) => (i ? ctx.lineTo(...px(p)) : ctx.moveTo(...px(p))));
@@ -221,11 +266,11 @@ export class MaqueteScene {
     group.add(top);
     const side = new THREE.Mesh(
       new THREE.CylinderGeometry(R, R * 0.985, SLAB_DEPTH, 160, 1, true),
-      new THREE.MeshStandardMaterial({ color: "#13213f", emissive: "#0a1730", roughness: 0.6, metalness: 0.3, side: THREE.DoubleSide }),
+      new THREE.MeshStandardMaterial({ color: pal.slabSide, roughness: 0.9, metalness: 0, side: THREE.DoubleSide }),
     );
     side.position.y = -SLAB_DEPTH / 2;
     group.add(side);
-    const bottom = new THREE.Mesh(new THREE.CircleGeometry(R * 0.985, 160), new THREE.MeshBasicMaterial({ color: "#060b17" }));
+    const bottom = new THREE.Mesh(new THREE.CircleGeometry(R * 0.985, 160), new THREE.MeshBasicMaterial({ color: pal.slabBottom }));
     bottom.rotation.x = Math.PI / 2;
     bottom.position.y = -SLAB_DEPTH;
     group.add(bottom);
@@ -236,7 +281,7 @@ export class MaqueteScene {
   private buildings(data: MaqueteData): THREE.Object3D[] {
     const geoms: THREE.BufferGeometry[] = [];
     const edges: THREE.BufferGeometry[] = [];
-    const neutral = new THREE.Color("#7fb6ff");
+    const neutral = new THREE.Color(this.palette.building);
     for (const b of data.buildings) {
       const [outer, ...holes] = b.rings;
       if (!outer || outer.length < 4) continue;
@@ -260,26 +305,17 @@ export class MaqueteScene {
     if (geoms.length === 0) return [];
     const body = new THREE.Mesh(
       mergeGeometries(geoms),
-      new THREE.MeshStandardMaterial({
-        vertexColors: true,
-        transparent: true,
-        opacity: 0.62,
-        roughness: 0.35,
-        metalness: 0.1,
-        emissive: "#0b2350",
-        emissiveIntensity: 0.6,
-        depthWrite: true,
-      }),
+      new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }),
     );
     const lines = new THREE.LineSegments(
       mergeGeometries(edges),
-      new THREE.LineBasicMaterial({ color: HOLO, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false }),
+      new THREE.LineBasicMaterial({ color: this.palette.buildingEdge, transparent: true, opacity: 0.7 }),
     );
     for (const g of [...geoms, ...edges]) g.dispose();
     return [body, lines];
   }
 
-  /** Seus dados: feixes verticais da cor da categoria, saindo do topo do prédio (ou da rua). */
+  /** Seus dados: alfinetes da cor da categoria, saindo do topo do prédio (ou da rua). */
   private pointBeams(data: MaqueteData): THREE.Object3D {
     const group = new THREE.Group();
     const dense = data.points.length > 600;
@@ -288,7 +324,7 @@ export class MaqueteScene {
     beam.translate(0, beamH / 2, 0);
     const mesh = new THREE.InstancedMesh(
       beam,
-      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false }),
+      new THREE.MeshBasicMaterial(),
       data.points.length,
     );
     const dot = new THREE.InstancedMesh(new THREE.SphereGeometry(dense ? 1.8 : 3, 10, 6), new THREE.MeshBasicMaterial(), data.points.length);
@@ -303,24 +339,24 @@ export class MaqueteScene {
       mesh.setColorAt(i, c);
       dot.setColorAt(i, c);
     });
-    this.beams = mesh;
     group.add(mesh, dot);
     return group;
   }
 
-  /** Anel aceso na borda, anel externo com marcas a cada 10° e o norte. */
+  /** Anel na borda, anel externo com marcas a cada 10° e o norte. */
   private rings(R: number): THREE.Object3D {
+    const ringColor = this.palette.ring;
     const group = new THREE.Group();
-    const glow = new THREE.Mesh(
-      new THREE.RingGeometry(R * 0.995, R * 1.008, 200),
-      new THREE.MeshBasicMaterial({ color: HOLO, transparent: true, opacity: 0.9, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }),
+    const edge = new THREE.Mesh(
+      new THREE.RingGeometry(R * 0.997, R * 1.004, 200),
+      new THREE.MeshBasicMaterial({ color: ringColor, side: THREE.DoubleSide }),
     );
-    glow.rotation.x = -Math.PI / 2;
-    glow.position.y = 0.4;
-    group.add(glow);
+    edge.rotation.x = -Math.PI / 2;
+    edge.position.y = 0.4;
+    group.add(edge);
     const outer = new THREE.Mesh(
       new THREE.RingGeometry(R * 1.12, R * 1.125, 200),
-      new THREE.MeshBasicMaterial({ color: HOLO, transparent: true, opacity: 0.35, side: THREE.DoubleSide }),
+      new THREE.MeshBasicMaterial({ color: ringColor, transparent: true, opacity: 0.7, side: THREE.DoubleSide }),
     );
     outer.rotation.x = -Math.PI / 2;
     outer.position.y = -SLAB_DEPTH;
@@ -333,50 +369,35 @@ export class MaqueteScene {
     }
     const tickGeom = new THREE.BufferGeometry();
     tickGeom.setAttribute("position", new THREE.Float32BufferAttribute(ticks, 3));
-    group.add(new THREE.LineSegments(tickGeom, new THREE.LineBasicMaterial({ color: HOLO, transparent: true, opacity: 0.6 })));
+    group.add(new THREE.LineSegments(tickGeom, new THREE.LineBasicMaterial({ color: ringColor })));
     // Seta do norte.
     const arrow = new THREE.Shape([new THREE.Vector2(0, R * 0.09), new THREE.Vector2(-R * 0.025, 0), new THREE.Vector2(R * 0.025, 0)]);
-    const north = new THREE.Mesh(new THREE.ShapeGeometry(arrow), new THREE.MeshBasicMaterial({ color: HOLO, side: THREE.DoubleSide }));
+    const north = new THREE.Mesh(new THREE.ShapeGeometry(arrow), new THREE.MeshBasicMaterial({ color: this.palette.accent, side: THREE.DoubleSide }));
     north.rotation.x = -Math.PI / 2;
     north.position.set(0, -SLAB_DEPTH + 0.5, -R * 1.2);
     group.add(north);
     return group;
   }
 
-  /** O ponto escolhido: feixe branco acima de tudo e um anel que pulsa no chão. */
+  /** O ponto escolhido: haste na cor de ação acima de tudo e um anel que pulsa no chão. */
   private centerMarker(R: number): THREE.Object3D {
     const group = new THREE.Group();
     const h = this.top * 1.25;
     const beam = new THREE.Mesh(
       new THREE.CylinderGeometry(1.6, 1.6, h, 10, 1, true).translate(0, h / 2, 0),
-      new THREE.MeshBasicMaterial({ color: "#ffffff", transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }),
+      new THREE.MeshBasicMaterial({ color: this.palette.accent }),
     );
-    const head = new THREE.Mesh(new THREE.OctahedronGeometry(R * 0.022), new THREE.MeshBasicMaterial({ color: "#ffffff" }));
+    const head = new THREE.Mesh(new THREE.OctahedronGeometry(R * 0.022), new THREE.MeshBasicMaterial({ color: this.palette.accent }));
     head.position.y = h + R * 0.025;
     const ring = new THREE.Mesh(
       new THREE.RingGeometry(R * 0.04, R * 0.05, 64),
-      new THREE.MeshBasicMaterial({ color: "#ffffff", transparent: true, opacity: 0.8, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false }),
+      new THREE.MeshBasicMaterial({ color: this.palette.accent, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false }),
     );
     ring.rotation.x = -Math.PI / 2;
     ring.position.y = 0.6;
     this.pulse = ring;
     group.add(beam, head, ring);
     return group;
-  }
-
-  /** Plano de varredura que sobe e desce sobre os prédios. */
-  private scanPlane(R: number): THREE.Mesh {
-    const mesh = new THREE.Mesh(
-      new THREE.CircleGeometry(R, 120),
-      new THREE.MeshBasicMaterial({ color: HOLO, transparent: true, opacity: 0.07, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false }),
-    );
-    mesh.rotation.x = -Math.PI / 2;
-    const edge = new THREE.Mesh(
-      new THREE.RingGeometry(R * 0.99, R, 160),
-      new THREE.MeshBasicMaterial({ color: HOLO, transparent: true, opacity: 0.5, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false }),
-    );
-    mesh.add(edge);
-    return mesh;
   }
 
   // ---------- Desenho ----------
@@ -395,11 +416,6 @@ export class MaqueteScene {
     if (this.disposed) return;
     this.frame = requestAnimationFrame(this.loop);
     const t = this.clock.getElapsedTime();
-    if (this.scan) {
-      const k = (Math.sin(t * 0.55) + 1) / 2;
-      this.scan.position.y = 1 + k * this.top * 1.05;
-    }
-    if (this.beams) (this.beams.material as THREE.MeshBasicMaterial).opacity = 0.6 + Math.sin(t * 2.2) * 0.25;
     if (this.pulse) {
       const k = (t * 0.6) % 1;
       this.pulse.scale.setScalar(1 + k * 3);
@@ -420,8 +436,8 @@ export class MaqueteScene {
     // Em tela estreita, as vistas ficam embaixo e os números em cima: centraliza no meio livre.
     let dx = 0;
     let dy = 0;
-    if (this.showViews && w >= 760) dx = (Math.min(280, w * 0.24) + 12) / 2;
-    else if (this.showViews) {
+    if (this.viewsOn && w >= 760) dx = (Math.min(280, w * 0.24) + 12) / 2;
+    else if (this.viewsOn) {
       const ih = Math.min(((w - 48) / 3) * 0.75, h * 0.2);
       const freeTop = h * 0.3;
       const freeBottom = h - 128 - ih;
@@ -430,11 +446,9 @@ export class MaqueteScene {
     if (dx || dy) this.camera.setViewOffset(w, h, dx, dy, w, h);
     else this.camera.clearViewOffset();
     r.render(this.scene, this.camera);
-    if (!this.showViews) return;
+    if (!this.viewsOn) return;
 
-    // Vistas técnicas: ortográficas, sem varredura nem rotação.
-    const scanVisible = this.scan?.visible ?? false;
-    if (this.scan) this.scan.visible = false;
+    // Vistas técnicas: ortográficas, sem rotação.
     const R = this.radius * 1.08;
     r.setScissorTest(true);
     for (const [i, rect] of insetRects(w, h).entries()) {
@@ -464,12 +478,11 @@ export class MaqueteScene {
       cam.updateProjectionMatrix();
       r.setViewport(rect.x, rect.y, rect.w, rect.h);
       r.setScissor(rect.x, rect.y, rect.w, rect.h);
-      r.setClearColor("#081124");
+      r.setClearColor(this.palette.viewBackground, 1);
       r.clear();
       r.render(this.scene, cam);
     }
-    r.setClearColor("#050913");
+    r.setClearColor(0x000000, 0);
     r.setScissorTest(false);
-    if (this.scan) this.scan.visible = scanVisible;
   }
 }
