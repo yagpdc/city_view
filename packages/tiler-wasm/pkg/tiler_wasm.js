@@ -103,6 +103,12 @@ function passArrayF64ToWasm0(arg, malloc) {
     return ptr;
 }
 
+function takeFromExternrefTable0(idx) {
+    const value = wasm.__wbindgen_export_0.get(idx);
+    wasm.__externref_table_dealloc(idx);
+    return value;
+}
+
 let cachedUint32ArrayMemory0 = null;
 
 function getUint32ArrayMemory0() {
@@ -117,12 +123,6 @@ function passArray32ToWasm0(arg, malloc) {
     getUint32ArrayMemory0().set(arg, ptr / 4);
     WASM_VECTOR_LEN = arg.length;
     return ptr;
-}
-
-function takeFromExternrefTable0(idx) {
-    const value = wasm.__wbindgen_export_0.get(idx);
-    wasm.__externref_table_dealloc(idx);
-    return value;
 }
 
 function getArrayU8FromWasm0(ptr, len) {
@@ -186,6 +186,25 @@ export class TileJob {
         const ptr1 = passArrayF64ToWasm0(lon, wasm.__wbindgen_malloc);
         const len1 = WASM_VECTOR_LEN;
         wasm.tilejob_set_points(this.__wbg_ptr, ptr0, len0, ptr1, len1);
+    }
+    /**
+     * Malha (GeoJSON, texto) para contar os registros por região: `id` do nível ("uf", "mun") e a propriedade
+     * com o código. Chame do mais amplo ao mais fino.
+     * @param {string} id
+     * @param {string} geojson
+     * @param {string} code_prop
+     */
+    add_regions(id, geojson, code_prop) {
+        const ptr0 = passStringToWasm0(id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(geojson, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ptr2 = passStringToWasm0(code_prop, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len2 = WASM_VECTOR_LEN;
+        const ret = wasm.tilejob_add_regions(this.__wbg_ptr, ptr0, len0, ptr1, len1, ptr2, len2);
+        if (ret[1]) {
+            throw takeFromExternrefTable0(ret[0]);
+        }
     }
     /**
      * Valores unidos por `SEP` (um por linha).

@@ -27,7 +27,7 @@ fn colunas_viram_pmtiles_em_memoria() {
     assert_eq!(table.stats.sem_coordenadas, 1);
     assert_eq!(table.categories.len(), 3);
 
-    let opts = BuildOptions { name: "teste", color_by: Some("tipo"), title: Some("nome") };
+    let opts = BuildOptions { name: "teste", color_by: Some("tipo"), title: Some("nome"), regions: &[] };
     let (bytes, report) = pipeline::build_in_memory(&table, &opts, &|_, _| {}).expect("pmtiles");
     assert_eq!(&bytes[..7], b"PMTiles");
     assert_eq!(bytes[7], 3);
@@ -41,7 +41,7 @@ fn pontos_em_todos_os_zooms_e_rarefeitos_onde_lotam() {
         let lat: Vec<f64> = (0..n).map(|i| -23.55 + (i % 200) as f64 * step).collect();
         let lon: Vec<f64> = (0..n).map(|i| -46.63 + (i / 200) as f64 * step).collect();
         let table = table_from_points(&lat, &lon, ColorInput::None, vec![], FINEST_RESOLUTION).expect("tabela");
-        let opts = BuildOptions { name: "teste", color_by: None, title: None };
+        let opts = BuildOptions { name: "teste", color_by: None, title: None, regions: &[] };
         pipeline::build_in_memory(&table, &opts, &|_, _| {}).expect("pmtiles").1
     };
     // Planilha pequena: todos os pontos já no zoom 0 (mais os hexágonos do mesmo tile).

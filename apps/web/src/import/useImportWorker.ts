@@ -67,7 +67,7 @@ export function useImportWorker() {
 
   /** PMTiles gerado no navegador (motor em Rust/WASM) com hexágonos e pontos. */
   const tiles = useCallback(
-    async (options: { name: string; colorBy?: string; title?: string; file?: { file: File; delimiter: Delimiter; encoding: Encoding } }) => {
+    async (options: { name: string; colorBy?: string; title?: string; regions?: import("./tiles").RegionSource[]; file?: { file: File; delimiter: Delimiter; encoding: Encoding } }) => {
       setTiling({ stage: options.file ? "reading" : "indexing", fraction: 0 });
       const { file, ...rest } = options;
       try {

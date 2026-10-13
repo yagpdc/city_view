@@ -96,9 +96,9 @@ export type WorkerRequest =
   /** CSV das linhas que ficam de fora, com o motivo. */
   | { type: "failed" }
   /** Gera o PMTiles no navegador (motor em WASM) com o último mapeamento validado. */
-  | { type: "tiles"; name: string; colorBy?: string; title?: string }
+  | { type: "tiles"; name: string; colorBy?: string; title?: string; regions?: import("./tiles").RegionSource[] }
   /** Arquivo grande (aberto por amostra): relê inteiro em colunas e gera o PMTiles. */
-  | { type: "tilesFile"; file: File; name: string; colorBy?: string; title?: string; delimiter: Delimiter; encoding: Encoding };
+  | { type: "tilesFile"; file: File; name: string; colorBy?: string; title?: string; regions?: import("./tiles").RegionSource[]; delimiter: Delimiter; encoding: Encoding };
 
 export type WorkerResponse =
   | { type: "progress"; loaded: number; total: number }

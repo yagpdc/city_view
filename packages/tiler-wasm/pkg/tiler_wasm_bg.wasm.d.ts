@@ -6,6 +6,7 @@ export function last_panic(): Array;
 export function tilejob_add_category(a: number, b: number, c: number, d: number, e: number): void;
 export function tilejob_add_category_ids(a: number, b: number, c: number, d: number, e: number, f: number, g: number): void;
 export function tilejob_add_number(a: number, b: number, c: number, d: number, e: number): void;
+export function tilejob_add_regions(a: number, b: number, c: number, d: number, e: number, f: number, g: number): Array;
 export function tilejob_add_text(a: number, b: number, c: number, d: number, e: number): void;
 export function tilejob_build(a: number, b: number): Array;
 export function tilejob_new(a: number, b: number): number;

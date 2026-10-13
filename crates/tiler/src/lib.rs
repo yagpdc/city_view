@@ -7,6 +7,7 @@ pub mod mercator;
 pub mod mvt;
 pub mod pipeline;
 pub mod pmtiles;
+pub mod regions;
 pub mod spec;
 pub mod table;
 pub mod values;
@@ -36,7 +37,12 @@ pub fn process(input: &Path, out_dir: &Path, spec: &ImportSpec, progress: &(dyn 
         files::read_csv(&source, spec, pipeline::FINEST_RESOLUTION, &read_progress)?
     };
     let read_secs = started.secs();
-    let opts = pipeline::BuildOptions { name: &spec.name, color_by: spec.color_by.as_deref(), title: spec.title.as_deref() };
+    let mut levels = Vec::new();
+    for r in &spec.regions {
+        let json = std::fs::read_to_string(&r.path)?;
+        levels.push(regions::RegionLevel::from_geojson(&r.id, &json, &r.code).map_err(Error::from)?);
+    }
+    let opts = pipeline::BuildOptions { name: &spec.name, color_by: spec.color_by.as_deref(), title: spec.title.as_deref(), regions: &levels };
     let mut report = pipeline::build(&table, out_dir, &opts, progress)?;
     report.timings.insert(0, ("leitura + projeção + H3", read_secs));
     Ok(report)

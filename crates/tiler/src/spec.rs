@@ -58,6 +58,22 @@ pub struct ImportSpec {
     /// "utf-8" (padrão) ou "windows-1252".
     #[serde(default)]
     pub encoding: Option<String>,
+    /// Malhas para contar os registros por região (estado, município…), na ordem do mais amplo ao mais fino.
+    #[serde(default)]
+    pub regions: Vec<RegionSpec>,
+}
+
+/// Uma malha em GeoJSON: `id` do nível ("uf", "mun"), caminho do arquivo e a propriedade com o código.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RegionSpec {
+    pub id: String,
+    pub path: String,
+    #[serde(default = "default_code")]
+    pub code: String,
+}
+
+fn default_code() -> String {
+    "codigo".into()
 }
 
 impl ImportSpec {

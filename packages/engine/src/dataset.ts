@@ -11,6 +11,7 @@ import type { AreaGeometry, Position } from "./geo";
 import { whereExpressions, type WhereClause } from "./filter";
 import { ICON_PIXEL_RATIO, rasterizeMarker } from "./icons";
 import { loadNearby, searchPoints, type NearbySummary, type SearchHit } from "./nearby";
+import { regionLabel, type RegionBoundaries } from "./regions";
 
 /** Metadados gravados pelo cityview-tiler (`cityview` no JSON do PMTiles, versão 2). */
 export interface DatasetMeta {
@@ -37,6 +38,8 @@ export interface DatasetMeta {
   bounds?: [number, number, number, number];
   /** Há índice de linhas no servidor (detalhes completos pelo id). */
   hasRowIndex?: boolean;
+  /** Contagem por região de verdade: nível ("uf", "mun") → código → [total, c0, c1…]. */
+  regions?: Record<string, Record<string, number[]>> | null;
 }
 
 export type { WhereClause };
@@ -64,6 +67,8 @@ export type DatasetPick =
       byCategory: number[];
       areaKm2: number;
       lngLat: [number, number];
+      /** Nome da região (vista "Regiões"); ausente nos hexágonos. */
+      name?: string;
     };
 
 /** Paleta de dados City View (docs/DESIGN.md): todas ≥ 3:1 sobre o mapa claro e o escuro. */
@@ -87,6 +92,8 @@ const DENSITY_COLORS = ["#fff3bf", "#ffd43b", "#fd7e14", "#e8590c", "#d6336c", "
 /** Escala viva (estilo "inferno") para pintar o relevo na maquete e as colunas 3D. */
 /** Mesma escala, invertida: no 3D (fundo escuro) o pouco é escuro e o muito acende. */
 const VIVID_COLORS = [...DENSITY_COLORS].reverse();
+/** Na vista "Regiões", as bolinhas aparecem a partir deste zoom (antes, só a malha com os números). */
+const REGION_POINTS_FROM = 11;
 /** Altura máxima de uma coluna, em larguras de hexágono. */
 const COLUMN_HEIGHT_FACTOR = 2.6;
 
@@ -119,6 +126,12 @@ export class DatasetLayer {
   private extruded = false;
   /** Vista de densidade (hexágonos) escolhida no cartão; o padrão são as bolinhas em todos os zooms. */
   private hexView = false;
+  /** Vista "Regiões": a malha com a contagem de cada região; as bolinhas entram ao aproximar. */
+  private regionView = false;
+  /** Malhas compartilhadas (definidas pelo CityMap antes de anexar). */
+  regionBoundaries: RegionBoundaries | null = null;
+  /** Pedido de montagem em andamento (descarta respostas antigas). */
+  private regionBuild = 0;
   private readonly sourceId: string;
   private readonly hexLayerId: string;
   private readonly pointsLayerId: string;
@@ -230,14 +243,120 @@ export class DatasetLayer {
     if (this.map.getLayer(this.iconsLayerId)) this.map.removeLayer(this.iconsLayerId);
   }
 
-  /** Camadas clicáveis (hexágonos e pontos). */
+  /** Camadas clicáveis (hexágonos, regiões e pontos). */
   get layerIds(): string[] {
-    return [this.hexLayerId, this.pointsLayerId];
+    return [this.hexLayerId, ...this.regionLevels().map((l) => this.regionIds(l.id).fill), this.pointsLayerId];
   }
 
   /** Todas as camadas, inclusive os rótulos. */
   private get allLayerIds(): string[] {
-    return [...this.layerIds, this.iconsLayerId, this.labelsLayerId];
+    const regions = this.regionLevels().flatMap((l) => {
+      const ids = this.regionIds(l.id);
+      return [ids.fill, ids.line, ids.label];
+    });
+    return [...this.layerIds, ...regions, this.iconsLayerId, this.labelsLayerId];
+  }
+
+  private regionIds(level: string) {
+    const base = `cv-${this.id}-reg-${level}`;
+    return { source: base, labels: `${base}-pts`, fill: `${base}-fill`, line: `${base}-line`, label: `${base}-label` };
+  }
+
+  /** Níveis da malha que este arquivo contou (na ordem das malhas configuradas). */
+  private regionLevels() {
+    const counted = this.meta.regions ?? {};
+    return (this.regionBoundaries?.levels ?? []).filter((l) => counted[l.id] && Object.keys(counted[l.id]!).length > 0);
+  }
+
+  /** O arquivo tem contagem por região? (gerados antes de 2026-10-13: não) */
+  get hasRegions(): boolean {
+    return this.regionLevels().length > 0;
+  }
+
+  /** Liga/desliga a vista "Regiões". */
+  setRegionView(on: boolean): void {
+    if (on === this.regionView) return;
+    this.regionView = on;
+    this.rebuildDataLayers();
+  }
+
+  isRegionView(): boolean {
+    return this.regionView;
+  }
+
+  private get regionShown(): boolean {
+    return this.regionView && !this.extruded && this.hasRegions;
+  }
+
+  private removeRegionLayers(): void {
+    for (const l of this.regionLevels()) {
+      const ids = this.regionIds(l.id);
+      for (const id of [ids.label, ids.line, ids.fill]) if (this.map.getLayer(id)) this.map.removeLayer(id);
+      for (const id of [ids.labels, ids.source]) if (this.map.getSource(id)) this.map.removeSource(id);
+    }
+  }
+
+  /** Monta a malha com a contagem (respeitando o filtro de categorias) e as camadas de cada nível. */
+  private async addRegionLayers(): Promise<void> {
+    const build = ++this.regionBuild;
+    const boundaries = this.regionBoundaries;
+    if (!boundaries) return;
+    const levels = this.regionLevels();
+    const loaded = await Promise.all(levels.map((l) => boundaries.load(l.id)));
+    if (build !== this.regionBuild || !this.regionShown || !this.map.getSource(this.sourceId)) return;
+    const visible = this.activeCategories();
+    const dark = this.labelTheme === "dark";
+    levels.forEach((level, li) => {
+      const counts = this.meta.regions?.[level.id] ?? {};
+      const ids = this.regionIds(level.id);
+      const polys: GeoJSON.Feature[] = [];
+      const points: GeoJSON.Feature[] = [];
+      const densities: number[] = [];
+      for (const r of loaded[li]!) {
+        const row = counts[r.code];
+        if (!row) continue;
+        const byCategory = row.slice(1);
+        const n = visible ? visible.reduce((s, c) => s + (byCategory[c] ?? 0), 0) : row[0]!;
+        if (n <= 0) continue;
+        const d = r.areaKm2 > 0 ? n / r.areaKm2 : n;
+        densities.push(d);
+        const props = { code: r.code, name: r.name, n, d, a: r.areaKm2, label: regionLabel(n), by: JSON.stringify(byCategory) };
+        polys.push({ type: "Feature", geometry: r.geometry as GeoJSON.Geometry, properties: props });
+        points.push({ type: "Feature", geometry: { type: "Point", coordinates: r.labelAt }, properties: props });
+      }
+      // Cor pela densidade (registros/km²), com quebras nos quantis desta camada e deste nível.
+      densities.sort((a, b) => a - b);
+      const q = (t: number) => densities[Math.min(densities.length - 1, Math.floor((densities.length - 1) * t))] ?? 0;
+      const breaks = [...new Set([0.2, 0.4, 0.6, 0.8, 0.95].map(q))].filter((b) => b > 0);
+      const color = (breaks.length
+        ? ["step", ["get", "d"], DENSITY_COLORS[1]!, ...breaks.flatMap((b, i) => [b, DENSITY_COLORS[Math.min(i + 2, DENSITY_COLORS.length - 1)]!])]
+        : DENSITY_COLORS[2]!) as ExpressionSpecification;
+      this.map.addSource(ids.source, { type: "geojson", data: { type: "FeatureCollection", features: polys } });
+      this.map.addSource(ids.labels, { type: "geojson", data: { type: "FeatureCollection", features: points } });
+      const before = this.map.getLayer(this.pointsLayerId) ? this.pointsLayerId : undefined;
+      const zooms = { minzoom: level.minzoom, maxzoom: level.maxzoom };
+      this.map.addLayer({ id: ids.fill, type: "fill", source: ids.source, ...zooms, paint: { "fill-color": color, "fill-opacity": 0.55 } }, before);
+      this.map.addLayer(
+        { id: ids.line, type: "line", source: ids.source, ...zooms, paint: { "line-color": dark ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.9)", "line-width": ["interpolate", ["linear"], ["zoom"], 3, 0.6, 10, 1.4] } },
+        before,
+      );
+      this.map.addLayer({
+        id: ids.label,
+        type: "symbol",
+        source: ids.labels,
+        ...zooms,
+        layout: {
+          "text-field": ["get", "label"],
+          "text-font": ["Noto Sans Medium"],
+          "text-size": ["interpolate", ["linear"], ["zoom"], 3, 11, 10, 14],
+          "text-padding": 2,
+          // Maiores primeiro na disputa por espaço.
+          "symbol-sort-key": ["-", 0, ["get", "n"]],
+        },
+        paint: { "text-color": dark ? "#eceef2" : "#151a24", "text-halo-color": dark ? "#10141c" : "#ffffff", "text-halo-width": 1.6 },
+      });
+    });
+    this.setVisible(this.visible);
   }
 
   /** (Re)adiciona fonte e camadas. Chamado na criação e sempre que o estilo é recarregado. */
@@ -256,10 +375,12 @@ export class DatasetLayer {
       const labels = this.labelsLayer();
       if (labels) this.map.addLayer(labels);
     }
+    if (this.regionShown) void this.addRegionLayers();
     this.setVisible(this.visible);
   }
 
   detach(): void {
+    this.removeRegionLayers();
     for (const id of this.allLayerIds) if (this.map.getLayer(id)) this.map.removeLayer(id);
     if (this.map.getSource(this.sourceId)) this.map.removeSource(this.sourceId);
   }
@@ -284,6 +405,10 @@ export class DatasetLayer {
       this.map.setFilter(this.hexLayerId, [">", count, 0]);
     }
     if (this.map.getLayer(this.pointsLayerId)) this.map.setFilter(this.pointsLayerId, this.pointsFilter());
+    if (this.regionShown && this.map.getSource(this.sourceId)) {
+      this.removeRegionLayers();
+      void this.addRegionLayers();
+    }
     if (this.map.getLayer(this.iconsLayerId)) this.map.setFilter(this.iconsLayerId, this.pointsFilter());
     if (this.map.getLayer(this.labelsLayerId)) this.map.setFilter(this.labelsLayerId, this.pointsFilter());
   }
@@ -313,16 +438,20 @@ export class DatasetLayer {
 
   /** Hexágonos aparecem: escolhidos, em colunas 3D, ou porque o arquivo antigo não tem pontos afastados. */
   private get hexShown(): boolean {
-    return this.hexView || this.extruded || !this.hasLowZoomPoints;
+    if (this.extruded) return true;
+    if (this.regionShown) return false;
+    return this.hexView || !this.hasLowZoomPoints;
   }
 
   /** Refaz hexágonos e pontos (mudou a vista); marcadores e rótulos ficam. */
   private rebuildDataLayers(): void {
     if (!this.map.getSource(this.sourceId)) return;
+    this.removeRegionLayers();
     for (const id of [this.hexLayerId, this.pointsLayerId]) if (this.map.getLayer(id)) this.map.removeLayer(id);
     const beforeId = this.map.getLayer(this.iconsLayerId) ? this.iconsLayerId : this.map.getLayer(this.labelsLayerId) ? this.labelsLayerId : undefined;
     const base = beforeId ?? this.map.getStyle().layers.find((l) => l.type === "symbol")?.id;
     for (const layer of this.layers()) this.map.addLayer(layer, base);
+    if (this.regionShown) void this.addRegionLayers();
     this.setVisible(this.visible);
   }
 
@@ -500,6 +629,10 @@ export class DatasetLayer {
     const p = feature.properties as Record<string, string | number>;
     const at = this.map.unproject(point);
     const lngLat: [number, number] = [at.lng, at.lat];
+    if (feature.layer.id.startsWith(`cv-${this.id}-reg-`)) {
+      const byCategory = JSON.parse(String(p.by ?? "[]")) as number[];
+      return { kind: "aggregate", datasetId: this.id, count: Number(p.n), byCategory, areaKm2: Number(p.a), lngLat, name: String(p.name) };
+    }
     if (feature.layer.id === this.pointsLayerId) {
       const { [this.meta.categoryProperty]: category, ...properties } = p;
       // Registro: a posição é a do ponto, não a do clique.
@@ -639,7 +772,8 @@ export class DatasetLayer {
   private layers(): LayerSpecification[] {
     const hex = this.hexShown;
     // Com hexágonos, os pontos entram no zoom de rua; sem, desde o zoom mais afastado que o arquivo tiver.
-    const pointsFrom = hex ? this.meta.pointsZoom : (this.meta.pointsMinZoom ?? this.meta.pointsZoom);
+    const lowest = this.meta.pointsMinZoom ?? this.meta.pointsZoom;
+    const pointsFrom = hex ? this.meta.pointsZoom : this.regionShown ? Math.max(lowest, REGION_POINTS_FROM) : lowest;
     return [
       ...(hex ? [this.hexLayer()] : []),
       {

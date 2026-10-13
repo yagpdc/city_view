@@ -26,6 +26,7 @@ use crate::{
     mercator::{self, EXTENT_BITS},
     mvt::{LayerBuilder, Value},
     pmtiles::{self, HeaderInfo, Writer},
+    regions::{self, RegionLevel},
     table::{ColumnData, Error, NO_CATEGORY, ReadStats, Table},
 };
 
@@ -454,6 +455,8 @@ pub struct BuildOptions<'a> {
     pub name: &'a str,
     pub color_by: Option<&'a str>,
     pub title: Option<&'a str>,
+    /// Malhas para contar por região (vazio = sem contagem por região).
+    pub regions: &'a [RegionLevel],
 }
 
 /// Gera `<out_dir>/tiles.pmtiles` (e `rows.idx` quando há posições de linha).
@@ -540,6 +543,11 @@ fn build_tiles(
     zooms.push(points_zoom(&mut writer, t)?);
     lap("tiles de pontos", &mut clock);
 
+    let region_counts = (!opts.regions.is_empty()).then(|| regions::count(opts.regions, t));
+    if region_counts.is_some() {
+        lap("contagem por região", &mut clock);
+    }
+
     progress(Stage::Writing, 0.0);
     let tile_columns: Vec<ColumnInfo> = t
         .columns
@@ -585,6 +593,7 @@ fn build_tiles(
             "columns": tile_columns,
             "bounds": t.bounds,
             "hasRowIndex": t.offsets.is_some(),
+            "regions": region_counts,
         },
     });
     let info = HeaderInfo { min_zoom: 0, max_zoom: POINTS_ZOOM, bounds: t.bounds, center_zoom: 4 };

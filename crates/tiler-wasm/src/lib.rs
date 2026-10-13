@@ -7,6 +7,7 @@ use std::sync::Once;
 
 use tiler::{
     pipeline::{self, BuildOptions, FINEST_RESOLUTION, Stage},
+    regions::RegionLevel,
     table::{ColorInput, InputColumn, table_from_points},
 };
 use wasm_bindgen::prelude::*;
@@ -62,6 +63,7 @@ pub struct TileJob {
     color_by: Option<String>,
     title: Option<String>,
     columns: Vec<InputColumn>,
+    regions: Vec<RegionLevel>,
     report: Option<String>,
 }
 
@@ -69,7 +71,7 @@ pub struct TileJob {
 impl TileJob {
     #[wasm_bindgen(constructor)]
     pub fn new(name: String) -> TileJob {
-        TileJob { name, lat: Vec::new(), lon: Vec::new(), color: ColorInput::None, color_by: None, title: None, columns: Vec::new(), report: None }
+        TileJob { name, lat: Vec::new(), lon: Vec::new(), color: ColorInput::None, color_by: None, title: None, columns: Vec::new(), regions: Vec::new(), report: None }
     }
 
     /// Coordenadas em graus (`NaN` = sem coordenada; a linha sai).
@@ -114,6 +116,13 @@ impl TileJob {
         self.columns.push(InputColumn::Text(name, split(&values)));
     }
 
+    /// Malha (GeoJSON, texto) para contar os registros por região: `id` do nível ("uf", "mun") e a propriedade
+    /// com o código. Chame do mais amplo ao mais fino.
+    pub fn add_regions(&mut self, id: String, geojson: String, code_prop: String) -> Result<(), JsError> {
+        self.regions.push(RegionLevel::from_geojson(&id, &geojson, &code_prop).map_err(|e| JsError::new(&e))?);
+        Ok(())
+    }
+
     /// Gera o PMTiles. `progress(etapa, fração)` é chamado durante o processo.
     pub fn build(&mut self, progress: &js_sys::Function) -> Result<Vec<u8>, JsError> {
         init_pool();
@@ -122,7 +131,7 @@ impl TileJob {
         let table = table_from_points(&self.lat, &self.lon, color, columns, FINEST_RESOLUTION).map_err(|e| JsError::new(&e.to_string()))?;
         self.lat = Vec::new();
         self.lon = Vec::new();
-        let opts = BuildOptions { name: &self.name, color_by: self.color_by.as_deref(), title: self.title.as_deref() };
+        let opts = BuildOptions { name: &self.name, color_by: self.color_by.as_deref(), title: self.title.as_deref(), regions: &self.regions };
         let progress = Progress(progress);
         let report_progress = |stage: Stage, f: f32| {
             let label = match stage {

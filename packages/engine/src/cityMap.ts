@@ -19,6 +19,7 @@ import { CATEGORY_COLORS, DatasetLayer, OTHER_COLOR, categoryColor, readDatasetM
 import { paintBuildings, type BuildingPaintResult, type BuildingRecord } from "./buildingPaint";
 import { circleArea, type AreaGeometry } from "./geo";
 import type { NearbySummary, SearchHit } from "./nearby";
+import { RegionBoundaries, type RegionLevelSource } from "./regions";
 import { lineLengthM, polygonMeasure } from "./measure";
 import { loadMaqueteData, type MaqueteData, type MaqueteInputPoint } from "./maquete/extract";
 
@@ -55,6 +56,8 @@ export interface CityMapOptions extends StyleOptions {
   hash?: boolean | string;
   /** Relevo começa ligado (quando há fonte de relevo). */
   terrain?: boolean;
+  /** Malhas da vista "Regiões" (do mais amplo ao mais fino), com os zooms de cada uma. */
+  regionLevels?: RegionLevelSource[];
 }
 
 export type CityMapEvent = "load" | "move" | "idle";
@@ -97,6 +100,10 @@ export class CityMap {
   private readonly layerFilters = new Map<string, DatasetFilter>();
   /** Datasets com a vista de hexágonos ligada (vale também para os que ainda vão carregar). */
   private readonly hexViews = new Set<string>();
+  /** Datasets com a vista "Regiões" ligada. */
+  private readonly regionViews = new Set<string>();
+  /** Malhas da vista "Regiões" (estados, municípios…), carregadas quando alguém liga a vista. */
+  private readonly regionBoundaries: RegionBoundaries | null;
   /** Ícones por categoria pedidos para cada dataset (aplicados também a datasets que ainda vão carregar). */
   private readonly datasetIcons = new Map<string, (string | null)[]>();
   /** Camadas externas genéricas (ex.: cobertura de fotos de rua); voltam após troca de estilo. */
@@ -136,9 +143,11 @@ export class CityMap {
     terrainExaggeration = 1.5,
     hash = false,
     terrain = true,
+    regionLevels,
     ...styleOptions
   }: CityMapOptions) {
     initMapLibre();
+    this.regionBoundaries = regionLevels?.length ? new RegionBoundaries(regionLevels) : null;
     this.styleOptions = styleOptions;
     this.terrainExaggeration = terrainExaggeration;
     this.terrainEnabled = terrain;
@@ -207,7 +216,9 @@ export class CityMap {
     if (filter) layer.setFilter(filter);
     const icons = this.datasetIcons.get(id);
     if (icons) void layer.setIcons(icons);
+    layer.regionBoundaries = this.regionBoundaries;
     if (this.hexViews.has(id)) layer.setHexView(true);
+    if (this.regionViews.has(id)) layer.setRegionView(true);
     this.datasets.push(layer);
     this.whenStyleReady(() => layer.attach());
     return layer;
@@ -303,6 +314,18 @@ export class CityMap {
     if (on) this.hexViews.add(id);
     else this.hexViews.delete(id);
     this.datasets.find((d) => d.id === id)?.setHexView(on);
+  }
+
+  /** Vista "Regiões" de um dataset: a malha com a contagem; as bolinhas entram ao aproximar. */
+  setDatasetRegionView(id: string, on: boolean): void {
+    if (on) this.regionViews.add(id);
+    else this.regionViews.delete(id);
+    this.datasets.find((d) => d.id === id)?.setRegionView(on);
+  }
+
+  /** O arquivo tem contagem por região? */
+  datasetHasRegions(id: string): boolean {
+    return this.datasets.find((d) => d.id === id)?.hasRegions ?? false;
   }
 
   /** O arquivo tem pontos no zoom afastado? (os antigos só têm hexágonos lá) */

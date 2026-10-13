@@ -22,6 +22,14 @@ export class TileJob {
    */
   set_points(lat: Float64Array, lon: Float64Array): void;
   /**
+   * Malha (GeoJSON, texto) para contar os registros por região: `id` do nível ("uf", "mun") e a propriedade
+   * com o código. Chame do mais amplo ao mais fino.
+   * @param {string} id
+   * @param {string} geojson
+   * @param {string} code_prop
+   */
+  add_regions(id: string, geojson: string, code_prop: string): void;
+  /**
    * Valores unidos por `SEP` (um por linha).
    * @param {string} name
    * @param {string} values
@@ -84,6 +92,7 @@ export interface InitOutput {
   readonly tilejob_add_category: (a: number, b: number, c: number, d: number, e: number) => void;
   readonly tilejob_add_category_ids: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
   readonly tilejob_add_number: (a: number, b: number, c: number, d: number, e: number) => void;
+  readonly tilejob_add_regions: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => Array;
   readonly tilejob_add_text: (a: number, b: number, c: number, d: number, e: number) => void;
   readonly tilejob_build: (a: number, b: number) => Array;
   readonly tilejob_new: (a: number, b: number) => number;

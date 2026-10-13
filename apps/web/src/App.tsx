@@ -166,9 +166,9 @@ export function App() {
   const [municipios3d, setMunicipios3d] = useState(false);
   /** Camada (id no mapa) que acende os prédios; null = desligado. */
   const [paintDataset, setPaintDataset] = useState<string | null>(INITIAL_TAB.paintDataset ?? null);
-  /** Camadas com a vista de hexágonos (densidade); o padrão são as bolinhas. */
-  const [hexViews, setHexViews] = useState<Set<string>>(() => new Set(INITIAL_TAB.hexViews ?? []));
-  const appliedHexViews = useRef(new Set<string>());
+  /** Camadas com a vista "Regiões" (estado/município com a contagem); o padrão são as bolinhas. */
+  const [regionViews, setRegionViews] = useState<Set<string>>(() => new Set(INITIAL_TAB.regionViews ?? []));
+  const appliedRegionViews = useRef(new Set<string>());
   const paintBuildingsOn = paintDataset !== null;
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [libraryLayers, setLibraryLayers] = useState<LibraryLayer[]>([]);
@@ -206,10 +206,19 @@ export function App() {
     look,
     // Prédios 3D vêm do extrato detalhado das principais cidades (`pnpm cidades`); o mapa do Brasil vai só até z12.
     buildingsUrl: data("cidades.pmtiles"),
+    // Vista "Regiões": estados afastado, municípios ao aproximar (malhas do IBGE do catálogo).
+    regionLevels: [
+      { id: "uf", url: dataUrl("estados-populacao"), minzoom: 0, maxzoom: 5.5 },
+      { id: "mun", url: dataUrl("municipios-populacao"), minzoom: 5.5, maxzoom: 12 },
+    ],
     theme,
     camera: INITIAL_TAB.camera ?? BLANK_CAMERA,
     hash: CAMERA_PARAM,
   });
+  // Só no desenvolvimento: o mapa no console (window.__cityMap) para depurar camadas e dados.
+  useEffect(() => {
+    if (import.meta.env.DEV && map) (window as unknown as { __cityMap?: unknown }).__cityMap = map;
+  }, [map]);
 
   // Dataset de demonstração e clique: uma vez por mapa.
   useEffect(() => {
@@ -415,17 +424,17 @@ export function App() {
   // O que está na tela é a aba atual: cada mudança vai para ela.
   useEffect(() => {
     setTabs((list) =>
-      list.map((t) => (t.id === currentTab ? { ...t, active: [...active], hidden: [...hidden], filters, paintDataset, theme, look, hexViews: [...hexViews] } : t)),
+      list.map((t) => (t.id === currentTab ? { ...t, active: [...active], hidden: [...hidden], filters, paintDataset, theme, look, regionViews: [...regionViews] } : t)),
     );
-  }, [currentTab, active, hidden, filters, paintDataset, theme, look, hexViews]);
-  // Vista de hexágonos: aplica só o que mudou (o motor guarda para camadas que ainda vão carregar).
+  }, [currentTab, active, hidden, filters, paintDataset, theme, look, regionViews]);
+  // Vista "Regiões": aplica só o que mudou (o motor guarda para camadas que ainda vão carregar).
   useEffect(() => {
     if (!map) return;
-    for (const id of new Set([...appliedHexViews.current, ...hexViews])) {
-      if (appliedHexViews.current.has(id) !== hexViews.has(id)) map.setDatasetHexView(id, hexViews.has(id));
+    for (const id of new Set([...appliedRegionViews.current, ...regionViews])) {
+      if (appliedRegionViews.current.has(id) !== regionViews.has(id)) map.setDatasetRegionView(id, regionViews.has(id));
     }
-    appliedHexViews.current = new Set(hexViews);
-  }, [map, hexViews]);
+    appliedRegionViews.current = new Set(regionViews);
+  }, [map, regionViews]);
   const tabsRef = useRef({ tabs, currentTab });
   tabsRef.current = { tabs, currentTab };
   const persistTabs = useCallback(() => {
@@ -707,7 +716,7 @@ export function App() {
     setHidden(new Set(target.hidden));
     setFilters(target.filters);
     setPaintDataset(target.paintDataset ?? null);
-    setHexViews(new Set(target.hexViews ?? []));
+    setRegionViews(new Set(target.regionViews ?? []));
     if ((target.theme ?? "light") !== theme) changeTheme(target.theme ?? "light");
     if ((target.look ?? "data") !== look) changeLook(target.look ?? "data");
     setCurrentTab(id);
@@ -756,7 +765,7 @@ export function App() {
     if (!source) return;
     const live = id === currentTab;
     const copy = createTab(tabs, {
-      ...(live ? { active: [...active], hidden: [...hidden], filters, paintDataset, theme, look, hexViews: [...hexViews] } : source),
+      ...(live ? { active: [...active], hidden: [...hidden], filters, paintDataset, theme, look, regionViews: [...regionViews] } : source),
       title: `${source.title} (cópia)`,
       camera: live && map ? map.camera : (cameras.current.get(id) ?? source.camera),
     });
@@ -975,19 +984,20 @@ export function App() {
   };
   const datasetOptions = (id: string) => {
     const painting = paintDataset === id;
-    // Arquivo antigo: só tem hexágonos no zoom afastado (bolinhas só a partir da rua).
-    const legacy = Boolean(map && datasetMeta(id) && !map.datasetHasLowZoomPoints(id));
-    const hex = legacy || columns3d || hexViews.has(id);
+    // Arquivo antigo: sem contagem por região (e só hexágonos no zoom afastado).
+    const loaded = Boolean(map && datasetMeta(id));
+    const canRegions = loaded && Boolean(map?.datasetHasRegions(id));
+    const regions = canRegions && !columns3d && regionViews.has(id);
     return (
       <>
         <div className="layer-options">
           <button
             type="button"
-            className={`chip-toggle ${hex ? "is-on" : ""}`}
-            aria-pressed={hex}
-            disabled={legacy || columns3d}
+            className={`chip-toggle ${regions ? "is-on" : ""}`}
+            aria-pressed={regions}
+            disabled={!canRegions || columns3d}
             onClick={() =>
-              setHexViews((prev) => {
+              setRegionViews((prev) => {
                 const next = new Set(prev);
                 if (next.has(id)) next.delete(id);
                 else next.add(id);
@@ -995,13 +1005,15 @@ export function App() {
               })
             }
             title={
-              legacy
-                ? "Esta camada foi gerada antes das bolinhas em todos os zooms: importe de novo para ver os pontos afastado"
-                : "Densidade em hexágonos no lugar das bolinhas (até o zoom de rua)"
+              !loaded
+                ? "Abrindo…"
+                : !canRegions
+                  ? "Esta camada foi gerada antes da contagem por região: importe de novo para ver estados e municípios com o número de registros"
+                  : "Estados (afastado) e municípios (ao aproximar) com quantos registros há em cada um"
             }
           >
-            <Icon name="hexagon" size={16} />
-            Hexágonos
+            <Icon name="map" size={16} />
+            Regiões
           </button>
           <button type="button" className={`chip-toggle ${columns3d ? "is-on" : ""}`} aria-pressed={columns3d} onClick={() => toggleColumns(!columns3d)}>
             <Icon name="box3d" size={16} />

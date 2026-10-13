@@ -54,7 +54,9 @@ export function MapPopup({
   const titleText = record
     ? (info?.title && record.properties[info.title] ? String(record.properties[info.title]) : `${info?.name ?? "Registro"} #${record.id}`)
     : pick.dataset?.kind === "aggregate"
-      ? `${int.format(pick.dataset.count)} registros nesta área`
+      ? pick.dataset.name
+        ? `${pick.dataset.name}: ${int.format(pick.dataset.count)} ${pick.dataset.count === 1 ? "registro" : "registros"}`
+        : `${int.format(pick.dataset.count)} registros nesta área`
       : catalog
         ? catalog.datapack.name
         : "Neste ponto";

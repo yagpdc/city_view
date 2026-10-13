@@ -14,7 +14,13 @@ export interface TileReport {
   tilesBytes: number;
 }
 
-type Options = { name: string; colorBy?: string; title?: string };
+/** Malha para contar os registros por região (do mais amplo ao mais fino). */
+export interface RegionSource {
+  id: string;
+  url: string;
+  code: string;
+}
+type Options = { name: string; colorBy?: string; title?: string; regions?: RegionSource[] };
 type Result = { bytes: Uint8Array; report: TileReport };
 
 let ready: Promise<unknown> | null = null;
@@ -29,6 +35,31 @@ async function newJob(name: string): Promise<TileJob> {
   ready ??= init({ module_or_path: wasmUrl });
   await ready;
   return new TileJob(name);
+}
+
+const regionText = new Map<string, Promise<string | null>>();
+
+/** Entrega as malhas ao motor; sem rede ou sem a malha, a camada sai sem a contagem por região. */
+async function addRegions(job: TileJob, regions: RegionSource[] = []): Promise<void> {
+  for (const r of regions) {
+    let text = regionText.get(r.url);
+    if (!text) {
+      text = fetch(r.url)
+        .then((res) => (res.ok ? res.text() : null))
+        .catch(() => null);
+      regionText.set(r.url, text);
+    }
+    const json = await text;
+    if (!json) {
+      console.warn("[regiões] malha indisponível:", r.url);
+      continue;
+    }
+    try {
+      job.add_regions(r.id, json, r.code);
+    } catch (e) {
+      console.warn("[regiões]", r.id, (e as Error).message);
+    }
+  }
 }
 
 /** Roda o motor e devolve bytes + relatório. */
@@ -77,6 +108,7 @@ export async function buildTiles(features: PointFeature[], mapping: ImportMappin
     // Texto e datas vão nos pontos: no navegador não há "arquivo de origem" para buscar depois.
     else job.add_text(c.name, text(c.name));
   }
+  await addRegions(job, options.regions);
   return run(job, onProgress);
 }
 
@@ -91,5 +123,6 @@ export async function buildTilesFromColumns(cols: Columns, options: Options, onP
     else if (c.kind === "category") job.add_category_ids(c.name, c.values.get(), join(c.values.values));
     else job.add_text(c.name, join(c.values));
   }
+  await addRegions(job, options.regions);
   return run(job, onProgress);
 }

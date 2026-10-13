@@ -21,6 +21,13 @@ import type { ImportSpec } from "../server/api";
 import { LARGE_FILE_BYTES, SAMPLE_ROWS, SERVER_FORMATS, fileFormat, type BuildSummary, type Delimiter, type Encoding, type OpenedFile } from "./protocol";
 import { useImportWorker } from "./useImportWorker";
 import { MAX_SAVED_FILE_BYTES, type SavedImport } from "../storage/datasets";
+import { dataUrl } from "../catalog";
+
+/** Malhas do IBGE para contar os registros por estado e município (vista "Regiões" no mapa). */
+const REGION_SOURCES = [
+  { id: "uf", catalog: "estados-populacao" },
+  { id: "mun", catalog: "municipios-populacao" },
+].map((r) => ({ id: r.id, url: new URL(dataUrl(r.catalog), location.href).href, code: "codigo" }));
 import { Icon } from "../components/Icon";
 
 export interface ImportedDataset {
@@ -346,6 +353,7 @@ export function ImportWizard({ file, restore, serverAvailable, onCancel, onImpor
           name: name.trim() || file.name,
           colorBy: colorBy || undefined,
           title: title || undefined,
+          regions: REGION_SOURCES,
           ...(sampleOnly && opened ? { file: { file, delimiter: delimiter ?? opened.delimiter, encoding: encoding ?? opened.encoding } } : {}),
         })
       ).blob;
