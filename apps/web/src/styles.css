@@ -1,7 +1,6 @@
 @import "./tokens.css";
 
 :root {
-  --topbar-h: 60px;
   --sidebar-w: 320px;
   font-family: var(--cv-font-sans);
   font-size: 14px;
@@ -22,8 +21,8 @@ button, input, select, textarea { font: inherit; }
 }
 
 /* ---------- Estrutura (docs/DESIGN.md · Estrutura) ----------
-   [ marca ............................ 2D/3D  widgets  Compartilhar ]  topbar
-   [trilho][painel][            mapa + busca            ][ Na tela ]  workspace */
+   [ marca | abas de mapa .............................................. ]  app-strip
+   [trilho][painel][ mapa + busca ........ Na tela · Compartilhar ][ Na tela ]  workspace */
 .app {
   display: flex;
   flex-direction: column;
@@ -32,17 +31,6 @@ button, input, select, textarea { font: inherit; }
   color: var(--cv-text);
 }
 
-.topbar {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: var(--cv-space-2);
-  height: var(--topbar-h);
-  padding: 0 var(--cv-space-3) 0 var(--cv-space-4);
-  border-bottom: 1px solid var(--cv-border);
-  background: var(--cv-bg);
-  z-index: 3;
-}
 .brand { display: inline-flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 700; letter-spacing: -0.01em; }
 .brand-mark {
   width: 26px;
@@ -52,8 +40,6 @@ button, input, select, textarea { font: inherit; }
     radial-gradient(circle at 50% 42%, var(--cv-on-action) 0 3px, transparent 3.5px),
     var(--cv-action);
 }
-.topbar-spacer { flex: 1; }
-.topbar-share span { display: inline; }
 .icon-button.is-on { background: var(--cv-action-subtle); color: var(--cv-action-subtle-text); }
 
 .workspace { flex: 1; min-height: 0; display: flex; position: relative; }
@@ -396,7 +382,8 @@ button, input, select, textarea { font: inherit; }
   top: var(--cv-space-3);
   left: var(--cv-space-3);
   z-index: 4;
-  width: min(380px, calc(100% - 92px));
+  /* Espaço à direita para as ações sobre o mapa (Na tela, Compartilhar). */
+  width: min(380px, calc(100% - 210px));
   border-color: transparent;
   box-shadow: var(--cv-shadow-2);
 }
@@ -546,8 +533,6 @@ input[type="range"] { accent-color: var(--cv-action); }
   .widgets { position: absolute; top: 0; right: 0; bottom: 0; box-shadow: var(--cv-shadow-3); }
 }
 @media (max-width: 767px) {
-  .topbar-share span,
-  .topbar-perspective { display: none; }
   .rail { width: 60px; }
   .rail-item { width: 56px; }
   .rail-label { font-size: 10px; }
@@ -614,8 +599,6 @@ a { color: var(--cv-link); }
 .panel-subsection h4 { margin: 0; font-size: 14px; font-weight: 600; }
 
 /* ---------- Ferramenta Medir ---------- */
-.topbar-tool { height: var(--cv-control-h-sm); }
-.topbar-tool.is-on { border-color: var(--cv-action-subtle-text); background: var(--cv-action-subtle); color: var(--cv-action-subtle-text); }
 .measure-panel {
   position: absolute;
   left: 50%;
@@ -912,3 +895,23 @@ a { color: var(--cv-link); }
 
 /* Cartão do clique: abaixo da busca */
 .cv-popup { z-index: 3; }
+
+/* ---------- Sem barra no topo: marca na faixa das abas, ações flutuando sobre o mapa ---------- */
+.app-strip { flex: none; display: flex; align-items: stretch; background: var(--cv-surface); border-bottom: 1px solid var(--cv-border); z-index: 2; }
+.app-strip .brand { flex: none; display: inline-flex; align-items: center; gap: 8px; padding: 0 14px 0 14px; font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
+.app-strip .brand-mark { width: 22px; height: 22px; border-radius: 7px; }
+.app-strip .map-tabs { flex: 1; min-width: 0; border-bottom: 0; }
+.map-actions { position: absolute; top: var(--cv-space-3); right: var(--cv-space-3); z-index: 4; display: flex; align-items: center; gap: 8px; }
+.map-action-icon {
+  width: 40px; height: 40px; display: grid; place-items: center; border: 0; border-radius: var(--cv-radius-md);
+  background: var(--cv-float); color: var(--cv-text); box-shadow: var(--cv-shadow-2); cursor: pointer;
+}
+.map-action-icon.is-on { background: var(--cv-action-subtle); color: var(--cv-action-subtle-text); }
+.map-action-share { height: 40px; box-shadow: var(--cv-shadow-2); }
+.map-context-menu { position: absolute; top: 0; right: auto; z-index: 7; min-width: 220px; }
+@media (max-width: 767px) {
+  .app-strip .brand { padding: 0 8px 0 10px; font-size: 0; gap: 0; }
+  .map-action-share span { display: none; }
+  .map-action-share { width: 40px; padding: 0; justify-content: center; }
+}
+@media (max-width: 767px) { .map-search { width: calc(100% - 128px); } }

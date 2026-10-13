@@ -24,7 +24,6 @@ import { layerFromRecipe, recipeOf, restoreMapLayer, type LibraryLayer } from ".
 import { CAMERA_PARAM, clearShared, readShared, shareUrl } from "./share";
 import { StreetViewer } from "./components/StreetViewer";
 import { coverageOverlay, nearestStreetImage, streetImageryEnabled } from "./streetImagery";
-import { TopBar } from "./components/TopBar";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { StyleEditor } from "./components/StyleEditor";
 import { MapTabs } from "./components/MapTabs";
@@ -164,7 +163,6 @@ export function App() {
   const initialFilters = useRef(filters);
   const [widgetsOpen, setWidgetsOpen] = useState(() => window.innerWidth >= 1280);
   const [widgets, setWidgets] = useState<ViewportWidget[]>([]);
-  const [perspective, setPerspective] = useState<"2d" | "3d">("2d");
   const [measuring, setMeasuring] = useState(false);
   /** Maquete holográfica aberta (cobre o mapa). */
   const [maquete, setMaquete] = useState<{ center: [number, number]; title?: string; datasetIds: string[]; radius: number } | null>(null);
@@ -227,7 +225,31 @@ export function App() {
     theme,
     camera: INITIAL_TAB.camera ?? BLANK_CAMERA,
     hash: CAMERA_PARAM,
+    // Sem botões de zoom: roda do mouse, pinça e duplo clique bastam (o mapa ganha espaço).
+    navigation: false,
   });
+  /** Menu do botão direito no mapa (medir, visualização avançada, coordenadas). */
+  const [contextMenu, setContextMenu] = useState<{ lngLat: [number, number]; point: [number, number] } | null>(null);
+  useEffect(() => {
+    if (!map) return;
+    const offMenu = map.onContextMenu(setContextMenu);
+    const offMove = map.onViewChange(() => setContextMenu(null));
+    return () => {
+      offMenu();
+      offMove();
+    };
+  }, [map]);
+  useEffect(() => {
+    if (!contextMenu) return;
+    const close = (e: Event) => !(e.target as Element).closest?.(".map-context-menu") && setContextMenu(null);
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setContextMenu(null);
+    window.addEventListener("pointerdown", close);
+    window.addEventListener("keydown", esc);
+    return () => {
+      window.removeEventListener("pointerdown", close);
+      window.removeEventListener("keydown", esc);
+    };
+  }, [contextMenu]);
   // Só no desenvolvimento: o mapa no console (window.__cityMap) para depurar camadas e dados.
   useEffect(() => {
     if (import.meta.env.DEV && map) (window as unknown as { __cityMap?: unknown }).__cityMap = map;
@@ -722,11 +744,6 @@ export function App() {
     map?.setMeasureMode(mode);
   };
 
-  const changePerspective = (mode: "2d" | "3d") => {
-    setPerspective(mode);
-    map?.setPerspective(mode);
-  };
-
   // ---------- Abas de mapa ----------
 
   /** Mostra outra aba: camadas, filtros, prédios e câmera dela. O que é do momento (clique, medição, maquete) fecha. */
@@ -751,7 +768,6 @@ export function App() {
     setCurrentTab(id);
     const camera = cameras.current.get(id) ?? target.camera ?? BLANK_CAMERA;
     map?.jumpTo(camera);
-    setPerspective(camera.pitch > 1 ? "3d" : "2d");
   };
 
   /** Mapa zerado: sem camadas, no Brasil inteiro. A biblioteca e os seus dados continuam em "Adicionar". */
@@ -1488,6 +1504,19 @@ export function App() {
           </p>
         )}
       </PanelCard>
+      <PanelCard title="Ferramentas">
+        <p className="panel-text">Também no botão direito do mapa.</p>
+        <div className="layer-options">
+          <button type="button" className="chip-toggle" onClick={() => { setPanel(isNarrowScreen() ? null : panel); startMeasure("distance"); }}>
+            <Icon name="ruler" size={16} />
+            Medir distância
+          </button>
+          <button type="button" className="chip-toggle" onClick={() => { setPanel(isNarrowScreen() ? null : panel); startMeasure("area"); }}>
+            <Icon name="frame" size={16} />
+            Medir área
+          </button>
+        </div>
+      </PanelCard>
       <PanelCard title="Compartilhar">
         <p className="panel-text">O link leva a posição do mapa, as camadas visíveis, as da biblioteca (buscadas de novo na fonte) e a aparência.</p>
         <button type="button" className="btn btn-block" onClick={() => void copyShareLink()}>
@@ -1502,9 +1531,14 @@ export function App() {
 
   return (
     <div className={`app theme-${theme}`}>
-      <TopBar perspective={perspective} onPerspective={changePerspective} onShare={() => void copyShareLink()} widgetsOpen={widgetsOpen} onToggleWidgets={() => setWidgetsOpen((o) => !o)} measuring={measuring} onToggleMeasure={() => (measuring ? stopMeasure() : startMeasure())} />
 
-      <MapTabs tabs={tabs} current={currentTab} onSelect={(id) => switchTab(id)} onNew={newTab} onClose={closeTab} onRename={renameTab} onMove={moveTab} onDuplicate={duplicateTab} onCloseOthers={closeOtherTabs} />
+      <div className="app-strip">
+        <span className="brand">
+          <span className="brand-mark" aria-hidden="true" />
+          City View
+        </span>
+        <MapTabs tabs={tabs} current={currentTab} onSelect={(id) => switchTab(id)} onNew={newTab} onClose={closeTab} onRename={renameTab} onMove={moveTab} onDuplicate={duplicateTab} onCloseOthers={closeOtherTabs} />
+      </div>
 
       <div className="workspace">
         <Rail panel={panel} onPanel={setPanel} badges={{ layers: [...active].length || undefined, details: pick ? 1 : undefined }} />
@@ -1514,6 +1548,64 @@ export function App() {
           <div ref={containerRef} className="map" />
           <SearchBox search={search} onSelect={selectSearch} />
           {styleEditor}
+          {/* Ações sobre o mapa, no canto superior direito (no lugar da barra do topo). */}
+          <div className="map-actions">
+            <button
+              type="button"
+              className={`map-action-icon ${widgetsOpen ? "is-on" : ""}`}
+              aria-pressed={widgetsOpen}
+              aria-label={widgetsOpen ? "Esconder o painel Na tela" : "Mostrar o painel Na tela"}
+              title="Na tela"
+              onClick={() => setWidgetsOpen((o) => !o)}
+            >
+              <Icon name="widgets" size={18} />
+            </button>
+            <button type="button" className="btn btn-primary map-action-share" onClick={() => void copyShareLink()}>
+              <Icon name="share" size={16} />
+              <span>Compartilhar</span>
+            </button>
+          </div>
+          {contextMenu && (
+            <div
+              className="map-context-menu layer-menu-list"
+              role="menu"
+              aria-label="Ações neste ponto"
+              style={{ left: Math.min(contextMenu.point[0], (map?.native.getContainer().clientWidth ?? 9999) - 230), top: Math.min(contextMenu.point[1], (map?.native.getContainer().clientHeight ?? 9999) - 200) }}
+            >
+              <button type="button" role="menuitem" onClick={() => { setContextMenu(null); startMeasure("distance"); }}>
+                <Icon name="ruler" size={16} />
+                Medir distância
+              </button>
+              <button type="button" role="menuitem" onClick={() => { setContextMenu(null); startMeasure("area"); }}>
+                <Icon name="frame" size={16} />
+                Medir área
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  const at = contextMenu.lngLat;
+                  setContextMenu(null);
+                  void startAdvanced({ lngLat: at, dataset: null, catalog: [], building: null });
+                }}
+              >
+                <Icon name="box3d" size={16} />
+                Visualização avançada aqui
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  const [lon, lat] = contextMenu.lngLat;
+                  setContextMenu(null);
+                  void navigator.clipboard?.writeText(`${lat.toFixed(6)}, ${lon.toFixed(6)}`).then(() => setShareStatus("Coordenadas copiadas."));
+                }}
+              >
+                <Icon name="pin" size={16} />
+                Copiar coordenadas
+              </button>
+            </div>
+          )}
           <DropZone onFile={openImport} />
           {shareStatus && !maquete && (
             <div className="toast" role="status">

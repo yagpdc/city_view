@@ -59,6 +59,8 @@ export interface CityMapOptions extends StyleOptions {
   terrain?: boolean;
   /** Malhas da vista "Regiões" (do mais amplo ao mais fino), com os zooms de cada uma. */
   regionLevels?: RegionLevelSource[];
+  /** Botões de zoom e bússola do MapLibre (padrão: sim; o app da plataforma desliga). */
+  navigation?: boolean;
 }
 
 export type CityMapEvent = "load" | "move" | "idle";
@@ -145,6 +147,7 @@ export class CityMap {
     hash = false,
     terrain = true,
     regionLevels,
+    navigation = true,
     ...styleOptions
   }: CityMapOptions) {
     initMapLibre();
@@ -165,7 +168,7 @@ export class CityMap {
       attributionControl: { compact: true },
     });
 
-    this.map.addControl(new NavigationControl({ visualizePitch: true }), "top-right");
+    if (navigation) this.map.addControl(new NavigationControl({ visualizePitch: true }), "top-right");
     this.map.addControl(new ScaleControl({ unit: "metric" }), "bottom-left");
     this.map.on("style.load", () => {
       this.styleReady = true;
@@ -569,6 +572,17 @@ export class CityMap {
   }
 
   /** Clique com tudo o que está sob o cursor, de todas as camadas. */
+  /** Botão direito (ou toque longo) no mapa: posição e o ponto na tela, para um menu do app. */
+  onContextMenu(handler: (e: { lngLat: [number, number]; point: [number, number] }) => void): () => void {
+    const listener = (e: MapMouseEvent) => {
+      e.preventDefault();
+      if (this.measure) return;
+      handler({ lngLat: [e.lngLat.lng, e.lngLat.lat], point: [e.point.x, e.point.y] });
+    };
+    this.map.on("contextmenu", listener);
+    return () => this.map.off("contextmenu", listener);
+  }
+
   onMapPick(handler: (pick: MapPick) => void): () => void {
     const listener = (e: MapMouseEvent) => {
       if (this.measure) return; // medindo: o clique marca pontos

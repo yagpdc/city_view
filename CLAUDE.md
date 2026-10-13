@@ -28,9 +28,9 @@ Especialistas em `.claude/agents/`. Delegue ao agente quando o assunto for dele:
 ## Layout padrão da interface
 
 ```
-[marca .................... 2D/3D  Medir  Na tela  Compartilhar]   TopBar (components/TopBar.tsx)
-[Mapa 1 × | Mapa 2 × | +]                                          abas de mapa (components/MapTabs.tsx)
-[trilho][painel][          mapa + busca flutuante          ][Na tela]
+[marca | Mapa 1 × | Mapa 2 × | +]                                  faixa do topo: marca + abas (components/MapTabs.tsx)
+[trilho][painel][ mapa + busca ........ [Na tela][Compartilhar] ][Na tela]
+                 (botão direito no mapa: medir, visualização avançada, copiar coordenadas)
 ```
 
 - **Abas de mapa** (`MapTabs` + `mapTabs.ts`): como abas do navegador. Cada aba guarda camadas no projeto, filtros, câmera, prédios acesos, tema e estilo do mapa base; aba nova começa zerada (herda só a aparência). Botão direito: Duplicar, Renomear, Fechar, Fechar as outras. Motor, biblioteca e dados (públicos e importados) são os mesmos em todas. Link compartilhado abre numa aba nova, com o nome da aba (`n` no link). Salvas no localStorage (`cityview.map-tabs`).
