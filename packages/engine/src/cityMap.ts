@@ -912,14 +912,39 @@ export class CityMap {
     this.popup?.off("close", this.popupClose);
     this.popupClose = () => onClose?.();
     if (!this.popup) {
-      this.popup = new Popup({ closeButton: true, closeOnClick: false, maxWidth: "340px", offset: 12, className: "cv-popup" });
+      // Largura pelo CSS do conteúdo (o cartão do app); o MapLibre não limita.
+      this.popup = new Popup({ closeButton: true, closeOnClick: false, maxWidth: "none", offset: 12, className: "cv-popup" });
     }
     this.popup.setLngLat(lngLat).setDOMContent(content);
     if (!this.popup.isOpen()) this.popup.addTo(this.map);
     this.popup.on("close", this.popupClose);
+    // O cartão cresce quando a foto chega (ou troca de aba): reajusta a cada mudança de tamanho.
+    this.popupResize ??= new ResizeObserver(() => requestAnimationFrame(() => this.fitPopup()));
+    this.popupResize.disconnect();
+    this.popupResize.observe(this.popup.getElement());
+    requestAnimationFrame(() => this.fitPopup());
+  }
+
+  private popupResize: ResizeObserver | null = null;
+
+  /** Desliza o mapa para o cartão caber inteiro, sem ficar embaixo da busca (no alto) nem cortado nas bordas. */
+  private fitPopup(): void {
+    const el = this.popup?.isOpen() ? this.popup.getElement() : null;
+    if (!el) return;
+    const box = el.getBoundingClientRect();
+    const frame = this.map.getContainer().getBoundingClientRect();
+    const pad = { top: 76, right: 16, bottom: 16, left: 16 };
+    let dx = 0;
+    let dy = 0;
+    if (box.top < frame.top + pad.top) dy = box.top - (frame.top + pad.top);
+    else if (box.bottom > frame.bottom - pad.bottom) dy = Math.min(box.bottom - (frame.bottom - pad.bottom), box.top - (frame.top + pad.top));
+    if (box.left < frame.left + pad.left) dx = box.left - (frame.left + pad.left);
+    else if (box.right > frame.right - pad.right) dx = box.right - (frame.right - pad.right);
+    if (Math.abs(dx) > 1 || Math.abs(dy) > 1) this.map.panBy([dx, dy], { duration: 300 });
   }
 
   hidePopup(): void {
+    this.popupResize?.disconnect();
     this.popup?.off("close", this.popupClose);
     this.popup?.remove();
   }

@@ -687,3 +687,21 @@
 .area-summary-note { font-size: 12px; }
 .area-summary.is-compact { padding: 8px 0; border-top: 1px solid var(--cv-border); margin-top: 8px; }
 .map-popup-error { margin: 0; padding: 14px 16px 2px; font-size: 13px; color: var(--cv-text-muted); }
+
+/* Mais de uma coisa sob o clique: botões para escolher o que ver */
+.map-popup-tabs {
+  display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; padding: 10px 44px 8px 12px; margin: 0 !important;
+  border-bottom: 1px solid var(--cv-border); background: var(--cv-surface);
+}
+.map-popup-tabs::-webkit-scrollbar { display: none; }
+.map-popup-tabs button {
+  flex: none; display: inline-flex; align-items: center; gap: 6px; max-width: 170px; height: 30px; padding: 0 10px;
+  border: 1px solid var(--cv-border); border-radius: 999px; background: var(--cv-float); color: var(--cv-text-muted);
+  font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.map-popup-tabs button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.map-popup-tabs button.is-on { border-color: var(--cv-action); background: var(--cv-action-subtle); color: var(--cv-action-subtle-text); }
+.map-popup-area:has(.map-popup-tabs) { padding-top: 0; }
+.map-popup-area:has(.map-popup-tabs) .area-summary { padding-top: 12px; }
+.map-popup-photo .street-photo-hero { margin: 0; }
+.map-popup-photo { padding-bottom: 4px; }

@@ -1551,7 +1551,7 @@ export function App() {
                 onAdvanced={(p) => void startAdvanced(p)}
                 userLayers={Object.entries(datasetInfos)
                   .filter(([id]) => active.has(datasetKey(id)))
-                  .map(([id, info]) => ({ id, info }))}
+                  .map(([id, info]) => ({ id, info, user: id !== PLACES.id && id !== CLIENT_DATASET.id }))}
               />
               </ErrorBoundary>,
               popupEl,

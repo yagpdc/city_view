@@ -4,12 +4,29 @@ import { useEffect, useState } from "react";
 const SUMMARY_KEYS = ["endereco", "address", "endereço", "cidade"];
 import { FieldValue, formatField, labelled, type DatasetInfo } from "./PickDetails";
 import { StreetPhoto } from "./StreetPhoto";
-import { Icon } from "./Icon";
+import { streetImageryEnabled } from "../streetImagery";
+import { Icon, type IconName } from "./Icon";
 
 const int = new Intl.NumberFormat("pt-BR");
 const RADII = [200, 500, 1000];
 /** Campos em "Mais informações" (todos ficam na barra lateral). */
 const MAX_FIELDS = 8;
+
+type PopupView = "record" | "aggregate" | "area" | "photo";
+
+/** Camada em tiles ligada; `user` = dado da pessoa (para dizer "importe de novo" quando faltar a contagem). */
+export interface UserLayer {
+  id: string;
+  info: DatasetInfo;
+  user?: boolean;
+}
+
+/** "Cubatão · SP" a partir da feição de uma camada de áreas. */
+function areaTitle(c: MapPick["catalog"][number]): string {
+  const p = c.properties;
+  const code = String(p.codigo ?? c.featureId ?? "");
+  return p.nome ? `${p.nome}${p.uf && code.length > 2 ? ` · ${p.uf}` : ""}` : c.datapack.name;
+}
 
 const meters = (m: number) =>
   m < 1000 ? `${Math.round(m)} m` : `${new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 }).format(m / 1000)} km`;
@@ -47,13 +64,28 @@ export function MapPopup({
   onStreetView?: (imageId: string) => void;
   onAdvanced?: (pick: MapPick) => void;
   /** Camadas em tiles ligadas (para "Seus dados aqui" no clique numa região). */
-  userLayers?: { id: string; info: DatasetInfo }[];
+  userLayers?: UserLayer[];
 }) {
-  // Região de uma camada de áreas (IBGE, biblioteca) sob o clique. De longe, ela vale mais que o ponto acertado.
+  // O que há sob o clique: o ponto (registro), a região da sua camada, a área de uma camada de áreas (IBGE,
+  // biblioteca) e a foto da rua. Mais de uma coisa: botões no topo para escolher o que ver.
   const areaPicks = pick.catalog.filter((c) => c.datapack.geometry === "polygon");
-  const areaMode = areaPicks.length > 0 && (pick.dataset?.kind !== "record" || map.camera.zoom < 12);
-  const record = !areaMode && pick.dataset?.kind === "record" ? pick.dataset : null;
-  const info = pick.dataset ? datasets[pick.dataset.datasetId] : undefined;
+  const recordPick = pick.dataset?.kind === "record" ? pick.dataset : null;
+  const aggregatePick = pick.dataset?.kind === "aggregate" ? pick.dataset : null;
+  const pickInfo = pick.dataset ? datasets[pick.dataset.datasetId] : undefined;
+  const views: { key: PopupView; label: string; icon: IconName }[] = [];
+  if (recordPick) {
+    const t = pickInfo?.title && recordPick.properties[pickInfo.title] ? String(recordPick.properties[pickInfo.title]) : (pickInfo?.name ?? "Registro");
+    views.push({ key: "record", label: t, icon: "pin" });
+  }
+  if (aggregatePick) views.push({ key: "aggregate", label: aggregatePick.name ?? "Região", icon: "map" });
+  if (areaPicks.length) views.push({ key: "area", label: areaTitle(areaPicks[0]!), icon: "layers" });
+  if (streetImageryEnabled && views.length > 0) views.push({ key: "photo", label: "Foto da rua", icon: "camera" });
+  // De longe, a área vale mais que o ponto acertado; de perto, o ponto.
+  const preferred: PopupView = areaPicks.length && (!pick.dataset || map.camera.zoom < 12) ? "area" : (views[0]?.key ?? "record");
+  const [view, setView] = useState<PopupView>(preferred);
+  const areaMode = view === "area" && areaPicks.length > 0;
+  const record = view === "record" ? recordPick : null;
+  const info = pickInfo;
   const center = pick.dataset?.lngLat ?? pick.lngLat;
   const catalog = pick.catalog[0];
 
@@ -82,9 +114,31 @@ export function MapPopup({
       ).slice(0, MAX_FIELDS)
     : [];
 
+  const tabs =
+    views.length > 1 ? (
+      <div className="map-popup-tabs" role="tablist" aria-label="O que ver neste ponto">
+        {views.map((v) => (
+          <button key={v.key} type="button" role="tab" aria-selected={view === v.key} className={view === v.key ? "is-on" : ""} onClick={() => setView(v.key)} title={v.label}>
+            <Icon name={v.icon} size={16} />
+            <span>{v.label}</span>
+          </button>
+        ))}
+      </div>
+    ) : null;
+
+  if (view === "photo") {
+    return (
+      <div className="map-popup map-popup-photo">
+        {tabs}
+        <StreetPhoto lngLat={center} onOpen={onStreetView} variant="hero" />
+      </div>
+    );
+  }
+
   if (areaMode) {
     return (
       <div className="map-popup map-popup-area">
+        {tabs}
         <AreaSummary map={map} picks={areaPicks} userLayers={userLayers} />
         <div className="map-popup-actions">
           <button type="button" className="btn" onClick={onDetails}>
@@ -101,7 +155,8 @@ export function MapPopup({
   }
 
   return (
-    <div className="map-popup">
+    <div className={`map-popup ${tabs ? "has-tabs" : ""}`}>
+      {tabs}
       <StreetPhoto lngLat={center} onOpen={onStreetView} variant="hero" />
 
       <h4>{titleText}</h4>
@@ -160,7 +215,6 @@ export function MapPopup({
               ))}
             </dl>
           )}
-          {record && areaPicks.length > 0 && <AreaSummary map={map} picks={areaPicks} userLayers={userLayers} compact />}
           {nearbySource && (
             <Nearby
               map={map}
@@ -187,7 +241,7 @@ function AreaSummary({
 }: {
   map: CityMap;
   picks: MapPick["catalog"];
-  userLayers?: { id: string; info: DatasetInfo }[];
+  userLayers?: UserLayer[];
   compact?: boolean;
 }) {
   const first = picks[0]!;
@@ -204,7 +258,7 @@ function AreaSummary({
     return [field, ...extra].map((f) => ({ key: `${c.datapack.id}:${f.key}`, label: f === field && c.datapack.category === "Biblioteca" ? c.datapack.name : f.label, value: formatField(f, c.properties[f.key]) }));
   });
   const mine = code
-    ? userLayers.map(({ id, info }) => {
+    ? userLayers.map(({ id, info, user }) => {
         const row = map.datasetRegionRow(id, code);
         const top = row
           ? info.categories
@@ -213,7 +267,7 @@ function AreaSummary({
               .sort((a, b) => b.n - a.n)
               .slice(0, 3)
           : [];
-        return { id, name: info.name, total: row ? row[0]! : null, top };
+        return { id, name: info.name, total: row ? row[0]! : null, top, user };
       })
     : [];
   return (
@@ -247,7 +301,9 @@ function AreaSummary({
                   <b className="num">{m.total === null ? "–" : int.format(m.total)}</b>
                 </div>
                 {m.total === null ? (
-                  <span className="muted area-summary-note">Camada sem contagem por região: importe de novo para ver.</span>
+                  <span className="muted area-summary-note">
+                    {m.user ? "Camada sem contagem por região: importe de novo para ver." : "Contagem por região ainda não disponível nesta versão da fonte."}
+                  </span>
                 ) : (
                   m.top.length > 0 && (
                     <span className="area-summary-cats">
