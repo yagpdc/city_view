@@ -20,6 +20,8 @@ export interface SharedState {
   look?: BasemapLook;
   /** Filtros das camadas (id no mapa → categorias e condições por coluna). */
   f?: Record<string, DatasetFilter>;
+  /** Nome da aba de mapa (abre com esse título). */
+  n?: string;
   /** Maquete aberta: centro [lon, lat], raio (m) e título. */
   maquete?: { c: [number, number]; r: number; t?: string };
 }

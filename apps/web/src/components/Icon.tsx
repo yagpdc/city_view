@@ -6,6 +6,7 @@ import {
   ChevronUp,
   CirclePlus,
   Compass,
+  Copy,
   EllipsisVertical,
   ExternalLink,
   Eye,
@@ -77,6 +78,7 @@ const ICONS = {
   sun: Sun,
   moon: Moon,
   map: MapGlyph,
+  duplicate: Copy,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof ICONS;

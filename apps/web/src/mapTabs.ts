@@ -1,9 +1,9 @@
 /**
  * Abas de mapa, como as do navegador: cada aba é uma visão independente (camadas no projeto, filtros,
- * câmera, prédios acesos). O motor, a biblioteca e os dados (públicos e importados) são os mesmos para
+ * câmera, prédios acesos, tema e estilo do mapa base). O motor, a biblioteca e os dados (públicos e importados) são os mesmos para
  * todas; uma aba nova só começa sem nada ligado. Tudo fica neste navegador (localStorage).
  */
-import type { Camera, DatasetFilter } from "@cityview/engine";
+import type { BasemapLook, Camera, DatasetFilter, Theme } from "@cityview/engine";
 
 export interface MapTab {
   id: string;
@@ -17,6 +17,9 @@ export interface MapTab {
   camera?: Camera;
   /** Camada que acende os prédios (id no mapa). */
   paintDataset?: string | null;
+  /** Aparência do mapa base (abas salvas antes disso: claro, "Para dados"). */
+  theme?: Theme;
+  look?: BasemapLook;
 }
 
 export interface TabsState {

@@ -112,7 +112,13 @@ const INITIAL_TABS = (() => {
     filters: loadFilters(),
   }));
   if (!SHARED?.layers) return state;
-  const shared = createTab(state.tabs, { title: "Link compartilhado", active: SHARED.layers, filters: SHARED.f ?? {} });
+  const shared = createTab(state.tabs, {
+    title: SHARED.n || "Link compartilhado",
+    active: SHARED.layers,
+    filters: SHARED.f ?? {},
+    ...(SHARED.theme && { theme: SHARED.theme }),
+    ...(SHARED.look && { look: SHARED.look }),
+  });
   return { tabs: [...state.tabs, shared], current: shared.id };
 })();
 const INITIAL_TAB = INITIAL_TABS.tabs.find((t) => t.id === INITIAL_TABS.current)!;
@@ -152,8 +158,8 @@ export function App() {
   const [maquete, setMaquete] = useState<{ center: [number, number]; title?: string; datasetIds: string[]; radius: number } | null>(null);
   const [measureMode, setMeasureMode] = useState<MeasureMode>("distance");
   const [measureState, setMeasureState] = useState<MeasureState | null>(null);
-  const [theme, setTheme] = useState<Theme>(SHARED?.theme ?? "light");
-  const [look, setLook] = useState<BasemapLook>(SHARED?.look ?? "data");
+  const [theme, setTheme] = useState<Theme>(INITIAL_TAB.theme ?? "light");
+  const [look, setLook] = useState<BasemapLook>(INITIAL_TAB.look ?? "data");
   const [shareStatus, setShareStatus] = useState<string | null>(null);
   const [columns3d, setColumns3d] = useState(false);
   const [municipios3d, setMunicipios3d] = useState(false);
@@ -360,7 +366,10 @@ export function App() {
     const lib = libraryLayers.filter((l) => active.has(l.manifest.id)).map(recipeOf);
     const f = Object.fromEntries(shareable.map(mapIdOf).filter((id) => filters[id]).map((id) => [id, filters[id]!]));
     const round = (n: number) => Math.round(n * 1e6) / 1e6;
+    const title = tabs.find((t) => t.id === currentTab)?.title;
     const url = shareUrl({
+      // O nome dado pela pessoa vai junto; "Mapa N" não diz nada a quem recebe.
+      ...(title && !/^Mapa \d+$/.test(title) ? { n: title } : {}),
       layers: shareable,
       lib,
       theme,
@@ -398,9 +407,9 @@ export function App() {
   // O que está na tela é a aba atual: cada mudança vai para ela.
   useEffect(() => {
     setTabs((list) =>
-      list.map((t) => (t.id === currentTab ? { ...t, active: [...active], hidden: [...hidden], filters, paintDataset } : t)),
+      list.map((t) => (t.id === currentTab ? { ...t, active: [...active], hidden: [...hidden], filters, paintDataset, theme, look } : t)),
     );
-  }, [currentTab, active, hidden, filters, paintDataset]);
+  }, [currentTab, active, hidden, filters, paintDataset, theme, look]);
   const tabsRef = useRef({ tabs, currentTab });
   tabsRef.current = { tabs, currentTab };
   const persistTabs = useCallback(() => {
@@ -662,6 +671,8 @@ export function App() {
     setHidden(new Set(target.hidden));
     setFilters(target.filters);
     setPaintDataset(target.paintDataset ?? null);
+    if ((target.theme ?? "light") !== theme) changeTheme(target.theme ?? "light");
+    if ((target.look ?? "data") !== look) changeLook(target.look ?? "data");
     setCurrentTab(id);
     const camera = cameras.current.get(id) ?? target.camera ?? BLANK_CAMERA;
     map?.jumpTo(camera);
@@ -670,7 +681,8 @@ export function App() {
 
   /** Mapa zerado: sem camadas, no Brasil inteiro. A biblioteca e os seus dados continuam em "Adicionar". */
   const newTab = () => {
-    const tab = createTab(tabs, { camera: BLANK_CAMERA });
+    // A aparência vem da aba atual (é mais gosto do que dado); o resto começa vazio.
+    const tab = createTab(tabs, { camera: BLANK_CAMERA, theme, look });
     const list = [...tabs, tab];
     setTabs(list);
     switchTab(tab.id, list);
@@ -697,6 +709,32 @@ export function App() {
     list.splice(Math.min(closedTab.index, list.length), 0, closedTab.tab);
     setTabs(list);
     switchTab(closedTab.tab.id, list);
+    setClosedTab(null);
+  };
+
+  /** Cópia da aba logo ao lado, já aberta: para variar um mapa sem montar tudo de novo. */
+  const duplicateTab = (id: string) => {
+    const index = tabs.findIndex((t) => t.id === id);
+    const source = tabs[index];
+    if (!source) return;
+    const live = id === currentTab;
+    const copy = createTab(tabs, {
+      ...(live ? { active: [...active], hidden: [...hidden], filters, paintDataset, theme, look } : source),
+      title: `${source.title} (cópia)`,
+      camera: live && map ? map.camera : (cameras.current.get(id) ?? source.camera),
+    });
+    const list = [...tabs];
+    list.splice(index + 1, 0, copy);
+    setTabs(list);
+    switchTab(copy.id, list);
+  };
+
+  const closeOtherTabs = (id: string) => {
+    const keep = tabs.filter((t) => t.id === id);
+    if (!keep.length || tabs.length < 2) return;
+    setTabs(keep);
+    if (id !== currentTab) switchTab(id, keep);
+    for (const t of tabs) if (t.id !== id) cameras.current.delete(t.id);
     setClosedTab(null);
   };
 
@@ -1323,7 +1361,7 @@ export function App() {
     <div className={`app theme-${theme}`}>
       <TopBar perspective={perspective} onPerspective={changePerspective} onShare={() => void copyShareLink()} widgetsOpen={widgetsOpen} onToggleWidgets={() => setWidgetsOpen((o) => !o)} measuring={measuring} onToggleMeasure={() => (measuring ? stopMeasure() : startMeasure())} />
 
-      <MapTabs tabs={tabs} current={currentTab} onSelect={(id) => switchTab(id)} onNew={newTab} onClose={closeTab} onRename={renameTab} onMove={moveTab} />
+      <MapTabs tabs={tabs} current={currentTab} onSelect={(id) => switchTab(id)} onNew={newTab} onClose={closeTab} onRename={renameTab} onMove={moveTab} onDuplicate={duplicateTab} onCloseOthers={closeOtherTabs} />
 
       <div className="workspace">
         <Rail panel={panel} onPanel={setPanel} badges={{ layers: [...active].length || undefined, details: pick ? 1 : undefined }} />

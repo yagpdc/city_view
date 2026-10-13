@@ -4,7 +4,7 @@ import { Icon } from "./Icon";
 
 /**
  * Barra de abas de mapa (como as do navegador): clicar troca, duplo clique renomeia, botão do meio
- * ou × fecha, arrastar reordena, + abre um mapa zerado.
+ * ou × fecha, arrastar reordena, + abre um mapa zerado, botão direito abre o menu da aba.
  */
 export function MapTabs({
   tabs,
@@ -14,6 +14,8 @@ export function MapTabs({
   onClose,
   onRename,
   onMove,
+  onDuplicate,
+  onCloseOthers,
 }: {
   tabs: MapTab[];
   current: string;
@@ -22,11 +24,43 @@ export function MapTabs({
   onClose: (id: string) => void;
   onRename: (id: string, title: string) => void;
   onMove: (id: string, toIndex: number) => void;
+  onDuplicate: (id: string) => void;
+  onCloseOthers: (id: string) => void;
 }) {
   const [editing, setEditing] = useState<string | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
   const strip = useRef<HTMLDivElement>(null);
   const canClose = tabs.length > 1;
+  /** Menu da aba (botão direito ou toque longo): aba e onde abrir. */
+  const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!menu) return;
+    const close = (e: Event) => !menuRef.current?.contains(e.target as Node) && setMenu(null);
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setMenu(null);
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", esc);
+    window.addEventListener("resize", close);
+    menuRef.current?.querySelector<HTMLElement>("button")?.focus();
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", esc);
+      window.removeEventListener("resize", close);
+    };
+  }, [menu]);
+  const menuTab = menu && tabs.find((t) => t.id === menu.id);
+  const menuItems = menuTab
+    ? [
+        { label: "Duplicar", icon: "duplicate" as const, onClick: () => onDuplicate(menuTab.id) },
+        { label: "Renomear", icon: "rename" as const, onClick: () => setEditing(menuTab.id) },
+        ...(canClose
+          ? [
+              { label: "Fechar", icon: "close" as const, onClick: () => onClose(menuTab.id) },
+              { label: "Fechar as outras", icon: "close" as const, onClick: () => onCloseOthers(menuTab.id) },
+            ]
+          : []),
+      ]
+    : [];
 
   // A aba atual sempre à vista (muitas abas ou tela estreita).
   useEffect(() => {
@@ -48,6 +82,13 @@ export function MapTabs({
             draggable={editing !== t.id}
             onClick={() => onSelect(t.id)}
             onDoubleClick={() => setEditing(t.id)}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              const r = e.currentTarget.getBoundingClientRect();
+              // Pelo teclado (Shift+F10) não há ponteiro: abre embaixo da aba.
+              const x = e.clientX || r.left;
+              setMenu({ id: t.id, x: Math.min(x, window.innerWidth - 200), y: e.clientY && e.clientY > r.top ? e.clientY : r.bottom });
+            }}
             onAuxClick={(e) => {
               if (e.button === 1 && canClose) {
                 e.preventDefault();
@@ -123,6 +164,24 @@ export function MapTabs({
       <button type="button" className="map-tab-new" onClick={onNew} aria-label="Novo mapa" title="Novo mapa">
         <Icon name="plus" size={16} />
       </button>
+      {menu && menuTab && (
+        <div ref={menuRef} className="layer-menu-list map-tab-menu" role="menu" aria-label={`Opções de ${menuTab.title}`} style={{ left: menu.x, top: menu.y }}>
+          {menuItems.map((a) => (
+            <button
+              key={a.label}
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setMenu(null);
+                a.onClick();
+              }}
+            >
+              <Icon name={a.icon} size={16} />
+              {a.label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

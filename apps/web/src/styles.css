@@ -136,6 +136,7 @@ button, input, select, textarea { font: inherit; }
   cursor: pointer;
 }
 .map-tab-new:hover { background: var(--cv-surface-press); color: var(--cv-text); }
+.map-tab-menu { position: fixed; right: auto; min-width: 180px; z-index: 20; }
 @media (hover: none) { .map-tab-close { opacity: 1; } }
 @media (max-width: 767px) {
   .map-tab { flex-basis: 140px; min-width: 96px; }
