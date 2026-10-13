@@ -76,6 +76,12 @@ export function parseDate(raw: unknown): number | null {
   return null;
 }
 
+/** Erros de fórmula do Excel/Sheets (pt e en): nunca são um valor de verdade. */
+export const FORMULA_ERROR = /^#(N\/D|N\/A|REF!|DIV\/0!|VALOR!|VALUE!|NOME\?|NAME\?|NULO!|NULL!|NUM!|SPILL!|CALC!|ERRO!|ERROR!)$/i;
+
 export function isEmpty(raw: unknown): boolean {
-  return raw === null || raw === undefined || (typeof raw === "string" && raw.trim() === "");
+  if (raw === null || raw === undefined) return true;
+  if (typeof raw !== "string") return false;
+  const s = raw.trim();
+  return s === "" || FORMULA_ERROR.test(s);
 }

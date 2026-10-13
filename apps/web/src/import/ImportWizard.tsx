@@ -2,6 +2,7 @@ import type { DatapackManifest } from "@cityview/engine";
 import { CATEGORY_COLORS } from "@cityview/engine";
 import {
   applyCoordinateFix,
+  BRAZIL_UTM_ZONES,
   inBrazil,
   readCoordinates,
   suggestCoordinateFix,
@@ -86,6 +87,7 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
   const [locMode, setLocMode] = useState<"pair" | "single">("pair");
   const [latlon, setLatlon] = useState("");
   const [fix, setFix] = useState<CoordinateFix | undefined>();
+  const [utmZone, setUtmZone] = useState(23);
   const [failed, setFailed] = useState<{ url: string; count: number } | null>(null);
   const appliedRecipe = useRef<RecipeStep[]>([]);
 
@@ -387,6 +389,30 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
                   Os nomes das colunas estão na linha {opened.headerRow + 1}; as linhas acima (títulos, datas) ficaram de fora.
                 </p>
               )}
+              {opened.junk.length > 0 && (
+                <div className="wizard-warn wizard-junk">
+                  <b>Linhas que não parecem registros</b>
+                  <ul>
+                    {opened.junk.map((j) => {
+                      const applied = recipe.some((s) => JSON.stringify(s) === JSON.stringify(j.step));
+                      return (
+                        <li key={j.kind + j.rows[0]}>
+                          <span>
+                            {j.message} <span className="muted">(linha{j.rows.length > 1 ? "s" : ""} {j.rows.slice(0, 5).join(", ")}{j.rows.length > 5 ? "…" : ""})</span>
+                          </span>
+                          {applied ? (
+                            <span className="wizard-junk-done">Removida{j.rows.length > 1 ? "s" : ""}</span>
+                          ) : (
+                            <button type="button" className="btn btn-sm" onClick={() => setRecipe((r) => [...r, j.step])}>
+                              Remover
+                            </button>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
               {opened.location ? (
                 <p className="wizard-ok">
                   Localização encontrada:{" "}
@@ -417,6 +443,7 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
                   <select value={encoding ?? opened.encoding} onChange={(e) => setEncoding(e.target.value as Encoding)}>
                     <option value="utf-8">UTF-8</option>
                     <option value="windows-1252">Latin-1 / Windows (Excel)</option>
+                    <option value="utf-16le">UTF-16 (Excel "Texto Unicode")</option>
                   </select>
                 </label>
               </div>
@@ -517,16 +544,42 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
                   <span>
                     {sampleCheck.suggestion.kind === "swap"
                       ? "Parece que latitude e longitude estão trocadas."
-                      : `Parece que falta o ponto decimal nas coordenadas (ex.: -2355052 → -23,55052).`}
+                      : sampleCheck.suggestion.kind === "utm"
+                        ? "As coordenadas parecem estar em metros (UTM, SIRGAS 2000). Escolha o fuso e converta:"
+                        : `Parece que falta o ponto decimal nas coordenadas (ex.: -2355052 → -23,55052).`}
+                    {sampleCheck.suggestion.kind === "utm" && (
+                      <select
+                        className="wizard-zone"
+                        value={utmZone}
+                        onChange={(e) => setUtmZone(Number(e.target.value))}
+                        aria-label="Fuso UTM"
+                      >
+                        {BRAZIL_UTM_ZONES.map((z) => (
+                          <option key={z} value={z}>
+                            Fuso {z} S{z === 23 ? " (SP, RJ, MG…)" : z === 22 ? " (PR, SC, GO…)" : z === 24 ? " (BA, ES…)" : ""}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </span>
-                  <button type="button" className="btn btn-sm" onClick={() => setFix(sampleCheck.suggestion!)}>
-                    Corrigir
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    onClick={() => setFix(sampleCheck.suggestion!.kind === "utm" ? { ...sampleCheck.suggestion!, zone: utmZone } : sampleCheck.suggestion!)}
+                  >
+                    {sampleCheck.suggestion.kind === "utm" ? "Converter" : "Corrigir"}
                   </button>
                 </div>
               )}
               {fix && (
                 <div className="wizard-ok wizard-fix">
-                  <span>{fix.kind === "swap" ? "Corrigido: latitude e longitude invertidas." : "Corrigido: ponto decimal colocado."}</span>
+                  <span>
+                    {fix.kind === "swap"
+                      ? "Corrigido: latitude e longitude invertidas."
+                      : fix.kind === "utm"
+                        ? `Convertido de UTM (fuso ${fix.zone} S).`
+                        : "Corrigido: ponto decimal colocado."}
+                  </span>
                   <button type="button" className="btn btn-sm" onClick={() => setFix(undefined)}>
                     Desfazer
                   </button>
@@ -613,6 +666,12 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
                     <Icon name="info" size={16} /> Seus dados ficam só <b>neste navegador</b>: não vão para nenhum servidor. Se você limpar os
                     dados do navegador ou trocar de computador, precisa importar de novo.
                   </p>
+                  {built.farPoints > 0 && (
+                    <p className="wizard-warn">
+                      {built.farPoints === 1 ? "1 ponto está" : `~${int.format(built.farPoints)} pontos estão`} muito longe dos demais (provável erro de digitação). O
+                      mapa vai enquadrar só a região principal.
+                    </p>
+                  )}
                   {built.outsideBrazil > 0 && (
                     <p className="wizard-warn">{int.format(built.outsideBrazil)} pontos ficam fora do Brasil.</p>
                   )}

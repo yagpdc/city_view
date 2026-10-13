@@ -117,27 +117,27 @@ explícito. Estado: ✅ tratado · ◐ parcial · ❌ não tratado. A ordem de a
 
 | Caso | Por que acontece | Estado |
 |---|---|---|
-| **CNPJ, CPF, telefone, código de barras como número** | Detectados como "Número" → viram float: zeros à esquerda somem e acima de 15 dígitos os últimos mudam (`12345678000195` ok, `7891234567890123` não) | ❌ detectar identificadores (nome da coluna, tamanho fixo, máscara) e manter como texto |
-| **Excel já estragou o valor**: `1,23457E+13`, CEP `1310200`, IBGE `350950` | O Excel converteu antes de chegar a nós | ◐ CEP ✅; avisar quando um ID estiver em notação científica (não dá para recuperar) |
-| **Linha de total/subtotal** no fim ("Total", "Soma") | Vira um registro com valor gigante | ❌ detectar linhas com texto "total" e números ≈ soma das demais |
-| **Cabeçalho repetido no meio** (relatório paginado) e rodapé ("Fonte: …") | Viram registros | ❌ remover linhas iguais ao cabeçalho; detectar rodapé de texto livre |
+| **CNPJ, CPF, telefone, código de barras como número** | Detectados como "Número" → viram float: zeros à esquerda somem e acima de 15 dígitos os últimos mudam | ✅ detectados (nome, máscara, zero à esquerda, 12+ dígitos) e mantidos como texto; nunca sugerimos "virar número" |
+| **Excel já estragou o valor**: `1,23457E+13`, CEP `1310200`, IBGE `350950` | O Excel converteu antes de chegar a nós | ✅ CEP corrigido; notação científica avisada (não dá para recuperar) |
+| **Linha de total/subtotal** no fim ("Total", "Soma") | Vira um registro com valor gigante | ✅ detectada na abertura, remoção em um clique (passo de receita) |
+| **Cabeçalho repetido no meio** (relatório paginado) e rodapé ("Fonte: …") | Viram registros | ✅ detectados na abertura, remoção em um clique |
 | **Cabeçalho em duas linhas** (célula mesclada "Endereço" sobre "Rua / Número") | Nomes de coluna errados | ❌ detectar e combinar ("Endereço · Rua") |
 | **Excel com porcentagem guardada como 0,12** (mostra 12%) | Lemos o valor real 0,12 | ❌ ler o formato da célula; perguntar ×100 |
-| **Erros de fórmula** `#N/D`, `#REF!`, `#DIV/0!`, `#VALOR!` | Viram texto, estragam a coluna numérica | ❌ tratar como vazio e contar |
-| **Marcadores de vazio**: "-", "N/A", "n/d", "NULL", "nan", "sem informação", "0" usado como vazio | Viram categorias ou números | ❌ reconhecer e sugerir "tratar como vazio" |
-| **Coordenadas em UTM** (ex.: 333000; 7395000 — exportação de GIS, SIRGAS 2000 23S) | Fora de qualquer faixa: tudo é rejeitado ou cai no oceano | ❌ detectar (valores de 6–7 dígitos) e reprojetar, perguntando o fuso |
+| **Erros de fórmula** `#N/D`, `#REF!`, `#DIV/0!`, `#VALOR!` | Viram texto, estragam a coluna numérica | ✅ contam como vazio |
+| **Marcadores de vazio**: "-", "N/A", "n/d", "NULL", "nan", "sem informação", "0" usado como vazio | Viram categorias ou números | ✅ problema na coluna com "Tratar como vazio" |
+| **Coordenadas em UTM** (ex.: 333000; 7395000 — exportação de GIS, SIRGAS 2000 23S) | Fora de qualquer faixa: tudo é rejeitado ou cai no oceano | ✅ detectado; converte com o fuso escolhido (18–25 S) |
 | **Coordenadas em metros (Web Mercator)** | Idem | ❌ detectar e reprojetar |
-| **Um ponto absurdo** (erro de digitação: 0,5; 0,5) | Enquadramento mostra o mundo inteiro; parece que "não carregou" | ◐ (0,0) ✅; usar enquadramento robusto (ignorar 1% extremo) e listar os pontos isolados |
+| **Um ponto absurdo** (erro de digitação: 0,5; 0,5) | Enquadramento mostra o mundo inteiro; parece que "não carregou" | ✅ enquadramento ignora os extremos; revisão avisa quantos pontos estão isolados |
 | **Precisão baixa** (coordenadas inteiras ou 1 casa) | Centenas de registros empilhados num ponto | ❌ avisar "N registros no mesmo lugar" e oferecer espalhar/agrupar |
 | **Categoria com mais de 65 mil valores** em arquivo grande | Excedente fica vazio | ◐ avisar quando acontecer |
-| **Coluna chamada `_c`** (ou outros nomes internos) | Sobrescreve a categoria interna nos tiles | ❌ reservar/renomear nomes internos |
+| **Coluna chamada `_c`** (ou outros nomes internos) | Sobrescreve a categoria interna nos tiles | ✅ renomeada para `_c_coluna` |
 | **Dois formatos de número na mesma coluna** ("1.234,5" e "1,234.5") | Metade lida errada | ◐ avisar quando o formato da coluna for ambíguo |
 
 ### Arquivo que não abre ou abre errado
 
 | Caso | Estado |
 |---|---|
-| CSV em **UTF-16** (Excel "Texto Unicode", com tab) — comum no Windows | ❌ detectar BOM UTF-16 e decodificar |
+| CSV em **UTF-16** (Excel "Texto Unicode", com tab) — comum no Windows | ✅ detectado pela marca no começo do arquivo |
 | `.xls` antigo, `.ods`, `.xlsb`, `.numbers` | ❌ mensagem clara ("salve como .xlsx ou .csv") |
 | Excel protegido por senha | ❌ mensagem clara |
 | Excel grande (> ~100 MB) — a biblioteca carrega tudo na memória | ❌ avisar e sugerir CSV; leitura em fluxo depois |
@@ -171,7 +171,7 @@ explícito. Estado: ✅ tratado · ◐ parcial · ❌ não tratado. A ordem de a
 
 ### Como garantir
 
-- **Corpus de planilhas-problema** (`samples/import-corpus/`): um arquivo pequeno por caso acima, com o resultado
+- **Corpus de planilhas-problema** (`packages/importer/src/corpus.test.ts`, 14 casos): um arquivo pequeno por caso acima, com o resultado
   esperado (linhas, tipos, avisos) — vira teste automático do importador e regressão a cada mudança.
 - **Teste de fumaça no navegador** com os 5 piores casos (UTF-16, total no fim, CNPJ, UTM, Excel com 2 abas).
 - **Nada de perda silenciosa**: cada transformação automática aparece como passo na receita (dá para ver e desfazer)

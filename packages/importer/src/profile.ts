@@ -32,6 +32,9 @@ export interface ColumnProfile {
 /** Chave para achar grafias diferentes do mesmo valor: sem acento, caixa, pontuação e espaços extras. */
 export const looseKey = (v: string) => normalizeName(v).replace(/_/g, "");
 
+/** Escritas comuns de "não tem" (comparadas já normalizadas). */
+const EMPTY_MARKERS = new Set(["-", "--", "—", "na", "n_a", "nd", "n_d", "null", "nil", "nan", "none", "sem_informacao", "nao_informado", "nao_se_aplica", "nao_disponivel", "x", "?", "s_i", "si"]);
+
 /** "1 valor", "3 valores". */
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
@@ -78,7 +81,8 @@ export function profileColumn(column: ColumnInfo, sample: Row[]): ColumnProfile 
   } else {
     // Parece número, mas com R$, %, "1,2 mil" ou parênteses: a detecção ficou em texto.
     const looseNums = values.filter((v) => parseLooseNumber(v) !== null || parseLooseNumber(v, "br") !== null).length;
-    if (values.length >= 3 && looseNums / values.length >= 0.8) {
+    // Identificador (CNPJ, CEP…) nunca: virar número apagaria zeros e dígitos.
+    if (!column.identifier && values.length >= 3 && looseNums / values.length >= 0.8) {
       problems.push({
         id: "parece-numero",
         message: `Parece uma coluna de números (${plural(looseNums, "valor", "valores")} com R$, %, "mil" ou parênteses)`,
@@ -115,6 +119,29 @@ export function profileColumn(column: ColumnInfo, sample: Row[]): ColumnProfile 
       const fixable = values.filter((v) => normalizeCep(v) !== null && normalizeCep(v) !== v.trim()).length;
       if (fixable) problems.push({ id: "cep", message: `${plural(fixable, "CEP", "CEPs")} fora do padrão 00000-000`, count: fixable, fix: { label: "Padronizar CEP", step: { op: "cep", column: name } } });
     }
+  }
+  // Marcadores de vazio ("-", "N/A", "NULL"…): viram categoria ou estragam a coluna numérica.
+  const markers = [...counts.keys()].filter((v) => EMPTY_MARKERS.has(normalizeName(v) || v.trim()));
+  if (markers.length) {
+    const n = markers.reduce((acc, v) => acc + (counts.get(v) ?? 0), 0);
+    problems.push({
+      id: "marcadores-vazio",
+      message: `${plural(n, "valor parece", "valores parecem")} "vazio" escrito (${markers.slice(0, 3).map((v) => `"${v}"`).join(", ")})`,
+      count: n,
+      fix: { label: "Tratar como vazio", step: { op: "replace", column: name, map: Object.fromEntries(markers.map((v) => [v, ""])) } },
+    });
+  }
+  // Identificador que o Excel já converteu para notação científica (1,23457E+13): dígitos perdidos.
+  const scientific = values.filter((v) => /^\d[.,]\d+E\+\d+$/i.test(v.trim())).length;
+  if (scientific) {
+    problems.push({
+      id: "notacao-cientifica",
+      message: `${plural(scientific, "valor está", "valores estão")} em notação científica (ex.: "1,23E+13") — o Excel cortou dígitos e não dá para recuperar. Exporte de novo com a coluna formatada como texto.`,
+      count: scientific,
+    });
+  }
+  if (column.identifier) {
+    problems.push({ id: "identificador", message: "Parece um identificador (CNPJ, CPF, CEP, telefone, código): fica como texto para não perder zeros nem dígitos.", count: 0 });
   }
   if (column.emptyRate > 0.3) {
     const empty = raw.length - values.length;

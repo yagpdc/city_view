@@ -1,4 +1,4 @@
-import type { ColumnInfo, ColumnProfile, ImportMapping, ImportSummary, LocationGuess, RecipeStep, Row } from "@cityview/importer";
+import type { ColumnInfo, ColumnProfile, ImportMapping, ImportSummary, JunkFinding, LocationGuess, RecipeStep, Row } from "@cityview/importer";
 
 /** Limite do processamento no navegador; acima disso o arquivo precisa do motor local (Rust). */
 export const MAX_BROWSER_ROWS = 2_000_000;
@@ -22,7 +22,7 @@ export function fileFormat(name: string): FileFormat | null {
   if (/\.parquet$/i.test(name)) return "parquet";
   return null;
 }
-export type Encoding = "utf-8" | "windows-1252";
+export type Encoding = "utf-8" | "windows-1252" | "utf-16le" | "utf-16be";
 
 /** Acima disso, com o servidor local de pé, o arquivo vai para o motor em Rust. */
 export const SERVER_THRESHOLD_BYTES = 20e6;
@@ -54,6 +54,8 @@ export interface OpenedFile {
   sampled: boolean;
   /** Linha do cabeçalho no arquivo (0 = primeira). */
   headerRow: number;
+  /** Linhas que não são registro (total, cabeçalho repetido, rodapé), com o passo que as remove. */
+  junk: JunkFinding[];
   /** Abas do Excel (só quando há mais de uma) e a aberta. */
   sheets?: string[];
   sheet?: string;

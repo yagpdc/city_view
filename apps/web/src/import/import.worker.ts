@@ -5,7 +5,9 @@ import {
   columnsAfter,
   detectColumns,
   detectHeaderRow,
+  detectJunkRows,
   geoJsonToRows,
+  RESERVED_COLUMNS,
   geometryAnchor,
   type Geometry,
   guessLocation,
@@ -54,9 +56,15 @@ function view() {
 
 const post = (msg: WorkerResponse) => self.postMessage(msg);
 
-/** UTF-8 válido? Senão assume Windows-1252 (planilhas brasileiras exportadas pelo Excel). */
+/**
+ * UTF-16 pela marca no começo (Excel "Texto Unicode"), UTF-8 válido, ou Windows-1252 (planilhas brasileiras
+ * exportadas pelo Excel).
+ */
 async function detectEncoding(file: File): Promise<Encoding> {
   const head = await file.slice(0, 1 << 20).arrayBuffer();
+  const bom = new Uint8Array(head.slice(0, 2));
+  if (bom[0] === 0xff && bom[1] === 0xfe) return "utf-16le";
+  if (bom[0] === 0xfe && bom[1] === 0xff) return "utf-16be";
   try {
     new TextDecoder("utf-8", { fatal: true }).decode(head, { stream: true });
     return "utf-8";
@@ -89,7 +97,8 @@ async function open(file: File, delimiter: Delimiter | undefined, encoding: Enco
       chunkSize: 4 << 20,
       beforeFirstChunk: skip > 0 ? (chunk) => chunk.split(/\r?\n/).slice(skip).join("\n") : undefined,
       transformHeader: (h, i) => {
-        const base = h.replace(/^\uFEFF/, "").trim() || `coluna_${i + 1}`;
+        let base = h.replace(/^\uFEFF/, "").trim() || `coluna_${i + 1}`;
+        if (RESERVED_COLUMNS.has(base)) base = `${base}_coluna`;
         const n = (seen.get(base) ?? 0) + 1;
         seen.set(base, n);
         return n === 1 ? base : `${base}_${n}`;
@@ -268,6 +277,7 @@ self.onmessage = async (e: MessageEvent<WorkerRequest & { id?: number }>) => {
         encoding,
         sampled: Boolean(msg.options.previewRows),
         headerRow,
+        junk: detectJunkRows(Object.keys(rows[0]!), rows).map((f) => ({ ...f, rows: f.rows.map((i) => i + headerRow + 2) })),
         ...(sheets && sheets.length > 1 ? { sheets, sheet } : {}),
       };
       post({ type: "opened", file: { ...openedBase, ...view() } });

@@ -2,7 +2,9 @@
  * Valores "sujos" comuns em planilhas brasileiras: moeda e porcentagem, "1,2 mil", números entre
  * parênteses, CEP sem zero à esquerda, sim/não, datas do Excel, cabeçalho fora da primeira linha.
  */
-import { isEmpty, parseDate, parseNumber, type NumberLocale } from "./values";
+import type { Row } from "./detect";
+import type { RecipeStep } from "./recipe";
+import { isEmpty, normalizeName, parseDate, parseNumber, type NumberLocale } from "./values";
 
 const SUFFIX: Record<string, number> = { mil: 1e3, k: 1e3, mi: 1e6, milhao: 1e6, milhoes: 1e6, m: 1e6, bi: 1e9, bilhao: 1e9, bilhoes: 1e9 };
 
@@ -112,12 +114,80 @@ export function detectHeaderRow(lines: unknown[][], maxScan = 30): number {
 /**
  * Nomes de coluna únicos e não vazios: vazios viram "coluna_3", repetidos ganham sufixo ("valor", "valor_2").
  */
+/** Nomes usados por dentro dos tiles; uma coluna com esse nome sobrescreveria a categoria interna. */
+export const RESERVED_COLUMNS = new Set(["_c"]);
+
 export function uniqueHeaders(raw: unknown[]): string[] {
   const seen = new Map<string, number>();
   return raw.map((h, i) => {
-    const base = (h === null || h === undefined ? "" : String(h)).replace(/^﻿/, "").trim() || `coluna_${i + 1}`;
+    let base = (h === null || h === undefined ? "" : String(h)).replace(/^\uFEFF/, "").trim() || `coluna_${i + 1}`; // \uFEFF = BOM
+    if (RESERVED_COLUMNS.has(base)) base = `${base}_coluna`;
     const count = (seen.get(base) ?? 0) + 1;
     seen.set(base, count);
     return count === 1 ? base : `${base}_${count}`;
   });
+}
+
+/** Linhas que não são registro: total/subtotal, cabeçalho repetido (relatório paginado), rodapé ("Fonte: …"). */
+export interface JunkFinding {
+  kind: "total" | "cabecalho-repetido" | "rodape";
+  /** Em português, para o usuário. */
+  message: string;
+  /** Índices (nas linhas lidas) das que batem. */
+  rows: number[];
+  /** Passo da receita que remove essas linhas (por condição, vale também para a planilha do mês que vem). */
+  step: RecipeStep;
+}
+
+const TOTAL = /^(total( geral)?|totais|subtotal|sub-total|soma|somat[oó]rio)\b/i;
+const FOOTER = /^(fonte|elaborad[oa]|nota|notas|obs\.?|observa[cç][aã]o|gerado|emitido|p[aá]gina|impresso)\b/i;
+
+export function detectJunkRows(headers: string[], rows: Row[]): JunkFinding[] {
+  const out: JunkFinding[] = [];
+  const filled = (r: Row) => headers.filter((h) => !isEmpty(r[h]));
+  // Totais: a primeira célula preenchida começa com "Total", "Subtotal", "Soma"…
+  const totals = new Map<string, number[]>();
+  rows.forEach((r, i) => {
+    const first = filled(r)[0];
+    if (first && TOTAL.test(r[first]!.trim())) totals.set(first, [...(totals.get(first) ?? []), i]);
+  });
+  for (const [column, idx] of totals) {
+    const word = rows[idx[0]!]![column]!.trim().split(/\s+/)[0]!;
+    out.push({
+      kind: "total",
+      message: `${idx.length === 1 ? "1 linha parece" : `${idx.length} linhas parecem`} um total ("${rows[idx[0]!]![column]!.trim()}") — viraria um registro com a soma de tudo`,
+      rows: idx,
+      step: { op: "filter", keep: false, when: [{ column, op: "starts", value: word }], match: "all" },
+    });
+  }
+  // Cabeçalho repetido no meio: a maioria das células igual ao nome da coluna.
+  const repeated: number[] = [];
+  rows.forEach((r, i) => {
+    const same = headers.filter((h) => normalizeName(r[h] ?? "") === normalizeName(h) && normalizeName(h) !== "").length;
+    if (same >= Math.max(2, headers.length * 0.6)) repeated.push(i);
+  });
+  if (repeated.length) {
+    out.push({
+      kind: "cabecalho-repetido",
+      message: `${repeated.length === 1 ? "1 linha repete" : `${repeated.length} linhas repetem`} os nomes das colunas (relatório com várias páginas)`,
+      rows: repeated,
+      step: { op: "filter", keep: false, when: [{ column: headers[0]!, op: "=", value: headers[0]! }], match: "all" },
+    });
+  }
+  // Rodapé: só uma célula preenchida, começando com "Fonte", "Nota", "Elaborado"…
+  const footer = new Map<string, number[]>();
+  rows.forEach((r, i) => {
+    const f = filled(r);
+    if (f.length === 1 && FOOTER.test(r[f[0]!]!.trim())) footer.set(f[0]!, [...(footer.get(f[0]!) ?? []), i]);
+  });
+  for (const [column, idx] of footer) {
+    const word = rows[idx[0]!]![column]!.trim().split(/[\s:]+/)[0]!;
+    out.push({
+      kind: "rodape",
+      message: `${idx.length === 1 ? "1 linha parece" : `${idx.length} linhas parecem`} rodapé ("${rows[idx[0]!]![column]!.trim().slice(0, 40)}")`,
+      rows: idx,
+      step: { op: "filter", keep: false, when: [{ column, op: "starts", value: word }], match: "all" },
+    });
+  }
+  return out;
 }

@@ -70,7 +70,46 @@ export const inBrazil = (lat: number, lon: number) => lat >= -34.5 && lat <= 6 &
 export type CoordinateFix =
   | { kind: "swap" }
   | { kind: "scale"; divisor: number }
+  /** Metros em UTM (SIRGAS 2000 ≈ WGS84). `swapped` = a coluna de "latitude" tem o Leste (x). */
+  | { kind: "utm"; zone: number; south: boolean; swapped: boolean }
   | { kind: "none" };
+
+/** Fusos UTM que cobrem o Brasil (18 a 25, todos no hemisfério sul exceto o extremo norte). */
+export const BRAZIL_UTM_ZONES = [18, 19, 20, 21, 22, 23, 24, 25];
+
+/** UTM → [lat, lon] (série de Krüger, elipsoide WGS84/GRS80; erro < 1 mm no fuso). */
+export function utmToLatLon(easting: number, northing: number, zone: number, south = true): [number, number] {
+  const a = 6378137;
+  const f = 1 / 298.257223563;
+  const k0 = 0.9996;
+  const n = f / (2 - f);
+  const A = (a / (1 + n)) * (1 + n * n / 4 + n ** 4 / 64);
+  const beta = [n / 2 - (2 / 3) * n * n + (37 / 96) * n ** 3, (1 / 48) * n * n + (1 / 15) * n ** 3, (17 / 480) * n ** 3];
+  const delta = [2 * n - (2 / 3) * n * n - 2 * n ** 3, (7 / 3) * n * n - (8 / 5) * n ** 3, (56 / 15) * n ** 3];
+  const xi = (northing - (south ? 10_000_000 : 0)) / (k0 * A);
+  const eta = (easting - 500_000) / (k0 * A);
+  let xiP = xi;
+  let etaP = eta;
+  for (let j = 1; j <= 3; j++) {
+    xiP -= beta[j - 1]! * Math.sin(2 * j * xi) * Math.cosh(2 * j * eta);
+    etaP -= beta[j - 1]! * Math.cos(2 * j * xi) * Math.sinh(2 * j * eta);
+  }
+  const chi = Math.asin(Math.sin(xiP) / Math.cosh(etaP));
+  let lat = chi;
+  for (let j = 1; j <= 3; j++) lat += delta[j - 1]! * Math.sin(2 * j * chi);
+  const lon0 = ((zone - 1) * 6 - 180 + 3) * (Math.PI / 180);
+  const lon = lon0 + Math.atan(Math.sinh(etaP) / Math.cos(xiP));
+  return [(lat * 180) / Math.PI, (lon * 180) / Math.PI];
+}
+
+/** Par [lat, lon] lido das colunas parece UTM em metros? (Leste 100–900 mil; Norte 6–10,1 milhões no sul.) */
+function utmShape(a: number, b: number): "normal" | "swapped" | null {
+  const east = (v: number) => v >= 100_000 && v <= 900_000;
+  const north = (v: number) => v >= 6_000_000 && v <= 10_100_000;
+  if (north(a) && east(b)) return "normal"; // coluna "lat" = Norte (y), "lon" = Leste (x)
+  if (east(a) && north(b)) return "swapped";
+  return null;
+}
 
 /**
  * Olha uma amostra de pares e sugere a correção que mais traz pontos para dentro do Brasil:
@@ -78,6 +117,11 @@ export type CoordinateFix =
  */
 export function suggestCoordinateFix(pairs: [number, number][]): CoordinateFix {
   if (pairs.length === 0) return { kind: "none" };
+  // UTM em metros: não dá para descobrir o fuso só pelos números — sugerimos 23 (SP/RJ/MG) e a pessoa confirma.
+  const shapes = pairs.map(([a, b]) => utmShape(a, b));
+  const utmNormal = shapes.filter((x) => x === "normal").length;
+  const utmSwapped = shapes.filter((x) => x === "swapped").length;
+  if (Math.max(utmNormal, utmSwapped) >= pairs.length * 0.8) return { kind: "utm", zone: 23, south: true, swapped: utmSwapped > utmNormal };
   const share = (f: (lat: number, lon: number) => [number, number]) =>
     pairs.filter(([la, lo]) => {
       const [a, b] = f(la, lo);
@@ -100,6 +144,7 @@ export function suggestCoordinateFix(pairs: [number, number][]): CoordinateFix {
 /** Aplica a correção sugerida a um par [lat, lon]. */
 export function applyCoordinateFix(fix: CoordinateFix, lat: number, lon: number): [number, number] {
   if (fix.kind === "swap") return [lon, lat];
+  if (fix.kind === "utm") return fix.swapped ? utmToLatLon(lat, lon, fix.zone, fix.south) : utmToLatLon(lon, lat, fix.zone, fix.south);
   if (fix.kind === "scale") return [lat / fix.divisor, lon / fix.divisor];
   return [lat, lon];
 }

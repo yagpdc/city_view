@@ -578,3 +578,8 @@
   .builder { grid-template-columns: 1fr; grid-template-areas: "cols" "panel" "bottom"; }
   .builder-columns { max-height: 200px; }
 }
+
+.wizard-junk ul { display: grid; gap: 6px; margin: 6px 0 0; padding: 0; list-style: none; }
+.wizard-junk li { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.wizard-junk-done { font-size: 12px; font-weight: 600; color: var(--cv-success); white-space: nowrap; }
+.wizard-zone { margin-left: 8px; height: 28px; padding: 0 6px; border: 1px solid var(--cv-border); border-radius: var(--cv-radius-md); background: var(--cv-field); color: var(--cv-text); font-size: 12px; }

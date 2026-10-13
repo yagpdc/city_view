@@ -15,11 +15,31 @@ export interface ColumnInfo {
   max?: number;
   /** Formato dos números (só para colunas numéricas). */
   locale?: NumberLocale;
+  /** Parece identificador (CNPJ, CPF, CEP, telefone, código): fica como texto para não perder zeros e dígitos. */
+  identifier?: boolean;
 }
 
 export type Row = Record<string, string>;
 
 const MAX_CATEGORIES = 50;
+
+/** Nomes de coluna de identificadores (comparados já normalizados). */
+const ID_NAME = /(^|_)(cnpj|cpf|cnae|cep|telefone|tel|fone|celular|whatsapp|ean|gtin|nis|pis|rg|placa|matricula|inscricao|nire|codigo|cod|id|ibge|setor_censitario)(_|$)/;
+const DIGITS_ONLY = /^\d+$/;
+const ID_CHARS = /^[\d\s.\-/()+]+$/;
+
+/**
+ * Identificador escrito com números: pelo nome (CNPJ, CEP, código…) com valores só de dígitos e máscara, ou pelos
+ * valores (zero à esquerda, ou 12+ dígitos — acima de 15 o número perde os últimos dígitos).
+ */
+export function looksLikeIdentifier(name: string, values: string[]): boolean {
+  const vals = values.map((v) => v.trim()).filter(Boolean);
+  if (vals.length === 0) return false;
+  if (ID_NAME.test(normalizeName(name)) && vals.every((v) => ID_CHARS.test(v) && /\d/.test(v))) return true;
+  const digits = vals.filter((v) => DIGITS_ONLY.test(v));
+  if (digits.length < vals.length * 0.9) return false;
+  return digits.some((v) => v.length > 1 && v.startsWith("0")) || digits.some((v) => v.length >= 12);
+}
 const MAX_DISTINCT_TRACKED = 1000;
 
 /** Infere o tipo de cada coluna a partir de uma amostra de linhas. */
@@ -47,6 +67,9 @@ export function detectColumns(headers: string[], sample: Row[]): ColumnInfo[] {
     const examples = [...distinct].slice(0, 3);
     const base = { name, emptyRate: 1 - values.length / Math.max(sample.length, 1), distinct: distinct.size, examples };
 
+    if (looksLikeIdentifier(name, values)) {
+      return { ...base, type: distinct.size <= 12 ? "category" : "text", identifier: true };
+    }
     if (numbers / total >= 0.95) {
       // Código numérico com poucos valores (ex.: UF, setor 1..9) tende a ser categoria.
       const looksLikeCode = distinct.size <= 12 && values.every((v) => /^\d+$/.test(v.trim()));
