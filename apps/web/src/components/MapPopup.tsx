@@ -1,5 +1,5 @@
 import { categoryColor, matchesWhere, type CityMap, type MapPick, type NearbySummary, type Where } from "@cityview/engine";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 /** Campos que formam a linha de resumo sob o título (o primeiro que existir). */
 const SUMMARY_KEYS = ["endereco", "address", "endereço", "cidade"];
 import { FieldValue, formatField, labelled, type DatasetInfo } from "./PickDetails";
@@ -19,6 +19,45 @@ export interface UserLayer {
   id: string;
   info: DatasetInfo;
   user?: boolean;
+}
+
+/**
+ * Linha de opções que rola para o lado (não cresce): quando há opções escondidas, setas e um esmaecido na borda.
+ */
+function ScrollRow({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [edges, setEdges] = useState({ left: false, right: false });
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const update = () => setEdges({ left: el.scrollLeft > 2, right: el.scrollLeft + el.clientWidth < el.scrollWidth - 2 });
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener("scroll", update);
+      ro.disconnect();
+    };
+  }, []);
+  const scroll = (dir: number) => ref.current?.scrollBy({ left: dir * 160, behavior: "smooth" });
+  return (
+    <div className={`map-popup-tabs-wrap ${edges.left ? "can-left" : ""} ${edges.right ? "can-right" : ""}`}>
+      {edges.left && (
+        <button type="button" className="map-popup-tabs-arrow is-left" onClick={() => scroll(-1)} aria-label="Ver opções anteriores">
+          <Icon name="chevronLeft" size={16} />
+        </button>
+      )}
+      <div ref={ref} className="map-popup-tabs" role="tablist" aria-label="O que ver neste ponto">
+        {children}
+      </div>
+      {edges.right && (
+        <button type="button" className="map-popup-tabs-arrow is-right" onClick={() => scroll(1)} aria-label="Ver mais opções">
+          <Icon name="chevronRight" size={16} />
+        </button>
+      )}
+    </div>
+  );
 }
 
 /** "Cubatão · SP" a partir da feição de uma camada de áreas. */
@@ -116,14 +155,14 @@ export function MapPopup({
 
   const tabs =
     views.length > 1 ? (
-      <div className="map-popup-tabs" role="tablist" aria-label="O que ver neste ponto">
+      <ScrollRow>
         {views.map((v) => (
           <button key={v.key} type="button" role="tab" aria-selected={view === v.key} className={view === v.key ? "is-on" : ""} onClick={() => setView(v.key)} title={v.label}>
             <Icon name={v.icon} size={16} />
             <span>{v.label}</span>
           </button>
         ))}
-      </div>
+      </ScrollRow>
     ) : null;
 
   if (view === "photo") {
@@ -145,8 +184,8 @@ export function MapPopup({
             Detalhes
           </button>
           {onAdvanced && (
-            <button type="button" className="btn" onClick={() => onAdvanced(pick)} title="Maquete 3D do ponto clicado">
-              Maquete 3D
+            <button type="button" className="btn" onClick={() => onAdvanced(pick)} title="Visualização avançada (3D) do ponto clicado">
+              Visualização avançada
             </button>
           )}
         </div>
@@ -185,8 +224,8 @@ export function MapPopup({
           <Icon name={expanded ? "chevronUp" : "chevronDown"} size={16} />
         </button>
         {onAdvanced && (
-          <button type="button" className="btn" onClick={() => onAdvanced(pick)} title="Maquete 3D da área">
-            Maquete 3D
+          <button type="button" className="btn" onClick={() => onAdvanced(pick)} title="Visualização avançada (3D) da área">
+            Visualização avançada
           </button>
         )}
       </div>

@@ -176,7 +176,7 @@ export function MaqueteView({
   const { data } = state;
   const empty = data && data.stats.buildings === 0;
   return (
-    <section className="maquete" aria-label="Maquete 3D">
+    <section className="maquete" aria-label="Visualização avançada">
       <div className="maquete-canvas" ref={hostRef} />
       {photo && !state.loading && (
         <div className="maquete-photo-anchor" ref={photoRef}>
@@ -186,7 +186,7 @@ export function MaqueteView({
 
       <header className="maquete-head">
         <div className="maquete-title">
-          <span className="maquete-kicker">Maquete · raio de {meters(radius)}</span>
+          <span className="maquete-kicker">Visualização avançada · raio de {meters(radius)}</span>
           <h2>{title ?? "Ponto escolhido"}</h2>
           <span className="maquete-coords num">
             {center[1].toFixed(5)}, {center[0].toFixed(5)}
@@ -198,7 +198,7 @@ export function MaqueteView({
             </button>
           )}
         </div>
-        <button type="button" className="maquete-close" onClick={onClose} aria-label="Fechar maquete">
+        <button type="button" className="maquete-close" onClick={onClose} aria-label="Fechar a visualização avançada">
           <Icon name="close" size={20} />
         </button>
       </header>
@@ -284,7 +284,7 @@ export function MaqueteView({
       {state.loading && (
         <div className="maquete-status">
           <span className="maquete-spinner" />
-          Montando a maquete…
+          Montando a visualização…
         </div>
       )}
       {!state.loading && (state.error || empty) && (

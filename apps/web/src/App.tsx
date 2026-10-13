@@ -27,7 +27,6 @@ import { coverageOverlay, nearestStreetImage, streetImageryEnabled } from "./str
 import { TopBar } from "./components/TopBar";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { StyleEditor } from "./components/StyleEditor";
-import { MapLegend, type LegendLayer } from "./components/MapLegend";
 import { MapTabs } from "./components/MapTabs";
 import { createTab, loadTabs, saveTabs, type MapTab } from "./mapTabs";
 import { DropZone } from "./import/DropZone";
@@ -1285,20 +1284,6 @@ export function App() {
 
   const letter = (i: number) => String.fromCharCode(65 + (i % 26));
 
-  /** Legenda no mapa: camadas em tiles ligadas, com o estilo em uso (o rascunho, se o editor está aberto). */
-  const legendLayers: LegendLayer[] = Object.entries(datasetInfos)
-    .filter(([id]) => active.has(datasetKey(id)))
-    .map(([id, info]) => {
-      const style = styleEditing?.id === id ? styleEditing.draft : (styles[id] ?? DEFAULT_DATA_STYLE);
-      return {
-        id,
-        title: id === PLACES.id ? "Estabelecimentos" : info.name,
-        style,
-        categories: info.categories.map((c, i) => ({ label: info.label ? info.label(c) : c, color: categoryColor(i, info.categories) })),
-        range: style.color.mode === "value" ? (map?.datasetColumnRange(id, style.color.column) ?? null) : null,
-      };
-    });
-
   /** Abre o editor de estilo de uma camada (o rascunho começa no estilo salvo). */
   function openStyle(id: string, title: string) {
     setStyleEditing({ id, title, draft: styles[id] ?? DEFAULT_DATA_STYLE });
@@ -1529,7 +1514,6 @@ export function App() {
           <div ref={containerRef} className="map" />
           <SearchBox search={search} onSelect={selectSearch} />
           {styleEditor}
-          {!maquete && <MapLegend layers={legendLayers} />}
           <DropZone onFile={openImport} />
           {shareStatus && !maquete && (
             <div className="toast" role="status">
