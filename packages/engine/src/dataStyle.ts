@@ -10,7 +10,11 @@ export type DataColor =
   | { mode: "category" }
   | { mode: "single"; value: string }
   /** Degradê pelo valor de uma coluna de número. */
-  | { mode: "value"; column: string; palette: PaletteName };
+  | { mode: "value"; column: string; palette: PaletteName }
+  /** Faixas de valor ("até 50 mil", "50 a 200 mil"…): quebras guardadas no estilo (a legenda não muda sozinha). */
+  | { mode: "classes"; column: string; palette: PaletteName; method: ClassMethod; breaks: number[] };
+
+export type ClassMethod = "quantile" | "equal" | "manual";
 
 export interface DataStyle {
   version: 1;
@@ -29,6 +33,8 @@ export interface DataStyle {
   stroke: boolean;
   /** Nomes e marcadores ao aproximar. */
   labels: boolean;
+  /** Categorias em destaque (índices); as outras ficam cinza e apagadas. Vazio/ausente = todas normais. */
+  highlight?: number[] | null;
 }
 
 export const DEFAULT_DATA_STYLE: DataStyle = { version: 1, shape: "points", size: 4.5, color: { mode: "category" }, opacity: 1, stroke: true, labels: true };
@@ -46,6 +52,29 @@ export const PALETTES = {
 export type PaletteName = keyof typeof PALETTES;
 export const PALETTE_LABELS: Record<PaletteName, string> = { densidade: "Densidade", azul: "Azul", verde: "Verde", calor: "Calor", divergente: "Divergente" };
 
+/** `n` cores tiradas da paleta (espaçadas), para `n` faixas. */
+export function classColors(palette: PaletteName, n: number): string[] {
+  const pal = PALETTES[palette];
+  if (n <= 1) return [pal[Math.floor(pal.length / 2)]!];
+  return Array.from({ length: n }, (_, i) => pal[Math.round((i * (pal.length - 1)) / (n - 1))]!);
+}
+
+/** Quebras entre faixas: `classes - 1` valores. Quantis precisam dos valores; intervalos iguais, só do mínimo e do máximo. */
+export function classBreaks(method: ClassMethod, classes: number, range: { min: number; max: number }, values: number[] = []): number[] {
+  const nice = (v: number) => {
+    const mag = 10 ** Math.max(0, Math.floor(Math.log10(Math.abs(v) || 1)) - 1);
+    return Math.round(v / mag) * mag;
+  };
+  let out: number[];
+  if (method === "quantile" && values.length >= classes) {
+    const sorted = [...values].sort((a, b) => a - b);
+    out = Array.from({ length: classes - 1 }, (_, i) => sorted[Math.floor(((i + 1) * sorted.length) / classes)]!);
+  } else {
+    out = Array.from({ length: classes - 1 }, (_, i) => range.min + ((range.max - range.min) * (i + 1)) / classes);
+  }
+  return [...new Set(out.map(nice))].sort((a, b) => a - b);
+}
+
 /** Metros por pixel no zoom 0 (tiles de 512 px) na latitude dada. */
 export function metersPerPixelAtZoom0(lat: number): number {
   return (40075016.686 * Math.cos((lat * Math.PI) / 180)) / 512;
@@ -56,12 +85,22 @@ export function normalizeDataStyle(raw: unknown): DataStyle {
   const s = (raw ?? {}) as Partial<DataStyle>;
   const shapes: DataShape[] = ["points", "circles", "squares", "heatmap", "hex", "regions"];
   const shape = shapes.includes(s.shape as DataShape) ? (s.shape as DataShape) : "points";
+  const palette = (p: unknown): PaletteName => (typeof p === "string" && p in PALETTES ? (p as PaletteName) : "densidade");
+  const c = s.color as Partial<Record<string, unknown>> | undefined;
   const color: DataColor =
-    s.color?.mode === "single" && typeof s.color.value === "string"
-      ? { mode: "single", value: s.color.value }
-      : s.color?.mode === "value" && typeof s.color.column === "string"
-        ? { mode: "value", column: s.color.column, palette: typeof s.color.palette === "string" && s.color.palette in PALETTES ? s.color.palette : "densidade" }
-        : { mode: "category" };
+    c?.mode === "single" && typeof c.value === "string"
+      ? { mode: "single", value: c.value }
+      : c?.mode === "value" && typeof c.column === "string"
+        ? { mode: "value", column: c.column, palette: palette(c.palette) }
+        : c?.mode === "classes" && typeof c.column === "string" && Array.isArray(c.breaks)
+          ? {
+              mode: "classes",
+              column: c.column,
+              palette: palette(c.palette),
+              method: c.method === "equal" || c.method === "manual" ? c.method : "quantile",
+              breaks: (c.breaks as unknown[]).filter((b): b is number => typeof b === "number" && Number.isFinite(b)).sort((a, b) => a - b),
+            }
+          : { mode: "category" };
   const num = (v: unknown, d: number) => (typeof v === "number" && Number.isFinite(v) ? v : d);
   return {
     version: 1,
@@ -72,5 +111,6 @@ export function normalizeDataStyle(raw: unknown): DataStyle {
     opacity: Math.min(1, Math.max(0.05, num(s.opacity, 1))),
     stroke: s.stroke !== false,
     labels: s.labels !== false,
+    ...(Array.isArray(s.highlight) && s.highlight.length ? { highlight: s.highlight.filter((i) => Number.isInteger(i)) } : {}),
   };
 }

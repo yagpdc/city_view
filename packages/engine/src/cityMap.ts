@@ -336,6 +336,32 @@ export class CityMap {
     this.datasets.find((d) => d.id === id)?.setRegionView(on);
   }
 
+  /**
+   * Contagem de um dataset numa região pelo código IBGE (2 dígitos = estado, 7 = município):
+   * [total, c0, c1…], ou null se o arquivo não tem contagem por região (ou nada caiu ali: [0]).
+   */
+  datasetRegionRow(id: string, code: string): number[] | null {
+    const regions = this.datasets.find((d) => d.id === id)?.meta.regions;
+    if (!regions) return null;
+    const level = code.length <= 2 ? "uf" : "mun";
+    if (!regions[level]) return null;
+    return regions[level]![code] ?? [0];
+  }
+
+  /** Valores de uma coluna de número no que já carregou (faixas por quantil no editor de estilo). */
+  datasetColumnValues(id: string, column: string): number[] {
+    return this.datasets.find((d) => d.id === id)?.columnValues(column) ?? [];
+  }
+
+  /** Menor e maior valor de uma coluna (metadados; arquivos antigos: o que já carregou). */
+  datasetColumnRange(id: string, column: string): { min: number; max: number } | null {
+    const d = this.datasets.find((x) => x.id === id);
+    if (!d) return null;
+    const c = d.meta.columns.find((x) => x.name === column);
+    if (c?.min !== undefined && c.max !== undefined) return { min: c.min, max: c.max };
+    return d.columnRange(column);
+  }
+
   /** O arquivo tem contagem por região? */
   datasetHasRegions(id: string): boolean {
     return this.datasets.find((d) => d.id === id)?.hasRegions ?? false;

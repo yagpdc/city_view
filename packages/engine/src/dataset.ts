@@ -12,7 +12,7 @@ import { whereExpressions, type WhereClause } from "./filter";
 import { ICON_PIXEL_RATIO, rasterizeMarker } from "./icons";
 import { loadNearby, searchPoints, type NearbySummary, type SearchHit } from "./nearby";
 import { regionLabel, type RegionBoundaries } from "./regions";
-import { DEFAULT_DATA_STYLE, PALETTES, metersPerPixelAtZoom0, type DataStyle } from "./dataStyle";
+import { DEFAULT_DATA_STYLE, PALETTES, classColors, metersPerPixelAtZoom0, type DataStyle } from "./dataStyle";
 
 /** Metadados gravados pelo cityview-tiler (`cityview` no JSON do PMTiles, versão 2). */
 export interface DatasetMeta {
@@ -812,10 +812,54 @@ export class DatasetLayer {
     return ["interpolate", ["linear"], ["coalesce", ["to-number", ["get", col]], min], min, 0.5, max, 2] as ExpressionSpecification;
   }
 
-  /** Cor de cada registro conforme o estilo. */
+  /** Valores de uma coluna de número nos pontos já carregados (para as faixas por quantil). */
+  columnValues(column: string, max = 20000): number[] {
+    if (!this.map.getSource(this.sourceId)) return [];
+    const out: number[] = [];
+    const seen = new Set<string | number>();
+    for (const f of this.map.querySourceFeatures(this.sourceId, { sourceLayer: "points" })) {
+      const v = f.properties[column];
+      if (typeof v !== "number" || !Number.isFinite(v)) continue;
+      const key = f.id ?? `${v}:${out.length}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(v);
+      if (out.length >= max) break;
+    }
+    return out;
+  }
+
+  /** Cor de cada registro conforme o estilo (com o destaque por cima). */
   private recordColor(): ExpressionSpecification | string {
+    const base = this.baseColor();
+    const hl = this.dataStyle.highlight;
+    if (!hl?.length) return base;
+    return ["case", ["in", ["get", this.meta.categoryProperty], ["literal", hl]], base, this.labelTheme === "dark" ? "#4a5263" : "#c4cbd5"] as unknown as ExpressionSpecification;
+  }
+
+  /** Opacidade: as categorias fora do destaque ficam apagadas. */
+  private recordOpacity(factor = 1): ExpressionSpecification | number {
+    const o = this.dataStyle.opacity * factor;
+    const hl = this.dataStyle.highlight;
+    if (!hl?.length) return o;
+    return ["case", ["in", ["get", this.meta.categoryProperty], ["literal", hl]], o, o * 0.35] as unknown as ExpressionSpecification;
+  }
+
+  /** Destacadas desenhadas por cima das outras. */
+  private sortKey(): ExpressionSpecification | undefined {
+    const hl = this.dataStyle.highlight;
+    if (!hl?.length) return undefined;
+    return ["case", ["in", ["get", this.meta.categoryProperty], ["literal", hl]], 1, 0] as unknown as ExpressionSpecification;
+  }
+
+  private baseColor(): ExpressionSpecification | string {
     const c = this.dataStyle.color;
     if (c.mode === "single") return c.value;
+    if (c.mode === "classes") {
+      const colors = classColors(c.palette, c.breaks.length + 1);
+      const steps = c.breaks.flatMap((b, i) => [b, colors[i + 1]!]);
+      return ["case", ["has", c.column], ["step", ["to-number", ["get", c.column]], colors[0]!, ...steps], OTHER_COLOR] as unknown as ExpressionSpecification;
+    }
     if (c.mode === "value") {
       const { min, max } = this.range(c.column);
       const pal = PALETTES[c.palette];
@@ -856,7 +900,7 @@ export class DatasetLayer {
     const base = { id: this.pointsLayerId, source: this.sourceId, "source-layer": "points", minzoom, filter: this.pointsFilter() };
     const ring = this.labelTheme === "dark" ? "#10141c" : "#ffffff";
     if (s.shape === "heatmap") {
-      const pal = s.color.mode === "value" ? PALETTES[s.color.palette] : PALETTES.densidade;
+      const pal = s.color.mode === "value" || s.color.mode === "classes" ? PALETTES[s.color.palette] : PALETTES.densidade;
       const ramp = pal.flatMap((c, i) => [(i + 1) / pal.length, c]);
       return {
         ...base,
@@ -885,8 +929,9 @@ export class DatasetLayer {
           "icon-ignore-placement": true,
           "icon-rotation-alignment": "map",
           "icon-pitch-alignment": "map",
+          ...(this.sortKey() && { "symbol-sort-key": this.sortKey() }),
         },
-        paint: { "icon-color": this.recordColor(), "icon-opacity": s.opacity * 0.6, "icon-halo-color": ring, "icon-halo-width": s.stroke ? 1 : 0 },
+        paint: { "icon-color": this.recordColor(), "icon-opacity": this.recordOpacity(0.6), "icon-halo-color": ring, "icon-halo-width": s.stroke ? 1 : 0 },
       } as LayerSpecification;
     }
     if (s.shape === "circles") {
@@ -896,9 +941,9 @@ export class DatasetLayer {
         paint: {
           "circle-color": this.recordColor(),
           "circle-radius": this.metersToPx(s.size),
-          "circle-opacity": s.opacity * 0.4,
+          "circle-opacity": this.recordOpacity(0.4),
           "circle-stroke-color": this.recordColor(),
-          "circle-stroke-opacity": s.stroke ? s.opacity : 0,
+          "circle-stroke-opacity": s.stroke ? this.recordOpacity() : 0,
           "circle-stroke-width": 1.2,
           "circle-pitch-alignment": "map",
           "circle-pitch-scale": "map",
@@ -914,11 +959,12 @@ export class DatasetLayer {
         "circle-color": this.recordColor(),
         // Ponto do dado (docs/DESIGN.md · Mapa 1): anel da cor do chão separa vizinhos. Afastado, pequeno.
         "circle-radius": this.zoomSize([[0, r * 0.45], [8, r * 0.58], [12, r * 0.67], [14, r * 0.72], [16, r], [19, r * 1.55]]),
-        "circle-opacity": s.opacity,
+        "circle-opacity": this.recordOpacity(),
         "circle-stroke-color": ring,
         "circle-stroke-width": s.stroke ? (["interpolate", ["linear"], ["zoom"], 0, 0.4, 12, 0.7, 16, 1.5] as ExpressionSpecification) : 0,
-        "circle-stroke-opacity": s.opacity,
+        "circle-stroke-opacity": this.recordOpacity(),
       },
+      ...(this.sortKey() && { layout: { "circle-sort-key": this.sortKey() } }),
     } as LayerSpecification;
   }
 }

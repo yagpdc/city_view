@@ -1,6 +1,9 @@
 import {
   DEFAULT_DATA_STYLE,
   PALETTES,
+  classBreaks,
+  classColors,
+  type ClassMethod,
   PALETTE_LABELS,
   SHAPE_DEFAULT_SIZE,
   normalizeDataStyle,
@@ -31,6 +34,106 @@ const SIZE_RANGE: Partial<Record<DataShape, { min: number; max: number; unit: st
 };
 
 const fmt = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
+
+const numFmt = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 });
+
+/** Faixas: coluna, quantas, como calcular as quebras (ou digitar), paleta. */
+function ClassesEditor({
+  color,
+  numericColumns,
+  classCount,
+  onColumn,
+  onCount,
+  onMethod,
+  onBreaks,
+  onPalette,
+}: {
+  color: Extract<DataStyle["color"], { mode: "classes" }>;
+  numericColumns: { name: string; label: string }[];
+  classCount: number;
+  onColumn: (c: string) => void;
+  onCount: (n: number) => void;
+  onMethod: (m: ClassMethod) => void;
+  onBreaks: (b: number[]) => void;
+  onPalette: (p: PaletteName) => void;
+}) {
+  const colors = classColors(color.palette, color.breaks.length + 1);
+  const parse = (s: string) => Number(s.replace(/\./g, "").replace(",", "."));
+  return (
+    <div className="style-classes">
+      <label className="style-row">
+        Coluna
+        <select value={color.column} onChange={(e) => onColumn(e.target.value)}>
+          {numericColumns.map((c) => (
+            <option key={c.name} value={c.name}>
+              {c.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <div className="style-inline">
+        <span className="style-row-label">Faixas</span>
+        <div className="segmented segmented-sm" role="radiogroup" aria-label="Quantidade de faixas">
+          {[3, 4, 5, 6, 7].map((n) => (
+            <button key={n} type="button" role="radio" aria-checked={classCount === n} className={classCount === n ? "is-active" : ""} onClick={() => onCount(n)}>
+              {n}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="segmented segmented-sm" role="radiogroup" aria-label="Como calcular">
+        {(
+          [
+            ["quantile", "Mesma quantidade"],
+            ["equal", "Intervalos iguais"],
+            ["manual", "À mão"],
+          ] as const
+        ).map(([m, label]) => (
+          <button key={m} type="button" role="radio" aria-checked={color.method === m} className={color.method === m ? "is-active" : ""} onClick={() => onMethod(m)}>
+            {label}
+          </button>
+        ))}
+      </div>
+      <ol className="style-class-list">
+        {colors.map((c, i) => {
+          const lo = color.breaks[i - 1];
+          const hi = color.breaks[i];
+          return (
+            <li key={i}>
+              <i style={{ background: c }} />
+              {lo === undefined ? <span>até</span> : <span className="num">{numFmt.format(lo)}{hi === undefined ? "" : " a"}</span>}
+              {hi === undefined ? (
+                <span>ou mais</span>
+              ) : color.method === "manual" ? (
+                <input
+                  className="num"
+                  defaultValue={numFmt.format(hi)}
+                  aria-label={`Limite da faixa ${i + 1}`}
+                  onBlur={(e) => {
+                    const v = parse(e.target.value);
+                    if (!Number.isFinite(v)) return;
+                    const next = [...color.breaks];
+                    next[i] = v;
+                    onBreaks([...new Set(next)].sort((a, b) => a - b));
+                  }}
+                />
+              ) : (
+                <span className="num">{numFmt.format(hi)}</span>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+      <div className="style-palettes style-palettes-inline" role="radiogroup" aria-label="Paleta">
+        {(Object.keys(PALETTES) as PaletteName[]).map((p) => (
+          <button key={p} type="button" role="radio" aria-checked={color.palette === p} className={color.palette === p ? "is-on" : ""} onClick={() => onPalette(p)} title={PALETTE_LABELS[p]}>
+            <span style={{ background: `linear-gradient(90deg, ${PALETTES[p].join(", ")})` }} />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function ShapeGlyph({ shape }: { shape: DataShape }) {
   const c = "currentColor";
@@ -69,7 +172,10 @@ export function StyleEditor({
   style,
   numericColumns,
   hasCategories,
+  categories = [],
   hasRegions,
+  columnRange,
+  columnValues,
   onChange,
   onSave,
   onDiscard,
@@ -78,7 +184,12 @@ export function StyleEditor({
   style: DataStyle;
   numericColumns: { name: string; label: string }[];
   hasCategories: boolean;
+  /** Categorias de cor (para destacar). */
+  categories?: { label: string; color: string }[];
   hasRegions: boolean;
+  /** Menor e maior valor de uma coluna, e os valores carregados (faixas por quantil). */
+  columnRange: (column: string) => { min: number; max: number } | null;
+  columnValues: (column: string) => number[];
   onChange: (s: DataStyle) => void;
   onSave: () => void;
   onDiscard: () => void;
@@ -93,6 +204,13 @@ export function StyleEditor({
     return range!.log ? Math.round(v / (v > 500 ? 50 : 5)) * (v > 500 ? 50 : 5) : Math.round(v * 2) / 2;
   };
   const colorMode = style.color.mode;
+  /** Faixas recalculadas para uma coluna, método e quantidade. */
+  const makeClasses = (column: string, method: ClassMethod, classes: number, palette: PaletteName = "densidade") => {
+    const range = columnRange(column) ?? { min: 0, max: 1 };
+    const breaks = classBreaks(method === "manual" ? "quantile" : method, classes, range, method === "equal" ? [] : columnValues(column));
+    return { mode: "classes" as const, column, palette, method, breaks };
+  };
+  const classCount = style.color.mode === "classes" ? style.color.breaks.length + 1 : 5;
   const numericNames = numericColumns.map((c) => c.name);
 
   const download = () => {
@@ -113,7 +231,7 @@ export function StyleEditor({
         missing.push(next.sizeBy);
         next = { ...next, sizeBy: null };
       }
-      if (next.color.mode === "value" && !numericNames.includes(next.color.column)) {
+      if ((next.color.mode === "value" || next.color.mode === "classes") && !numericNames.includes(next.color.column)) {
         missing.push(next.color.column);
         next = { ...next, color: { mode: "category" } };
       }
@@ -199,9 +317,10 @@ export function StyleEditor({
             <div className="segmented" role="radiogroup" aria-label="Cor">
               {(
                 [
-                  ["category", "Por categoria", !hasCategories || style.shape === "heatmap"],
+                  ["category", "Categoria", !hasCategories || style.shape === "heatmap"],
                   ["single", "Uma cor", style.shape === "heatmap"],
-                  ["value", "Por valor", numericColumns.length === 0],
+                  ["value", "Degradê", numericColumns.length === 0],
+                  ["classes", "Faixas", numericColumns.length === 0 || style.shape === "heatmap"],
                 ] as const
               ).map(([mode, label, disabled]) => (
                 <button
@@ -218,7 +337,9 @@ export function StyleEditor({
                           ? { mode }
                           : mode === "single"
                             ? { mode, value: SWATCHES[0]! }
-                            : { mode, column: numericColumns[0]!.name, palette: "densidade" },
+                            : mode === "classes"
+                              ? makeClasses(numericColumns[0]!.name, "quantile", 5)
+                              : { mode, column: numericColumns[0]!.name, palette: "densidade" },
                     })
                   }
                 >
@@ -272,7 +393,52 @@ export function StyleEditor({
                 </div>
               </>
             )}
+            {style.color.mode === "classes" && (
+              <ClassesEditor
+                color={style.color}
+                numericColumns={numericColumns}
+                classCount={classCount}
+                onColumn={(column) => style.color.mode === "classes" && set({ color: makeClasses(column, style.color.method, classCount, style.color.palette) })}
+                onCount={(n) => style.color.mode === "classes" && set({ color: makeClasses(style.color.column, style.color.method === "manual" ? "quantile" : style.color.method, n, style.color.palette) })}
+                onMethod={(m) =>
+                  style.color.mode === "classes" &&
+                  set({ color: m === "manual" ? { ...style.color, method: "manual" } : makeClasses(style.color.column, m, classCount, style.color.palette) })
+                }
+                onBreaks={(breaks) => style.color.mode === "classes" && set({ color: { ...style.color, method: "manual", breaks } })}
+                onPalette={(palette) => style.color.mode === "classes" && set({ color: { ...style.color, palette } })}
+              />
+            )}
             {style.shape === "heatmap" && style.color.mode !== "value" && <p className="style-hint">A mancha usa a escala de densidade.</p>}
+            {categories.length > 0 && style.shape !== "heatmap" && (
+              <div className="style-highlight">
+                <span className="style-row-label">Destacar (o resto fica apagado)</span>
+                <div className="style-chips">
+                  {categories.map((c, i) => {
+                    const on = style.highlight?.includes(i) ?? false;
+                    return (
+                      <button
+                        key={c.label}
+                        type="button"
+                        className={`chip-toggle ${on ? "is-on" : ""}`}
+                        aria-pressed={on}
+                        onClick={() => {
+                          const next = on ? (style.highlight ?? []).filter((x) => x !== i) : [...(style.highlight ?? []), i];
+                          set({ highlight: next.length ? next : null });
+                        }}
+                      >
+                        <i style={{ background: c.color }} />
+                        {c.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                {style.highlight?.length ? (
+                  <button type="button" className="link style-clear" onClick={() => set({ highlight: null })}>
+                    Tirar destaque
+                  </button>
+                ) : null}
+              </div>
+            )}
           </section>
         )}
 

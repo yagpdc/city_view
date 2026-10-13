@@ -668,3 +668,22 @@
 }
 .photo-lightbox-close:hover { background: #fff; }
 .maquete-photo-open { display: block; width: 100%; padding: 0; border: 0; background: none; cursor: zoom-in; }
+
+/* Clique numa região (IBGE, biblioteca): a área e os seus dados nela */
+.map-popup-area { padding-top: 14px; }
+.area-summary { display: flex; flex-direction: column; gap: 8px; }
+.area-summary h4 { margin: 0 !important; font-size: 17px; }
+.area-summary-kicker { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--cv-action-subtle-text); margin: 0; }
+.area-summary-values { display: grid; gap: 4px; margin: 0; }
+.area-summary-values div { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
+.area-summary-values dt { color: var(--cv-text-muted); }
+.area-summary-values dd { margin: 0; font-weight: 600; text-align: right; }
+.area-summary-mine { display: flex; flex-direction: column; gap: 6px; padding-top: 8px; border-top: 1px solid var(--cv-border); }
+.area-summary-mine ul { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.area-summary-row { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
+.area-summary-row b { font-size: 15px; }
+.area-summary-cats { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; color: var(--cv-text-muted); }
+.area-summary-cats i { display: inline-block; width: 8px; height: 8px; margin-right: 4px; border-radius: 50%; }
+.area-summary-note { font-size: 12px; }
+.area-summary.is-compact { padding: 8px 0; border-top: 1px solid var(--cv-border); margin-top: 8px; }
+.map-popup-error { margin: 0; padding: 14px 16px 2px; font-size: 13px; color: var(--cv-text-muted); }

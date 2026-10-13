@@ -35,4 +35,4 @@ export { type BuildingPaintResult, type BuildingRecord } from "./buildingPaint";
 export { areaBounds, circleArea, pointInArea, type AreaGeometry, type Bounds } from "./geo";
 export { buildStyle, type BasemapLook, type StyleOptions, type Theme } from "./style";
 export { RegionBoundaries, regionLabel, type RegionLevelSource } from "./regions";
-export { DEFAULT_DATA_STYLE, PALETTES, PALETTE_LABELS, SHAPE_DEFAULT_SIZE, normalizeDataStyle, type DataColor, type DataShape, type DataStyle, type PaletteName } from "./dataStyle";
+export { DEFAULT_DATA_STYLE, PALETTES, PALETTE_LABELS, SHAPE_DEFAULT_SIZE, classBreaks, classColors, normalizeDataStyle, type ClassMethod, type DataColor, type DataShape, type DataStyle, type PaletteName } from "./dataStyle";

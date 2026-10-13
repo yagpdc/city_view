@@ -37,6 +37,7 @@ export function MapPopup({
   onDetails,
   onStreetView,
   onAdvanced,
+  userLayers,
 }: {
   map: CityMap;
   pick: MapPick;
@@ -45,8 +46,13 @@ export function MapPopup({
   onDetails: () => void;
   onStreetView?: (imageId: string) => void;
   onAdvanced?: (pick: MapPick) => void;
+  /** Camadas em tiles ligadas (para "Seus dados aqui" no clique numa região). */
+  userLayers?: { id: string; info: DatasetInfo }[];
 }) {
-  const record = pick.dataset?.kind === "record" ? pick.dataset : null;
+  // Região de uma camada de áreas (IBGE, biblioteca) sob o clique. De longe, ela vale mais que o ponto acertado.
+  const areaPicks = pick.catalog.filter((c) => c.datapack.geometry === "polygon");
+  const areaMode = areaPicks.length > 0 && (pick.dataset?.kind !== "record" || map.camera.zoom < 12);
+  const record = !areaMode && pick.dataset?.kind === "record" ? pick.dataset : null;
   const info = pick.dataset ? datasets[pick.dataset.datasetId] : undefined;
   const center = pick.dataset?.lngLat ?? pick.lngLat;
   const catalog = pick.catalog[0];
@@ -75,6 +81,24 @@ export function MapPopup({
         info?.fieldLabels,
       ).slice(0, MAX_FIELDS)
     : [];
+
+  if (areaMode) {
+    return (
+      <div className="map-popup map-popup-area">
+        <AreaSummary map={map} picks={areaPicks} userLayers={userLayers} />
+        <div className="map-popup-actions">
+          <button type="button" className="btn" onClick={onDetails}>
+            Detalhes
+          </button>
+          {onAdvanced && (
+            <button type="button" className="btn" onClick={() => onAdvanced(pick)} title="Maquete 3D do ponto clicado">
+              Maquete 3D
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="map-popup">
@@ -136,6 +160,7 @@ export function MapPopup({
               ))}
             </dl>
           )}
+          {record && areaPicks.length > 0 && <AreaSummary map={map} picks={areaPicks} userLayers={userLayers} compact />}
           {nearbySource && (
             <Nearby
               map={map}
@@ -147,6 +172,97 @@ export function MapPopup({
           <button type="button" className="link map-popup-all" onClick={onDetails}>
             Todos os campos na barra lateral →
           </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Nome da área, o valor de cada camada de áreas escolhida e quantos registros seus caem nela. */
+function AreaSummary({
+  map,
+  picks,
+  userLayers = [],
+  compact,
+}: {
+  map: CityMap;
+  picks: MapPick["catalog"];
+  userLayers?: { id: string; info: DatasetInfo }[];
+  compact?: boolean;
+}) {
+  const first = picks[0]!;
+  const p = first.properties;
+  const code = String(p.codigo ?? first.featureId ?? "");
+  const isState = code.length <= 2;
+  const name = p.nome ? `${p.nome}${p.uf && !isState ? ` · ${p.uf}` : ""}` : first.datapack.name;
+  const values = picks.flatMap((c) => {
+    const r = c.datapack.render;
+    const key = r.type === "choropleth" ? r.property : undefined;
+    const field = c.datapack.fields.find((f) => f.key === key) ?? c.datapack.fields.find((f) => typeof c.properties[f.key] === "number");
+    if (!field) return [];
+    const extra = c.datapack.fields.filter((f) => f !== field && typeof c.properties[f.key] === "number").slice(0, compact ? 0 : 2);
+    return [field, ...extra].map((f) => ({ key: `${c.datapack.id}:${f.key}`, label: f === field && c.datapack.category === "Biblioteca" ? c.datapack.name : f.label, value: formatField(f, c.properties[f.key]) }));
+  });
+  const mine = code
+    ? userLayers.map(({ id, info }) => {
+        const row = map.datasetRegionRow(id, code);
+        const top = row
+          ? info.categories
+              .map((c, i) => ({ label: info.label ? info.label(c) : c, n: row[i + 1] ?? 0, color: categoryColor(i, info.categories) }))
+              .filter((x) => x.n > 0)
+              .sort((a, b) => b.n - a.n)
+              .slice(0, 3)
+          : [];
+        return { id, name: info.name, total: row ? row[0]! : null, top };
+      })
+    : [];
+  return (
+    <div className={`area-summary ${compact ? "is-compact" : ""}`}>
+      {compact ? (
+        <p className="area-summary-kicker">Em {name}</p>
+      ) : (
+        <>
+          <span className="area-summary-kicker">{isState ? "Estado" : "Município"}</span>
+          <h4>{name}</h4>
+        </>
+      )}
+      {values.length > 0 && (
+        <dl className="area-summary-values">
+          {values.map((v) => (
+            <div key={v.key}>
+              <dt>{v.label}</dt>
+              <dd className="num">{v.value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      {mine.length > 0 && (
+        <div className="area-summary-mine">
+          <span className="area-summary-kicker">Seus dados aqui</span>
+          <ul>
+            {mine.map((m) => (
+              <li key={m.id}>
+                <div className="area-summary-row">
+                  <span>{m.name}</span>
+                  <b className="num">{m.total === null ? "–" : int.format(m.total)}</b>
+                </div>
+                {m.total === null ? (
+                  <span className="muted area-summary-note">Camada sem contagem por região: importe de novo para ver.</span>
+                ) : (
+                  m.top.length > 0 && (
+                    <span className="area-summary-cats">
+                      {m.top.map((t) => (
+                        <span key={t.label}>
+                          <i style={{ background: t.color }} />
+                          {t.label} <span className="num">{int.format(t.n)}</span>
+                        </span>
+                      ))}
+                    </span>
+                  )
+                )}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </div>

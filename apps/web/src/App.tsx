@@ -27,6 +27,7 @@ import { coverageOverlay, nearestStreetImage, streetImageryEnabled } from "./str
 import { TopBar } from "./components/TopBar";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { StyleEditor } from "./components/StyleEditor";
+import { MapLegend, type LegendLayer } from "./components/MapLegend";
 import { MapTabs } from "./components/MapTabs";
 import { createTab, loadTabs, saveTabs, type MapTab } from "./mapTabs";
 import { DropZone } from "./import/DropZone";
@@ -119,6 +120,7 @@ const INITIAL_TABS = (() => {
     title: SHARED.n || "Link compartilhado",
     active: SHARED.layers,
     filters: SHARED.f ?? {},
+    ...(SHARED.st && { styles: Object.fromEntries(Object.entries(SHARED.st).map(([id, s]) => [id, normalizeDataStyle(s)])) }),
     ...(SHARED.theme && { theme: SHARED.theme }),
     ...(SHARED.look && { look: SHARED.look }),
   });
@@ -394,6 +396,8 @@ export function App() {
     );
     const lib = libraryLayers.filter((l) => active.has(l.manifest.id)).map(recipeOf);
     const f = Object.fromEntries(shareable.map(mapIdOf).filter((id) => filters[id]).map((id) => [id, filters[id]!]));
+    // Estilo do editor das camadas que vão no link (quem abrir vê do mesmo jeito).
+    const st = Object.fromEntries(shareable.map(mapIdOf).filter((id) => styles[id]).map((id) => [id, styles[id]!]));
     const round = (n: number) => Math.round(n * 1e6) / 1e6;
     const title = tabs.find((t) => t.id === currentTab)?.title;
     const url = shareUrl({
@@ -404,6 +408,7 @@ export function App() {
       theme,
       look,
       ...(Object.keys(f).length ? { f } : {}),
+      ...(Object.keys(st).length ? { st } : {}),
       ...(maquete ? { maquete: { c: [round(maquete.center[0]), round(maquete.center[1])], r: maquete.radius, ...(maquete.title ? { t: maquete.title } : {}) } } : {}),
     });
     const local = user.datasets.filter((d) => active.has(d.id)).length;
@@ -593,7 +598,14 @@ export function App() {
         }),
       );
     compute();
-    return map.onViewChange(compute);
+    // Recém-ligada, a camada ainda não tem tiles: conta de novo quando o mapa termina de carregar.
+    let live = true;
+    void map.whenIdle().then(() => live && compute());
+    const off = map.onViewChange(compute);
+    return () => {
+      live = false;
+      off();
+    };
   }, [map, widgetsOpen, active, demoMeta, places, tileMetas, datasetInfos, filters]);
 
   const nearbySource: NearbySource | null =
@@ -1273,6 +1285,20 @@ export function App() {
 
   const letter = (i: number) => String.fromCharCode(65 + (i % 26));
 
+  /** Legenda no mapa: camadas em tiles ligadas, com o estilo em uso (o rascunho, se o editor está aberto). */
+  const legendLayers: LegendLayer[] = Object.entries(datasetInfos)
+    .filter(([id]) => active.has(datasetKey(id)))
+    .map(([id, info]) => {
+      const style = styleEditing?.id === id ? styleEditing.draft : (styles[id] ?? DEFAULT_DATA_STYLE);
+      return {
+        id,
+        title: id === PLACES.id ? "Estabelecimentos" : info.name,
+        style,
+        categories: info.categories.map((c, i) => ({ label: info.label ? info.label(c) : c, color: categoryColor(i, info.categories) })),
+        range: style.color.mode === "value" ? (map?.datasetColumnRange(id, style.color.column) ?? null) : null,
+      };
+    });
+
   /** Abre o editor de estilo de uma camada (o rascunho começa no estilo salvo). */
   function openStyle(id: string, title: string) {
     setStyleEditing({ id, title, draft: styles[id] ?? DEFAULT_DATA_STYLE });
@@ -1289,6 +1315,12 @@ export function App() {
         .filter((c) => c.type === "number")
         .map((c) => ({ name: c.name, label: datasetInfos[styleEditing.id]?.fieldLabels?.[c.name] ?? c.name }))}
       hasCategories={editingMeta.categories.length > 0}
+      categories={editingMeta.categories.map((c, i) => ({
+        label: datasetInfos[styleEditing.id]?.label?.(c) ?? c,
+        color: categoryColor(i, editingMeta.categories),
+      }))}
+      columnRange={(column) => map?.datasetColumnRange(styleEditing.id, column) ?? null}
+      columnValues={(column) => map?.datasetColumnValues(styleEditing.id, column) ?? []}
       hasRegions={Boolean(map?.datasetHasRegions(styleEditing.id))}
       onChange={(draft) => setStyleEditing((e) => (e ? { ...e, draft } : e))}
       onSave={() => {
@@ -1497,6 +1529,7 @@ export function App() {
           <div ref={containerRef} className="map" />
           <SearchBox search={search} onSelect={selectSearch} />
           {styleEditor}
+          {!maquete && <MapLegend layers={legendLayers} />}
           <DropZone onFile={openImport} />
           {shareStatus && !maquete && (
             <div className="toast" role="status">
@@ -1507,6 +1540,7 @@ export function App() {
           {map &&
             pick &&
             createPortal(
+              <ErrorBoundary key={`${pick.lngLat[0]},${pick.lngLat[1]}`} fallback={() => <p className="map-popup-error">Não deu para mostrar os detalhes deste ponto.</p>}>
               <MapPopup
                 map={map}
                 pick={pick}
@@ -1515,7 +1549,11 @@ export function App() {
                 onDetails={showPickDetails}
                 onStreetView={streetImageryEnabled ? openStreetView : undefined}
                 onAdvanced={(p) => void startAdvanced(p)}
-              />,
+                userLayers={Object.entries(datasetInfos)
+                  .filter(([id]) => active.has(datasetKey(id)))
+                  .map(([id, info]) => ({ id, info }))}
+              />
+              </ErrorBoundary>,
               popupEl,
             )}
           {maquete && map && (
