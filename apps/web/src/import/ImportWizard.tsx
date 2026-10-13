@@ -3,6 +3,7 @@ import { CATEGORY_COLORS } from "@cityview/engine";
 import {
   applyCoordinateFix,
   BRAZIL_UTM_ZONES,
+  columnsAfter,
   inBrazil,
   readCoordinates,
   suggestCoordinateFix,
@@ -18,6 +19,7 @@ import { TableTools } from "./TableTools";
 import type { ImportSpec } from "../server/api";
 import { LARGE_FILE_BYTES, SAMPLE_ROWS, SERVER_FORMATS, fileFormat, type BuildSummary, type Delimiter, type Encoding, type OpenedFile } from "./protocol";
 import { useImportWorker } from "./useImportWorker";
+import { MAX_SAVED_FILE_BYTES, type SavedImport } from "../storage/datasets";
 import { Icon } from "../components/Icon";
 
 export interface ImportedDataset {
@@ -28,10 +30,45 @@ export interface ImportedDataset {
   count: number;
   bounds: [number, number, number, number];
   fileName: string;
+  /** Como foi montada, para editar ou atualizar depois. */
+  source: SavedImport;
+}
+
+/** Reabrir uma camada já importada: "edit" (mesmo arquivo, ajustar) ou "update" (arquivo novo, mesma receita). */
+export interface ImportRestore {
+  datasetId: string;
+  saved: SavedImport;
+  mode: "edit" | "update";
+}
+
+/** Colunas que a receita e as escolhas usam (para avisar quando uma planilha nova não as tem). */
+function referencedColumns(saved: SavedImport): string[] {
+  const out = new Set<string>();
+  for (const st of saved.recipe) {
+    if ("column" in st) out.add(st.column);
+    if (st.op === "concat") st.columns.forEach((c) => out.add(c));
+    if (st.op === "compute") {
+      out.add(st.a);
+      if (typeof st.b === "string") out.add(st.b);
+    }
+    if (st.op === "join") out.add(st.key);
+    if (st.op === "filter") st.when.forEach((c) => out.add(c.column));
+    if (st.op === "rules") st.rules.forEach((r) => r.when.forEach((c) => out.add(c.column)));
+  }
+  const loc = saved.location;
+  if (loc.mode === "single") out.add(loc.latlon);
+  else [loc.lat, loc.lon].forEach((c) => out.add(c));
+  if (saved.title) out.add(saved.title);
+  if (saved.colorBy) out.add(saved.colorBy);
+  saved.choices.filter((c) => c.include).forEach((c) => out.add(c.name));
+  out.delete("");
+  return [...out];
 }
 
 interface ImportWizardProps {
   file: File;
+  /** Reabrir uma camada (editar ou atualizar com planilha nova). */
+  restore?: ImportRestore;
   /** Servidor local disponível (processa arquivos de qualquer tamanho). */
   serverAvailable: boolean;
   onCancel: () => void;
@@ -57,8 +94,18 @@ const MAX_COLOR_CATEGORIES = CATEGORY_COLORS.length;
 const int = new Intl.NumberFormat("pt-BR");
 const formatBytes = (b: number) => (b > 1e6 ? `${(b / 1e6).toFixed(1)} MB` : `${Math.ceil(b / 1e3)} KB`);
 
-export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSendToServer }: ImportWizardProps) {
+export function ImportWizard({ file, restore, serverAvailable, onCancel, onImport, onSendToServer }: ImportWizardProps) {
   const worker = useImportWorker();
+  /** Restauração pendente (aplicada uma vez, depois que o arquivo abre). */
+  const restoring = useRef(restore ?? null);
+  /** Planilhas de juntar/acrescentar, pelo id do worker (guardadas com a camada). */
+  const sourceFiles = useRef(new Map<string, File>());
+  /** Colunas que a receita usa e a planilha (nova) não tem. */
+  const [missing, setMissing] = useState<string[]>([]);
+  /** "Atualizar": vai sozinho para a revisão quando a receita estiver aplicada. */
+  const reviewWhenReady = useRef(false);
+  /** Receita que a vista atual (opened) já reflete. */
+  const [viewRecipe, setViewRecipe] = useState<RecipeStep[] | null>(null);
   // Arquivo grande + servidor de pé: o navegador só lê uma amostra; o motor em Rust faz o resto.
   // O motor em Rust lê CSV e Parquet; Excel e GeoJSON ficam no navegador.
   const serverFormat = SERVER_FORMATS.includes(fileFormat(file.name) ?? "csv");
@@ -70,20 +117,21 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
   const [step, setStep] = useState<Step>(0);
   const [opened, setOpened] = useState<OpenedFile | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [delimiter, setDelimiter] = useState<Delimiter | undefined>();
-  const [encoding, setEncoding] = useState<Encoding | undefined>();
+  // Editar: o mesmo arquivo abre com as mesmas opções. Atualizar: arquivo novo, detecção de novo.
+  const [delimiter, setDelimiter] = useState<Delimiter | undefined>(restore?.mode === "edit" ? restore.saved.options.delimiter : undefined);
+  const [encoding, setEncoding] = useState<Encoding | undefined>(restore?.mode === "edit" ? restore.saved.options.encoding : undefined);
   const [lat, setLat] = useState("");
   const [lon, setLon] = useState("");
   const [choices, setChoices] = useState<ColumnChoice[]>([]);
   const [title, setTitle] = useState("");
   const [colorBy, setColorBy] = useState("");
-  const [name, setName] = useState(file.name.replace(/\.[^.]+$/, ""));
+  const [name, setName] = useState(restore?.saved.name ?? file.name.replace(/\.[^.]+$/, ""));
   const [built, setBuilt] = useState<BuildSummary | null>(null);
   const [building, setBuilding] = useState(false);
   const [exporting, setExporting] = useState(false);
   /** Ajustes do builder (receita); o arquivo original não muda. */
   const [recipe, setRecipe] = useState<RecipeStep[]>([]);
-  const [sheet, setSheet] = useState<string | undefined>();
+  const [sheet, setSheet] = useState<string | undefined>(restore?.saved.options.sheet);
   /** Localização em duas colunas (lat/lon) ou numa só ("-23.5, -46.6"). */
   const [locMode, setLocMode] = useState<"pair" | "single">("pair");
   const [latlon, setLatlon] = useState("");
@@ -112,6 +160,36 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
         setChoices(o.columns.map((c) => ({ name: c.name, include: true, type: c.type })));
         setTitle(o.style.title ?? "");
         setColorBy(o.style.colorBy ?? "");
+        setViewRecipe([]);
+        const r = restoring.current;
+        if (!r) return;
+        restoring.current = null;
+        void (async () => {
+          try {
+            for (const src of r.saved.sources) {
+              await worker.addSource(src.file, src.id);
+              sourceFiles.current.set(src.id, src.file);
+            }
+          } catch (e) {
+            setError(`Não deu para reabrir uma planilha usada nos ajustes: ${(e as Error).message}`);
+          }
+          if (cancelled) return;
+          const sv = r.saved;
+          setRecipe(sv.recipe);
+          setChoices(sv.choices);
+          setLocMode(sv.location.mode);
+          setLat(sv.location.lat);
+          setLon(sv.location.lon);
+          setLatlon(sv.location.latlon);
+          setFix(sv.location.fix);
+          setTitle(sv.title);
+          setColorBy(sv.colorBy);
+          const known = new Set([...o.originalHeaders, ...columnsAfter(o.originalHeaders, sv.recipe)]);
+          const gone = referencedColumns(sv).filter((c) => !known.has(c));
+          setMissing(gone);
+          if (r.mode === "update" && gone.length === 0) reviewWhenReady.current = true;
+          else setStep(r.mode === "edit" ? 2 : 1);
+        })();
       })
       .catch((e: Error) => !cancelled && setError(e.message));
     return () => {
@@ -129,6 +207,7 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
       .then((o) => {
         if (cancelled) return;
         setOpened(o);
+        setViewRecipe(recipe);
         // A localização pode ter chegado agora (ex.: coordenadas vindas de outra planilha).
         if (o.location && !lat && !lon && !latlon) {
           setLat(o.location.lat ?? "");
@@ -189,6 +268,14 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
     }
     return { valid, brazil, total: opened.preview.length, suggestion: fix ? null : suggestCoordinateFix(pairs) };
   }, [opened, mapping, fix]);
+
+  // Atualizar com planilha nova: com tudo no lugar, revisão direto.
+  useEffect(() => {
+    if (!reviewWhenReady.current || !mapping || viewRecipe !== recipe) return;
+    reviewWhenReady.current = false;
+    void goToReview();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapping, viewRecipe, recipe]);
 
   const goToReview = async (): Promise<ImportSummary | null> => {
     if (!mapping) return null;
@@ -276,7 +363,7 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
     const ordered = [...included].sort((a, b) => (a.name === title ? -1 : b.name === title ? 1 : 0));
     const cats = colorBy ? summary.categories.slice(0, MAX_COLOR_CATEGORIES) : [];
     const manifest: DatapackManifest = {
-      id: `user-${Date.now()}`,
+      id: restore?.datasetId ?? `user-${Date.now()}`,
       name: name.trim() || file.name,
       description: `Importado de ${file.name}`,
       category: "Seus dados",
@@ -304,6 +391,7 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
         ...(c.type === "number" ? { format: "decimal" as const } : c.type === "date" ? { format: "date" as const } : {}),
       })),
     };
+    const used = new Set(recipe.flatMap((st) => (st.op === "join" || st.op === "append" ? [st.source] : [])));
     onImport({
       manifest,
       data: blob,
@@ -311,6 +399,23 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
       count: summary.count,
       bounds: summary.bounds,
       fileName: file.name,
+      source: {
+        version: 1,
+        ...(file.size <= MAX_SAVED_FILE_BYTES ? { file } : {}),
+        fileName: file.name,
+        fileSize: file.size,
+        sources: [...used].flatMap((id) => {
+          const f = sourceFiles.current.get(id);
+          return f ? [{ id, file: f }] : [];
+        }),
+        options: { delimiter: delimiter ?? opened?.delimiter, encoding: encoding ?? opened?.encoding, sheet: opened?.sheet },
+        recipe,
+        location: { mode: locMode, lat, lon, latlon, ...(fix ? { fix } : {}) },
+        choices,
+        title,
+        colorBy,
+        name: name.trim() || file.name,
+      },
     });
   };
 
@@ -336,7 +441,11 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
         originalHeaders={opened.originalHeaders}
         recipe={recipe}
         onRecipe={setRecipe}
-        addSource={worker.addSource}
+        addSource={async (f) => {
+          const src = await worker.addSource(f);
+          sourceFiles.current.set(src.id, f);
+          return src;
+        }}
         joinStats={worker.joinStats}
         only={only}
         lead={lead}
@@ -363,6 +472,27 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
 
         <div className="wizard-body">
           {error && <p className="wizard-error">{error}</p>}
+          {restore && opened && (
+            <p className={missing.length ? "wizard-warn" : "wizard-ok"}>
+              {restore.mode === "edit" ? (
+                <>
+                  Editando <b>{restore.saved.name}</b>: os ajustes, a localização e as colunas voltaram como estavam. Ao importar, a camada é
+                  substituída.
+                </>
+              ) : (
+                <>
+                  Atualizando <b>{restore.saved.name}</b> com <b>{file.name}</b>: os mesmos ajustes são aplicados no arquivo novo.
+                </>
+              )}
+              {missing.length > 0 && (
+                <>
+                  {" "}
+                  O arquivo não tem {missing.length === 1 ? "a coluna" : "as colunas"} {missing.slice(0, 6).map((c) => `"${c}"`).join(", ")}
+                  {missing.length > 6 ? ` e mais ${missing.length - 6}` : ""}: confira a localização e os ajustes.
+                </>
+              )}
+            </p>
+          )}
 
           {!opened && !error && (
             <div className="wizard-loading">

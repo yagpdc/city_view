@@ -90,7 +90,7 @@ export type WorkerRequest =
   | { type: "recipe"; steps: RecipeStep[] }
   | { type: "profile"; column: string }
   /** Carrega outra planilha (para juntar ou acrescentar). */
-  | { type: "addSource"; file: File; options?: OpenOptions }
+  | { type: "addSource"; file: File; options?: OpenOptions; sourceId?: string }
   /** Quantas linhas desta acham par na outra, casando key com otherKey. */
   | { type: "joinStats"; source: string; key: string; otherKey: string }
   /** CSV das linhas que ficam de fora, com o motivo. */

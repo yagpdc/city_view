@@ -51,6 +51,12 @@ Opcionais: nome (rótulo e busca), categoria (cor e filtro), números (tamanho, 
 5. Importar. No cartão da camada: **Editar dados** reabre o builder com a mesma receita; **Atualizar com nova
    planilha** reaplica a receita no arquivo novo.
 
+   > **Estado (2026-10-13):** ✅ a camada guarda como foi montada (`SavedImport` no IndexedDB, junto com ela): o arquivo
+   > original (até 100 MB; acima disso, ou sem espaço, pedimos o arquivo de novo), as planilhas de juntar/acrescentar,
+   > a receita, a localização, as colunas, título e cor. **Editar dados** reabre no passo Dados; **Atualizar com nova
+   > planilha** aplica tudo no arquivo novo e vai direto à revisão, ou para no passo Localização avisando quais colunas
+   > a planilha nova não tem. A camada é substituída no lugar (mesmo id, filtros e cartão).
+
 ## Perfil da coluna (o que o builder mostra ao clicar numa coluna)
 
 Tipo detectado e confiança · vazios · valores distintos · mín/máx/média · histograma (números) ou os valores

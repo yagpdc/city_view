@@ -28,7 +28,7 @@ import { MapTabs } from "./components/MapTabs";
 import { createTab, loadTabs, saveTabs, type MapTab } from "./mapTabs";
 import { DropZone } from "./import/DropZone";
 import "./import/import.css";
-import { ImportWizard, type ImportedDataset } from "./import/ImportWizard";
+import { ImportWizard, type ImportRestore, type ImportedDataset } from "./import/ImportWizard";
 import { ACCEPTED_EXTENSIONS } from "./import/protocol";
 import { serverApi, type ImportSpec, type ServerDataset } from "./server/api";
 import { useServerDatasets } from "./server/useServerDatasets";
@@ -179,7 +179,11 @@ export function App() {
   /** Todos os datasets em tiles que são dados do usuário (servidor local ou navegador). */
   const tileMetas = useMemo(() => ({ ...serverMetas, ...localMetas }), [serverMetas, localMetas]);
   const [pick, setPick] = useState<MapPick | null>(null);
-  const [importFile, setImportFile] = useState<File | null>(null);
+  /** Assistente aberto: arquivo e, ao reabrir uma camada, o que restaurar. */
+  const [importJob, setImportJob] = useState<{ file: File; restore?: ImportRestore } | null>(null);
+  /** "Atualizar com nova planilha" / "Editar dados" sem o arquivo guardado: camada esperando o arquivo escolhido. */
+  const pendingReopen = useRef<{ dataset: UserDataset; mode: ImportRestore["mode"] } | null>(null);
+  const reopenInput = useRef<HTMLInputElement>(null);
   const [streetImageId, setStreetImageId] = useState<string | null>(null);
   /** Elemento do cartão sobre o mapa (o conteúdo vem por portal React). */
   const popupEl = useMemo(() => document.createElement("div"), []);
@@ -559,18 +563,38 @@ export function App() {
     places && datasetInfos[PLACES.id] ? { datasetId: PLACES.id, name: "Estabelecimentos", info: datasetInfos[PLACES.id]!, categories: filters[PLACES.id]?.categories ?? null, where: filters[PLACES.id]?.where ?? null } : null;
 
 
-  const openImport = useCallback((file: File) => setImportFile(file), []);
+  const openImport = useCallback((file: File) => setImportJob({ file }), []);
 
   const finishImport = (dataset: ImportedDataset) => {
-    setImportFile(null);
-    void user.add({ id: dataset.manifest.id, ...dataset, createdAt: Date.now() });
+    setImportJob(null);
+    const id = dataset.manifest.id;
+    const previous = user.datasets.find((d) => d.id === id);
+    if (previous) {
+      // Editar / atualizar: a camada antiga sai do mapa e a nova entra no lugar (mesmo id, filtros e cartão).
+      map?.removeCatalogLayer(id);
+      map?.removeDataset(id);
+      setLocalMetas(({ [id]: _, ...rest }) => rest);
+    }
+    void user.add({ id, ...dataset, createdAt: previous?.createdAt ?? Date.now(), ...(previous ? { updatedAt: Date.now() } : {}) });
     setActive((prev) => new Set(prev).add(dataset.manifest.id));
     setPanel("layers");
     map?.fitBounds(dataset.bounds);
   };
 
+  /** Reabre o assistente de uma camada: com o arquivo guardado (editar) ou com um arquivo novo (atualizar). */
+  const reopenDataset = (d: UserDataset, mode: ImportRestore["mode"], file?: File) => {
+    if (!d.source) return;
+    const chosen = file ?? (mode === "edit" ? d.source.file : undefined);
+    if (!chosen) {
+      pendingReopen.current = { dataset: d, mode };
+      reopenInput.current?.click();
+      return;
+    }
+    setImportJob({ file: chosen, restore: { datasetId: d.id, saved: d.source, mode } });
+  };
+
   const sendToServer = async (file: File, spec: ImportSpec) => {
-    setImportFile(null);
+    setImportJob(null);
     setPanel("layers");
     const created = await server.upload(file, spec);
     if (created) focusWhenReady.current.add(created.id);
@@ -1023,6 +1047,12 @@ export function App() {
           onVisible={(v) => toggle(d.id, v)}
           actions={[
             { label: "Enquadrar no mapa", icon: "frame", onClick: () => focusUserDataset(d) },
+            ...(d.source
+              ? [
+                  { label: "Editar dados", icon: "sliders" as const, onClick: () => reopenDataset(d, "edit") },
+                  { label: "Atualizar com nova planilha", icon: "upload" as const, onClick: () => reopenDataset(d, "update") },
+                ]
+              : []),
             { label: "Renomear", icon: "rename", onClick: () => renameUserDataset(d.id) },
             { label: "Tirar do mapa", icon: "eyeOff", onClick: () => removeFromMap(d.id) },
             { label: "Apagar deste navegador", icon: "trash", onClick: () => removeUserDataset(d.id), danger: true },
@@ -1429,11 +1459,26 @@ export function App() {
 
       {libraryOpen && <LibraryPanel onClose={() => setLibraryOpen(false)} onAddLayer={addLibraryLayer} />}
 
-      {importFile && (
+      <input
+        ref={reopenInput}
+        type="file"
+        accept={ACCEPTED_EXTENSIONS}
+        hidden
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          const pending = pendingReopen.current;
+          pendingReopen.current = null;
+          if (file && pending) reopenDataset(pending.dataset, pending.mode, file);
+        }}
+      />
+      {importJob && (
         <ImportWizard
-          file={importFile}
+          key={`${importJob.file.name}:${importJob.restore?.datasetId ?? ""}:${importJob.restore?.mode ?? ""}`}
+          file={importJob.file}
+          restore={importJob.restore}
           serverAvailable={server.available}
-          onCancel={() => setImportFile(null)}
+          onCancel={() => setImportJob(null)}
           onImport={finishImport}
           onSendToServer={(file, spec) => void sendToServer(file, spec)}
         />

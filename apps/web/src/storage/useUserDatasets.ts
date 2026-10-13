@@ -55,11 +55,31 @@ export function useUserDatasets() {
   const add = useCallback(
     async (stored: StoredDataset) => {
       const dataset = track(withUrl(stored, false));
-      setDatasets((list) => [...list, dataset]);
+      // Mesmo id = substituição (editar / atualizar): fica no mesmo lugar da lista.
+      setDatasets((list) => {
+        const old = list.find((d) => d.id === stored.id);
+        if (!old) return [...list, dataset];
+        URL.revokeObjectURL(old.dataUrl);
+        urls.current.delete(old.dataUrl);
+        return list.map((d) => (d.id === stored.id ? dataset : d));
+      });
       try {
         await saveDataset(stored);
         setDatasets((list) => list.map((d) => (d.id === stored.id ? { ...d, saved: true } : d)));
       } catch (e) {
+        // Sem espaço para o arquivo original: guarda a camada sem ele (para editar, pedimos o arquivo de novo).
+        if (stored.source?.file) {
+          try {
+            const { file: _, ...source } = stored.source;
+            await saveDataset({ ...stored, source });
+            setDatasets((list) => list.map((d) => (d.id === stored.id ? { ...d, source, saved: true } : d)));
+            setError(`"${stored.manifest.name}" foi salvo sem o arquivo original (falta espaço neste navegador). Para editar, escolha o arquivo de novo.`);
+            refreshUsage();
+            return dataset;
+          } catch {
+            // cai no erro abaixo
+          }
+        }
         setError(`"${stored.manifest.name}" está no mapa, mas não foi salvo neste navegador: ${(e as Error).message}`);
       }
       refreshUsage();

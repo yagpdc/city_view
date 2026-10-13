@@ -1,4 +1,31 @@
 import type { DatapackManifest } from "@cityview/engine";
+import type { CoordinateFix, RecipeStep } from "@cityview/importer";
+import type { ColumnChoice } from "../import/BuilderStep";
+import type { Delimiter, Encoding } from "../import/protocol";
+
+/**
+ * Como a camada foi montada, para "Editar dados" e "Atualizar com nova planilha": o arquivo original (se coube),
+ * as outras planilhas usadas pela receita e todas as escolhas do assistente. Só neste navegador (ADR 0002).
+ */
+export interface SavedImport {
+  version: 1;
+  /** Ausente quando o arquivo era grande demais para guardar (ou faltou espaço): pedimos de novo ao editar. */
+  file?: File;
+  fileName: string;
+  fileSize: number;
+  /** Planilhas de "juntar" e "acrescentar", pelo id usado nos passos da receita. */
+  sources: { id: string; file: File }[];
+  options: { delimiter?: Delimiter; encoding?: Encoding; sheet?: string };
+  recipe: RecipeStep[];
+  location: { mode: "pair" | "single"; lat: string; lon: string; latlon: string; fix?: CoordinateFix };
+  choices: ColumnChoice[];
+  title: string;
+  colorBy: string;
+  name: string;
+}
+
+/** Acima disso o arquivo original não é guardado (dobraria o espaço usado). */
+export const MAX_SAVED_FILE_BYTES = 100e6;
 
 /**
  * Datasets importados, salvos no IndexedDB deste navegador (local-first, custo zero).
@@ -15,6 +42,9 @@ export interface StoredDataset {
   bounds: [number, number, number, number];
   fileName: string;
   createdAt: number;
+  /** Como foi montada (importações antigas não têm). */
+  source?: SavedImport;
+  updatedAt?: number;
 }
 
 const DB_NAME = "cityview";

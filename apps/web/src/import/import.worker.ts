@@ -327,7 +327,8 @@ self.onmessage = async (e: MessageEvent<WorkerRequest & { id?: number }>) => {
       post({ type: "opened", file: { ...openedBase, ...view() } });
     } else if (msg.type === "addSource") {
       const other = await readTable(msg.file, msg.options);
-      const id = `s${sources.size + 1}_${Date.now().toString(36)}`;
+      // Ao reabrir uma camada, a planilha volta com o id que os passos da receita usam.
+      const id = msg.sourceId ?? `s${sources.size + 1}_${Date.now().toString(36)}`;
       sources.set(id, { name: msg.file.name, rows: other });
       const otherHeaders = Object.keys(other[0]!);
       const mainSample = applyRecipe(rows.slice(0, DETECT_ROWS), recipe, sampleContext());

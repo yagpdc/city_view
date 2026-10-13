@@ -80,9 +80,9 @@ export function useImportWorker() {
   );
 
   /** Outra planilha para juntar ou acrescentar. */
-  const addSource = useCallback((file: File) => {
+  const addSource = useCallback((file: File, id?: string) => {
     setProgress(0);
-    return request<SourceInfo>({ type: "addSource", file });
+    return request<SourceInfo>({ type: "addSource", file, ...(id ? { sourceId: id } : {}) });
   }, [request]);
   const joinStats = useCallback(
     (source: string, key: string, otherKey: string) => request<JoinStats>({ type: "joinStats", source, key, otherKey }),
