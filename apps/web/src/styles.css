@@ -688,3 +688,29 @@ a { color: var(--cv-link); }
   .maquete-stats dd { font-size: 16px; }
   .maquete-details { width: auto; max-height: calc(100cqh - 340px); }
 }
+
+/* Aviso de link copiado por cima da maquete */
+.toast.toast-over { z-index: 9; }
+
+/* Maquete no celular: dados recolhíveis e detalhe do prédio em folha embaixo (não atrapalha girar/zoom) */
+.maquete-info-toggle { align-self: flex-start; display: inline-flex; align-items: center; gap: 4px; margin-top: 6px; padding: 4px 10px; border: 1px solid var(--cv-border); border-radius: var(--cv-radius-full); background: var(--cv-float); color: var(--cv-text); font: inherit; font-size: 12px; font-weight: 600; box-shadow: var(--cv-shadow-1); cursor: pointer; pointer-events: auto; }
+.maquete-sheet { position: absolute; left: 8px; right: 8px; bottom: 76px; z-index: 2; max-height: 48cqh; display: flex; flex-direction: column; }
+.maquete-sheet .maquete-details { width: auto; max-height: 48cqh; border-radius: var(--cv-radius-xl) var(--cv-radius-xl) var(--cv-radius-lg, 10px) var(--cv-radius-lg, 10px); box-shadow: var(--cv-shadow-3); }
+@container (max-width: 760px) {
+  .maquete-head { top: 10px; left: 10px; right: 10px; }
+  .maquete-title h2 { font-size: 17px; line-height: 22px; }
+  .maquete-coords { display: none; }
+  .maquete-side { top: 108px; left: 10px; right: 10px; max-height: calc(100cqh - 200px); }
+  .maquete-controls { bottom: 10px; gap: 4px; padding: 6px; }
+  .maquete-segmented button, .maquete-btn { height: 30px; padding: 0 8px; font-size: 12px; }
+}
+
+@container (max-width: 760px) {
+  /* Uma linha só: raio + ícones (os rótulos ficam no aria-label/título) */
+  .maquete-controls { flex-wrap: nowrap; }
+  .maquete-btn-label { display: none; }
+  .maquete-btn { width: 34px; justify-content: center; padding: 0; }
+  .maquete-sheet { bottom: 62px; }
+  .maquete-segmented button { white-space: nowrap; padding: 0 7px; }
+  .maquete-sheet, .maquete-sheet .maquete-details { max-height: 42cqh; }
+}

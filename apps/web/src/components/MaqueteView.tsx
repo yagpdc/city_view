@@ -22,6 +22,9 @@ export function MaqueteView({
   theme,
   datasets,
   placeFacts,
+  radius: initialRadius = 300,
+  onRadius,
+  onShare,
   onClose,
 }: {
   map: CityMap;
@@ -34,14 +37,23 @@ export function MaqueteView({
   datasets: Record<string, DatasetInfo>;
   /** Município do ponto e grandezas dele (cartão "O lugar"). */
   placeFacts?: (center: [number, number]) => Promise<PlaceFacts>;
+  /** Raio (m) inicial; `onRadius` avisa quando muda (para o link de compartilhar). */
+  radius?: number;
+  onRadius?: (r: number) => void;
+  /** Copiar link com esta maquete aberta. */
+  onShare?: () => void;
   onClose: () => void;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<MaqueteScene | null>(null);
-  const [radius, setRadius] = useState<(typeof RADII)[number]>(300);
+  const [radius, setRadius] = useState<(typeof RADII)[number]>(RADII.includes(initialRadius as (typeof RADII)[number]) ? (initialRadius as (typeof RADII)[number]) : 300);
+  useEffect(() => onRadius?.(radius), [radius]); // eslint-disable-line react-hooks/exhaustive-deps
   const [state, setState] = useState<{ data?: MaqueteData; error?: string; loading: boolean }>({ loading: true });
   const [rotating, setRotating] = useState(true);
-  const [views, setViews] = useState(true);
+  /** Tela estreita (celular): dados da área recolhidos, vistas técnicas desligadas e detalhe em folha embaixo. */
+  const [compact, setCompact] = useState(() => window.innerWidth < 760);
+  const [infoOpen, setInfoOpen] = useState(false);
+  const [views, setViews] = useState(() => window.innerWidth >= 760);
   const [rects, setRects] = useState<ReturnType<MaqueteScene["viewRects"]>>([]);
   const [selection, setSelection] = useState<MaqueteSelection>(null);
   const [place, setPlace] = useState<PlaceFacts | null>(null);
@@ -63,7 +75,10 @@ export function MaqueteView({
     const scene = new MaqueteScene(host, map.maquetePalette());
     sceneRef.current = scene;
     scene.onSelect = setSelection;
-    const update = () => setRects(scene.viewRects());
+    const update = () => {
+      setRects(scene.viewRects());
+      setCompact(host.clientWidth < 760);
+    };
     const ro = new ResizeObserver(update);
     ro.observe(host);
     update();
@@ -146,6 +161,12 @@ export function MaqueteView({
           <span className="maquete-coords num">
             {center[1].toFixed(5)}, {center[0].toFixed(5)}
           </span>
+          {compact && data && !empty && !selection && (
+            <button type="button" className="maquete-info-toggle" aria-expanded={infoOpen} onClick={() => setInfoOpen((o) => !o)}>
+              <Icon name={infoOpen ? "chevronUp" : "chevronDown"} size={16} />
+              {infoOpen ? "Esconder dados da área" : "Dados da área"}
+            </button>
+          )}
         </div>
         <button type="button" className="maquete-close" onClick={onClose} aria-label="Fechar maquete">
           <Icon name="close" size={20} />
@@ -153,11 +174,11 @@ export function MaqueteView({
       </header>
 
       {data && selection && (
-        <div className="maquete-side">
+        <div className={compact ? "maquete-sheet" : "maquete-side"}>
           <MaqueteDetails key={`${selection.kind}:${selection.index}`} data={data} selection={selection} datasets={datasets} onClose={clearSelection} />
         </div>
       )}
-      {data && !empty && !selection && (
+      {data && !empty && !selection && (!compact || infoOpen) && (
         <div className="maquete-side">
         <dl className="maquete-stats">
           <div>
@@ -184,7 +205,7 @@ export function MaqueteView({
           )}
         </dl>
         {place && <PlaceCard place={place} />}
-        <p className="maquete-note">Clique num prédio ou alfinete para ver os dados.</p>
+        <p className="maquete-note">{compact ? "Toque" : "Clique"} num prédio ou alfinete para ver os dados.</p>
         {data.stats.withHeight < data.stats.buildings && (
           <p className="maquete-note">
             {int.format(data.stats.buildings - data.stats.withHeight)} prédios sem altura no OpenStreetMap aparecem com altura estimada.
@@ -208,17 +229,23 @@ export function MaqueteView({
             </button>
           ))}
         </div>
-        <button type="button" className={`maquete-btn ${rotating ? "is-on" : ""}`} aria-pressed={rotating} onClick={() => setRotating((v) => !v)}>
+        <button type="button" className={`maquete-btn ${rotating ? "is-on" : ""}`} aria-pressed={rotating} onClick={() => setRotating((v) => !v)} aria-label="Girar" title="Girar">
           <Icon name="compass" size={16} />
-          Girar
+          <span className="maquete-btn-label">Girar</span>
         </button>
-        <button type="button" className={`maquete-btn ${views ? "is-on" : ""}`} aria-pressed={views} onClick={() => setViews((v) => !v)}>
+        <button type="button" className={`maquete-btn ${views ? "is-on" : ""}`} aria-pressed={views} onClick={() => setViews((v) => !v)} aria-label="Vistas técnicas" title="Vistas técnicas">
           <Icon name="frame" size={16} />
-          Vistas técnicas
+          <span className="maquete-btn-label">Vistas técnicas</span>
         </button>
-        <button type="button" className="maquete-btn" onClick={download} disabled={!data || empty}>
+        {onShare && (
+          <button type="button" className="maquete-btn" onClick={onShare} aria-label="Copiar link" title="Copiar link">
+            <Icon name="share" size={16} />
+            <span className="maquete-btn-label">Copiar link</span>
+          </button>
+        )}
+        <button type="button" className="maquete-btn" onClick={download} disabled={!data || empty} aria-label="Baixar imagem" title="Baixar imagem">
           <Icon name="camera" size={16} />
-          Baixar imagem
+          <span className="maquete-btn-label">Baixar imagem</span>
         </button>
       </div>
 

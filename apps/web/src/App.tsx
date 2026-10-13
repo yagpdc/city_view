@@ -129,7 +129,7 @@ export function App() {
   const [perspective, setPerspective] = useState<"2d" | "3d">("2d");
   const [measuring, setMeasuring] = useState(false);
   /** Maquete holográfica aberta (cobre o mapa). */
-  const [maquete, setMaquete] = useState<{ center: [number, number]; title?: string; datasetIds: string[] } | null>(null);
+  const [maquete, setMaquete] = useState<{ center: [number, number]; title?: string; datasetIds: string[]; radius: number } | null>(null);
   const [measureMode, setMeasureMode] = useState<MeasureMode>("distance");
   const [measureState, setMeasureState] = useState<MeasureState | null>(null);
   const [theme, setTheme] = useState<Theme>(SHARED?.theme ?? "light");
@@ -341,7 +341,15 @@ export function App() {
     );
     const lib = libraryLayers.filter((l) => active.has(l.manifest.id)).map(recipeOf);
     const f = Object.fromEntries(shareable.map(mapIdOf).filter((id) => filters[id]).map((id) => [id, filters[id]!]));
-    const url = shareUrl({ layers: shareable, lib, theme, look, ...(Object.keys(f).length ? { f } : {}) });
+    const round = (n: number) => Math.round(n * 1e6) / 1e6;
+    const url = shareUrl({
+      layers: shareable,
+      lib,
+      theme,
+      look,
+      ...(Object.keys(f).length ? { f } : {}),
+      ...(maquete ? { maquete: { c: [round(maquete.center[0]), round(maquete.center[1])], r: maquete.radius, ...(maquete.title ? { t: maquete.title } : {}) } } : {}),
+    });
     const local = user.datasets.filter((d) => active.has(d.id)).length;
     try {
       await navigator.clipboard.writeText(url);
@@ -660,8 +668,26 @@ export function App() {
     // Imersiva: a maquete ganha a área toda do mapa.
     setPanel(null);
     setWidgetsOpen(false);
-    setMaquete({ center: p.dataset?.lngLat ?? p.lngLat, title, datasetIds });
+    setMaquete({ center: p.dataset?.lngLat ?? p.lngLat, title, datasetIds, radius: 300 });
   };
+
+  // Link com maquete: abre assim que o mapa (e os Estabelecimentos, se estão no link) estiverem prontos.
+  const sharedMaquete = useRef(SHARED?.maquete ?? null);
+  useEffect(() => {
+    const shared = sharedMaquete.current;
+    if (!map || !shared) return;
+    const open = () => {
+      if (!sharedMaquete.current) return;
+      sharedMaquete.current = null;
+      setPanel(null);
+      setWidgetsOpen(false);
+      setMaquete({ center: shared.c, title: shared.t, radius: shared.r, datasetIds: places && active.has(PLACES_KEY) ? [PLACES.id] : [] });
+    };
+    if (places || !active.has(PLACES_KEY)) return open();
+    const timer = window.setTimeout(open, 5000);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, places]);
 
   // TODO(fase 2b): geocodificação local (Photon). Por enquanto a busca não faz nada.
   /** O que cada resultado da busca faz ao ser escolhido. */
@@ -1208,7 +1234,7 @@ export function App() {
           <div ref={containerRef} className="map" />
           <SearchBox search={search} onSelect={selectSearch} />
           <DropZone onFile={openImport} />
-          {shareStatus && (
+          {shareStatus && !maquete && (
             <div className="toast" role="status">
               <Icon name="share" size={18} />
               {shareStatus}
@@ -1230,8 +1256,14 @@ export function App() {
             )}
           {maquete && map && (
             <Suspense fallback={null}>
-            <MaqueteView map={map} center={maquete.center} title={maquete.title} datasetIds={maquete.datasetIds} theme={`${theme}-${look}`} datasets={datasetInfos} placeFacts={placeFacts} onClose={() => setMaquete(null)} />
+            <MaqueteView map={map} center={maquete.center} title={maquete.title} datasetIds={maquete.datasetIds} theme={`${theme}-${look}`} datasets={datasetInfos} placeFacts={placeFacts} radius={maquete.radius} onRadius={(r) => setMaquete((m) => (m ? { ...m, radius: r } : m))} onShare={() => void copyShareLink()} onClose={() => setMaquete(null)} />
             </Suspense>
+          )}
+          {shareStatus && maquete && (
+            <div className="toast toast-over" role="status">
+              <Icon name="share" size={18} />
+              {shareStatus}
+            </div>
           )}
           {measuring && (
             <MeasurePanel
