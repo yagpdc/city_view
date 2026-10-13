@@ -627,3 +627,8 @@
 .wizard-crash p { margin: 0; }
 .wizard-crash .btn { align-self: flex-end; }
 .table-tool-card input[aria-invalid="true"] { border-color: var(--cv-danger); }
+
+/* Prévia do arquivo: rola por dentro (cabeçalho fixo) e diz quantas linhas mostra */
+.preview-caption { margin: 0 0 6px; font-size: 12px; }
+.preview-tall { max-height: 320px; overflow: auto; }
+.preview-tall thead th { position: sticky; top: 0; z-index: 1; background: var(--cv-float); }

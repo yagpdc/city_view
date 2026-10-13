@@ -606,7 +606,11 @@ export function ImportWizard({ file, restore, serverAvailable, onCancel, onImpor
               {opened.headers.length === 1 && (
                 <p className="wizard-warn">Só encontramos uma coluna. O separador provavelmente está errado.</p>
               )}
-              <PreviewTable headers={opened.headers} rows={opened.preview.slice(0, 8)} />
+              <p className="preview-caption muted">
+                Prévia: as primeiras <b>{int.format(opened.preview.length)}</b> de <b>{int.format(opened.rowCount)}</b> linhas (role a tabela).
+                {opened.preview.length < opened.rowCount && " Todas entram no mapa; a prévia é só para conferir as colunas."}
+              </p>
+              <PreviewTable headers={opened.headers} rows={opened.preview} tall />
             </>
           )}
 
@@ -904,9 +908,9 @@ function TilingProgress({ tiling }: { tiling: { stage: string; fraction: number 
   );
 }
 
-function PreviewTable({ headers, rows }: { headers: string[]; rows: Record<string, string>[] }) {
+function PreviewTable({ headers, rows, tall }: { headers: string[]; rows: Record<string, string>[]; tall?: boolean }) {
   return (
-    <div className="preview">
+    <div className={`preview ${tall ? "preview-tall" : ""}`}>
       <table>
         <thead>
           <tr>
