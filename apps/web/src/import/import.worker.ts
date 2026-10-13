@@ -13,11 +13,15 @@ import {
   guessLocation,
   guessLocationFromSample,
   guessStyleColumns,
+  joinStats,
   profileColumn,
   readCoordinates,
+  suggestAppendMap,
+  suggestJoinKeys,
   summarize,
   uniqueHeaders,
   type ImportMapping,
+  type RecipeContext,
   type RecipeStep,
   type Row,
 } from "@cityview/importer";
@@ -25,7 +29,7 @@ import Papa from "papaparse";
 import { parquetMetadataAsync, parquetReadObjects, type AsyncBuffer } from "hyparquet";
 import { compressors } from "hyparquet-compressors";
 import readXlsxFile from "read-excel-file/web-worker";
-import { MAX_BROWSER_ROWS, fileFormat, type Delimiter, type Encoding, type WorkerRequest, type WorkerResponse } from "./protocol";
+import { MAX_BROWSER_ROWS, fileFormat, type Delimiter, type Encoding, type OpenOptions, type WorkerRequest, type WorkerResponse } from "./protocol";
 
 declare const self: DedicatedWorkerGlobalScope;
 
@@ -41,17 +45,51 @@ let recipe: RecipeStep[] = [];
 let headerRow = 0;
 let openedBase: Omit<import("./protocol").OpenedFile, "headers" | "preview" | "columns" | "location" | "style"> | null = null;
 
-/** Linhas com a receita aplicada (todas). */
-const applied = () => applyRecipe(rows, recipe);
+/** Outras planilhas (juntar / acrescentar), só na memória: id → nome e linhas. */
+const sources = new Map<string, { name: string; rows: Row[] }>();
+const context = (): RecipeContext => ({ tables: Object.fromEntries([...sources].map(([id, s]) => [id, s.rows])) });
+
+/** Linhas com a receita aplicada (todas, inclusive as acrescentadas). */
+const applied = () => applyRecipe(rows, recipe, context());
+
+/**
+ * Contexto da amostra: tabelas só acrescentadas entram com poucas linhas (a tela não precisa de todas);
+ * as usadas para juntar entram inteiras (o par pode estar em qualquer linha).
+ */
+function sampleContext(): RecipeContext {
+  const joined = new Set(recipe.flatMap((s) => (s.op === "join" ? [s.source] : [])));
+  return { tables: Object.fromEntries([...sources].map(([id, s]) => [id, joined.has(id) ? s.rows : s.rows.slice(0, 200)])) };
+}
+
+/** Total de linhas: as do arquivo mais as acrescentadas (antes dos filtros). */
+const totalRows = (base: number) => base + recipe.reduce((n, s) => n + (s.op === "append" ? (sources.get(s.source)?.rows.length ?? 0) : 0), 0);
 
 /** O que a tela mostra: colunas, prévia, tipos e palpites — sempre depois da receita (na amostra). */
 function view() {
-  const sample = applyRecipe(rows.slice(0, DETECT_ROWS), recipe);
+  const sample = applyRecipe(rows.slice(0, DETECT_ROWS), recipe, sampleContext());
   const headers = columnsAfter(rows[0] ? Object.keys(rows[0]) : [], recipe);
   const columns = detectColumns(headers, sample);
   const location = guessLocation(columns) ?? guessLocationFromSample(columns, sample);
   const style = guessStyleColumns(columns, location ? [location.lat, location.lon, location.latlon ?? ""] : []);
-  return { headers, preview: sample.slice(0, PREVIEW_ROWS), columns, location, style };
+  return { headers, preview: sample.slice(0, PREVIEW_ROWS), columns, location, style, rowCount: totalRows(openedBase?.rowCount ?? rows.length) };
+}
+
+/** Lê outra planilha com o mesmo leitor do arquivo principal, sem mexer no estado dele. */
+async function readTable(file: File, options: OpenOptions = {}): Promise<Row[]> {
+  const saved = { rows, headerRow, parquetLayout };
+  try {
+    const format = fileFormat(file.name) ?? "csv";
+    if (format === "excel") await openExcel(file, options.sheet);
+    else if (format === "parquet") await openParquet(file);
+    else if (format === "geojson") await openGeoJson(file);
+    else await open(file, options.delimiter, options.encoding ?? (await detectEncoding(file)));
+    if (rows.length === 0) throw new Error(`Não encontramos linhas de dados em "${file.name}".`);
+    return rows;
+  } finally {
+    rows = saved.rows;
+    headerRow = saved.headerRow;
+    parquetLayout = saved.parquetLayout;
+  }
 }
 
 const post = (msg: WorkerResponse) => self.postMessage(msg);
@@ -261,6 +299,7 @@ self.onmessage = async (e: MessageEvent<WorkerRequest & { id?: number }>) => {
       let sheet: string | undefined;
       recipe = [];
       headerRow = 0;
+      sources.clear();
       if (format === "excel") ({ sheets, sheet } = await openExcel(msg.file, msg.options.sheet));
       else if (format === "parquet") ({ total, note } = await openParquet(msg.file, msg.options.previewRows));
       else if (format === "geojson") note = await openGeoJson(msg.file);
@@ -278,6 +317,7 @@ self.onmessage = async (e: MessageEvent<WorkerRequest & { id?: number }>) => {
         sampled: Boolean(msg.options.previewRows),
         headerRow,
         junk: detectJunkRows(Object.keys(rows[0]!), rows).map((f) => ({ ...f, rows: f.rows.map((i) => i + headerRow + 2) })),
+        originalHeaders: Object.keys(rows[0]!),
         ...(sheets && sheets.length > 1 ? { sheets, sheet } : {}),
       };
       post({ type: "opened", file: { ...openedBase, ...view() } });
@@ -285,8 +325,33 @@ self.onmessage = async (e: MessageEvent<WorkerRequest & { id?: number }>) => {
       recipe = msg.steps;
       if (!openedBase) throw new Error("Abra um arquivo antes.");
       post({ type: "opened", file: { ...openedBase, ...view() } });
+    } else if (msg.type === "addSource") {
+      const other = await readTable(msg.file, msg.options);
+      const id = `s${sources.size + 1}_${Date.now().toString(36)}`;
+      sources.set(id, { name: msg.file.name, rows: other });
+      const otherHeaders = Object.keys(other[0]!);
+      const mainSample = applyRecipe(rows.slice(0, DETECT_ROWS), recipe, sampleContext());
+      const headers = columnsAfter(rows[0] ? Object.keys(rows[0]) : [], recipe);
+      post({
+        type: "source",
+        source: {
+          id,
+          name: msg.file.name,
+          headers: otherHeaders,
+          rowCount: other.length,
+          preview: other.slice(0, 5),
+          join: suggestJoinKeys(mainSample, headers, other, otherHeaders),
+          appendMap: suggestAppendMap(openedBase?.originalHeaders ?? headers, otherHeaders),
+        },
+      });
+    } else if (msg.type === "joinStats") {
+      const other = sources.get(msg.source);
+      if (!other) throw new Error("A outra planilha não está mais carregada. Escolha o arquivo de novo.");
+      // Balanço nas primeiras 50 mil linhas (rápido o bastante para mudar a chave e ver na hora).
+      const main = applyRecipe(rows.slice(0, 50_000), recipe, sampleContext());
+      post({ type: "joinStats", stats: joinStats(main, msg.key, other.rows, msg.otherKey) });
     } else if (msg.type === "profile") {
-      const sample = applyRecipe(rows.slice(0, DETECT_ROWS), recipe);
+      const sample = applyRecipe(rows.slice(0, DETECT_ROWS), recipe, sampleContext());
       const [info] = detectColumns([msg.column], sample);
       post({ type: "profiled", profile: profileColumn(info!, sample) });
     } else if (msg.type === "failed") {
@@ -308,7 +373,7 @@ self.onmessage = async (e: MessageEvent<WorkerRequest & { id?: number }>) => {
       const { streamCsv, streamParquet } = await import("./stream");
       const { buildTilesFromColumns } = await import("./tiles");
       const reading = (fraction: number) => post({ type: "tiling", stage: "reading", fraction });
-      const opts = { mapping: lastMapping, colorBy: msg.colorBy, title: msg.title, recipe };
+      const opts = { mapping: lastMapping, colorBy: msg.colorBy, title: msg.title, recipe, ctx: context() };
       let cols;
       if (fileFormat(msg.file.name) === "parquet") {
         const buffer: AsyncBuffer = { byteLength: msg.file.size, slice: (s, e2) => msg.file.slice(s, e2).arrayBuffer() };

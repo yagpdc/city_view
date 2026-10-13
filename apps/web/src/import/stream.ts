@@ -3,7 +3,18 @@
  * (números em Float64Array, categorias como índice + dicionário), sem montar um objeto por linha.
  * Roda no worker de importação; o resultado vai para o motor de tiles (WASM).
  */
-import { applyCoordinateFix, applyRecipeToRow, parseDate, parseNumber, readCoordinates, type ImportMapping, type RecipeStep, type Row } from "@cityview/importer";
+import {
+  appendedRows,
+  applyCoordinateFix,
+  applyRecipeToRow,
+  parseDate,
+  parseNumber,
+  readCoordinates,
+  type ImportMapping,
+  type RecipeContext,
+  type RecipeStep,
+  type Row,
+} from "@cityview/importer";
 import Papa from "papaparse";
 import type { Delimiter, Encoding } from "./protocol";
 
@@ -82,6 +93,7 @@ class Builder {
     private colorBy: string | undefined,
     title: string | undefined,
     private recipe: RecipeStep[] = [],
+    private ctx?: RecipeContext,
   ) {
     this.color = colorBy ? new Ids() : null;
     this.columns = mapping.columns.map((c): StreamColumn => {
@@ -95,8 +107,12 @@ class Builder {
 
   add(original: Row) {
     // Receita do builder linha a linha (filtros podem tirar a linha).
-    const row = this.recipe.length ? applyRecipeToRow(original, this.recipe) : original;
-    if (!row) return;
+    const row = this.recipe.length ? applyRecipeToRow(original, this.recipe, this.ctx) : original;
+    if (row) this.addFinal(row);
+  }
+
+  /** Linha já com a receita aplicada (ex.: as acrescentadas de outra planilha). */
+  addFinal(row: Row) {
     const m = this.mapping;
     this.rows++;
     const c = readCoordinates(row, m);
@@ -116,6 +132,7 @@ class Builder {
   }
 
   done(): Columns {
+    for (const row of appendedRows(this.recipe, this.ctx)) this.addFinal(row);
     return { lat: this.lat.get(), lon: this.lon.get(), color: this.color, columns: this.columns, rows: this.rows };
   }
 }
@@ -123,10 +140,10 @@ class Builder {
 /** CSV inteiro aos pedaços (Papa Parse), direto para colunas. */
 export function streamCsv(
   file: File,
-  opts: { mapping: ImportMapping; colorBy?: string; title?: string; recipe?: RecipeStep[]; delimiter: Delimiter; encoding: Encoding; headerRow?: number },
+  opts: { mapping: ImportMapping; colorBy?: string; title?: string; recipe?: RecipeStep[]; ctx?: RecipeContext; delimiter: Delimiter; encoding: Encoding; headerRow?: number },
   onProgress: (fraction: number) => void,
 ): Promise<Columns> {
-  const builder = new Builder(opts.mapping, opts.colorBy, opts.title, opts.recipe);
+  const builder = new Builder(opts.mapping, opts.colorBy, opts.title, opts.recipe, opts.ctx);
   let emptyHeaders = 0;
   return new Promise((resolve, reject) => {
     Papa.parse<Row>(file, {
@@ -150,10 +167,10 @@ export function streamCsv(
 export async function streamParquet(
   total: number,
   readChunk: (start: number, end: number) => Promise<Row[]>,
-  opts: { mapping: ImportMapping; colorBy?: string; title?: string; recipe?: RecipeStep[] },
+  opts: { mapping: ImportMapping; colorBy?: string; title?: string; recipe?: RecipeStep[]; ctx?: RecipeContext },
   onProgress: (fraction: number) => void,
 ): Promise<Columns> {
-  const builder = new Builder(opts.mapping, opts.colorBy, opts.title, opts.recipe);
+  const builder = new Builder(opts.mapping, opts.colorBy, opts.title, opts.recipe, opts.ctx);
   const STEP = 200_000;
   for (let start = 0; start < total; start += STEP) {
     const rows = await readChunk(start, Math.min(total, start + STEP));

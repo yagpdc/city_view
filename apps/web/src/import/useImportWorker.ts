@@ -1,6 +1,6 @@
-import type { ColumnProfile, ImportMapping, RecipeStep } from "@cityview/importer";
+import type { ColumnProfile, ImportMapping, JoinStats, RecipeStep } from "@cityview/importer";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { BuildSummary, Delimiter, Encoding, OpenOptions, OpenedFile, WorkerRequest, WorkerResponse } from "./protocol";
+import type { BuildSummary, Delimiter, Encoding, OpenOptions, OpenedFile, SourceInfo, WorkerRequest, WorkerResponse } from "./protocol";
 import type { TileReport } from "./tiles";
 
 /** Um worker por wizard: guarda as linhas do arquivo e responde a "open" e "build". */
@@ -30,6 +30,8 @@ export function useImportWorker() {
       else if (msg.type === "tiled") p.resolve({ blob: msg.blob, report: msg.report } as never);
       else if (msg.type === "profiled") p.resolve(msg.profile as never);
       else if (msg.type === "failedRows") p.resolve({ blob: msg.blob, count: msg.count } as never);
+      else if (msg.type === "source") p.resolve(msg.source as never);
+      else if (msg.type === "joinStats") p.resolve(msg.stats as never);
     };
     workerRef.current = worker;
     return () => worker.terminate();
@@ -77,5 +79,15 @@ export function useImportWorker() {
     [request],
   );
 
-  return { open, build, exportBlob, tiles, setRecipe, profile, failedRows, progress, tiling };
+  /** Outra planilha para juntar ou acrescentar. */
+  const addSource = useCallback((file: File) => {
+    setProgress(0);
+    return request<SourceInfo>({ type: "addSource", file });
+  }, [request]);
+  const joinStats = useCallback(
+    (source: string, key: string, otherKey: string) => request<JoinStats>({ type: "joinStats", source, key, otherKey }),
+    [request],
+  );
+
+  return { open, build, exportBlob, tiles, setRecipe, profile, failedRows, addSource, joinStats, progress, tiling };
 }

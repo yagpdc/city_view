@@ -1,4 +1,4 @@
-import type { ColumnInfo, ColumnProfile, ImportMapping, ImportSummary, JunkFinding, LocationGuess, RecipeStep, Row } from "@cityview/importer";
+import type { ColumnInfo, ColumnProfile, ImportMapping, ImportSummary, JoinStats, JunkFinding, LocationGuess, RecipeStep, Row } from "@cityview/importer";
 
 /** Limite do processamento no navegador; acima disso o arquivo precisa do motor local (Rust). */
 export const MAX_BROWSER_ROWS = 2_000_000;
@@ -59,6 +59,21 @@ export interface OpenedFile {
   /** Abas do Excel (só quando há mais de uma) e a aberta. */
   sheets?: string[];
   sheet?: string;
+  /** Colunas como vieram do arquivo (antes da receita): o "acrescentar linhas" alinha com elas. */
+  originalHeaders: string[];
+}
+
+/** Outra planilha carregada para juntar ou acrescentar (fica só na memória do worker). */
+export interface SourceInfo {
+  id: string;
+  name: string;
+  headers: string[];
+  rowCount: number;
+  preview: Row[];
+  /** Coluna desta que mais casa com uma da outra (pelos valores). */
+  join: { key: string; otherKey: string; score: number } | null;
+  /** Coluna da outra → coluna desta, pelo nome. */
+  appendMap: Record<string, string>;
 }
 
 /**
@@ -74,6 +89,10 @@ export type WorkerRequest =
   /** Troca a receita do builder; responde "opened" com a nova vista. */
   | { type: "recipe"; steps: RecipeStep[] }
   | { type: "profile"; column: string }
+  /** Carrega outra planilha (para juntar ou acrescentar). */
+  | { type: "addSource"; file: File; options?: OpenOptions }
+  /** Quantas linhas desta acham par na outra, casando key com otherKey. */
+  | { type: "joinStats"; source: string; key: string; otherKey: string }
   /** CSV das linhas que ficam de fora, com o motivo. */
   | { type: "failed" }
   /** Gera o PMTiles no navegador (motor em WASM) com o último mapeamento validado. */
@@ -87,6 +106,8 @@ export type WorkerResponse =
   | { type: "built"; summary: BuildSummary }
   | { type: "exported"; blob: Blob }
   | { type: "profiled"; profile: ColumnProfile }
+  | { type: "source"; source: SourceInfo }
+  | { type: "joinStats"; stats: JoinStats }
   | { type: "failedRows"; blob: Blob; count: number }
   | { type: "tiling"; stage: string; fraction: number }
   | { type: "tiled"; blob: Blob; report: import("./tiles").TileReport }

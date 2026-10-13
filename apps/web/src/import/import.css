@@ -534,7 +534,8 @@
 .wizard-fix { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .wizard-note { display: flex; align-items: flex-start; gap: 8px; margin: 0; padding: 8px 10px; border-radius: var(--cv-radius-md); background: var(--cv-surface); font-size: 13px; line-height: 18px; color: var(--cv-text-muted); }
 .wizard-note svg { flex: none; margin-top: 1px; }
-.builder { display: grid; grid-template-columns: 230px 1fr; grid-template-areas: "cols panel" "bottom bottom"; gap: 12px; min-height: 0; }
+.builder { display: grid; grid-template-columns: 230px 1fr; grid-template-areas: "tools tools" "cols panel" "bottom bottom"; gap: 12px; min-height: 0; }
+.builder-tools { grid-area: tools; }
 .builder-caption { display: block; margin-bottom: 6px; font-size: 12px; font-weight: 600; color: var(--cv-text-muted); }
 .builder-columns { grid-area: cols; display: flex; flex-direction: column; min-height: 0; max-height: 380px; padding: 8px; border: 1px solid var(--cv-border); border-radius: var(--cv-radius-lg, 10px); background: var(--cv-float); }
 .builder-columns ul { margin: 0; padding: 0; list-style: none; overflow: auto; }
@@ -575,7 +576,7 @@
 .builder-preview { max-height: 180px; overflow: auto; }
 .builder-preview th.is-highlight, .builder-preview td.is-highlight { background: var(--cv-action-subtle); }
 @media (max-width: 760px) {
-  .builder { grid-template-columns: 1fr; grid-template-areas: "cols" "panel" "bottom"; }
+  .builder { grid-template-columns: 1fr; grid-template-areas: "tools" "cols" "panel" "bottom"; }
   .builder-columns { max-height: 200px; }
 }
 
@@ -583,3 +584,25 @@
 .wizard-junk li { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .wizard-junk-done { font-size: 12px; font-weight: 600; color: var(--cv-success); white-space: nowrap; }
 .wizard-zone { margin-left: 8px; height: 28px; padding: 0 6px; border: 1px solid var(--cv-border); border-radius: var(--cv-radius-md); background: var(--cv-field); color: var(--cv-text); font-size: 12px; }
+
+/* Juntar / acrescentar outra planilha */
+.table-tools { display: flex; flex-direction: column; gap: 8px; }
+.wizard-warn .table-tools { margin-top: 10px; }
+.table-tools-lead { margin: 0; font-size: 13px; font-weight: 600; }
+.table-tools-note { margin: 0; font-size: 12px; }
+.table-tools .chip-toggle { display: inline-flex; align-items: center; gap: 6px; }
+.table-tool-card { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border: 1px solid var(--cv-border); border-radius: var(--cv-radius-lg); background: var(--cv-float); color: var(--cv-text); }
+.table-tool-card header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.table-tool-card p { margin: 0; }
+.table-tool-row { display: flex; align-items: flex-end; gap: 8px; flex-wrap: wrap; }
+.table-tool-row label, .table-tool-inline { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: var(--cv-text-muted); }
+.table-tool-card select { height: 32px; min-width: 160px; padding: 0 8px; border: 1px solid var(--cv-border); border-radius: var(--cv-radius-md); background: var(--cv-field); color: var(--cv-text); font-size: 13px; }
+.table-tool-eq { padding-bottom: 6px; font-weight: 700; color: var(--cv-text-muted); }
+.table-tool-cols { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 2px 12px; max-height: 160px; overflow: auto; margin: 0; padding: 8px 10px; border: 1px solid var(--cv-border); border-radius: var(--cv-radius-md); }
+.table-tool-cols legend { padding: 0 4px; font-size: 12px; font-weight: 600; color: var(--cv-text-muted); }
+.table-tool-cols .toggle { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.table-tool-map { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px 16px; max-height: 220px; overflow: auto; }
+.table-tool-map label { display: grid; grid-template-columns: minmax(0, 1fr) 160px; align-items: center; gap: 8px; font-size: 13px; }
+.table-tool-map label > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.table-tool-map select { min-width: 0; width: 100%; }
+.table-tool-actions { display: flex; justify-content: flex-end; gap: 8px; }

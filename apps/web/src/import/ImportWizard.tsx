@@ -14,6 +14,7 @@ import {
 } from "@cityview/importer";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BuilderStep, type ColumnChoice } from "./BuilderStep";
+import { TableTools } from "./TableTools";
 import type { ImportSpec } from "../server/api";
 import { LARGE_FILE_BYTES, SAMPLE_ROWS, SERVER_FORMATS, fileFormat, type BuildSummary, type Delimiter, type Encoding, type OpenedFile } from "./protocol";
 import { useImportWorker } from "./useImportWorker";
@@ -128,6 +129,13 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
       .then((o) => {
         if (cancelled) return;
         setOpened(o);
+        // A localização pode ter chegado agora (ex.: coordenadas vindas de outra planilha).
+        if (o.location && !lat && !lon && !latlon) {
+          setLat(o.location.lat ?? "");
+          setLon(o.location.lon ?? "");
+          setLatlon(o.location.latlon ?? "");
+          setLocMode(o.location.latlon ? "single" : "pair");
+        }
         // Mantém o que a pessoa já escolheu; colunas novas entram incluídas com o tipo detectado.
         setChoices((prev) => o.columns.map((c) => { const x = prev.find((p) => p.name === c.name); return x ? { ...x, type: x.locked ? x.type : c.type } : { name: c.name, include: true, type: c.type }; }));
       })
@@ -320,6 +328,21 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
 
   const columnNames = opened?.headers ?? [];
 
+  /** Juntar / acrescentar outra planilha (a outra fica só na memória do navegador). */
+  const tableTools = (only?: "join" | "append", lead?: string) =>
+    opened && (
+      <TableTools
+        headers={opened.headers}
+        originalHeaders={opened.originalHeaders}
+        recipe={recipe}
+        onRecipe={setRecipe}
+        addSource={worker.addSource}
+        joinStats={worker.joinStats}
+        only={only}
+        lead={lead}
+      />
+    );
+
   return (
     <div className="wizard-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onCancel()}>
       <div className="wizard" role="dialog" aria-modal="true" aria-labelledby="wizard-title">
@@ -424,6 +447,7 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
                   <b>Não achamos a localização das linhas.</b> Para aparecer no mapa, cada linha precisa de latitude e longitude
                   (em duas colunas ou numa só, como "-23,55, -46,63"). No próximo passo você pode escolher as colunas certas.
                   Endereço, CEP e cidade chegam em breve.
+                  {tableTools("join", "As coordenadas estão em outra planilha? Junte as duas por uma coluna em comum (código, CNPJ, nome):")}
                 </div>
               )}
               {opened.format === "csv" && (
@@ -601,6 +625,7 @@ export function ImportWizard({ file, serverAvailable, onCancel, onImport, onSend
               onTitle={setTitle}
               colorBy={colorBy}
               onColorBy={setColorBy}
+              tools={tableTools()}
             />
           )}
 

@@ -84,6 +84,14 @@ localizações naquela". Mostra quantas linhas casaram, quantas não, e as que b
 a primeira, somar, contar…). Também **acrescentar linhas** de outro arquivo com as mesmas colunas (ex.: as lojas
 de outra região), alinhando colunas de nomes diferentes.
 
+> **Estado (2026-10-12):** ✅ juntar e acrescentar funcionando (passos `join` e `append`, `packages/importer/src/join.ts`).
+> Chave tolerante (pontuação, caixa, acentos, zeros à esquerda), sugestão da dupla de colunas pelos valores, balanço
+> (casaram / mais de um par / sem valor / exemplos sem par), primeira linha ou soma, coluna de contagem. "Juntar"
+> aparece também no passo Arquivo quando a planilha não tem coordenadas ("as coordenadas estão em outra planilha").
+> "Acrescentar" entra no começo da receita, então os ajustes valem para as linhas novas. A outra planilha fica só na
+> memória do worker; vale também para arquivos grandes lidos aos pedaços (`appendedRows`). Juntar com uma **camada já
+> no mapa** ainda não.
+
 **Datas** — reconhecer formatos (inclusive número de série do Excel) · extrair ano, mês, dia da semana.
 
 **Localização** — escolher as colunas · trocar lat/lon invertidas · corrigir escala (−2356000 → −23,56) ·

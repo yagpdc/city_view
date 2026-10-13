@@ -4,7 +4,7 @@
  * Nada altera o arquivo original — cada ação vira um passo da receita (docs/IMPORT.md).
  */
 import { describeStep, type ColumnProfile, type ColumnType, type RecipeStep } from "@cityview/importer";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Icon } from "../components/Icon";
 import type { OpenedFile } from "./protocol";
 
@@ -32,6 +32,7 @@ export function BuilderStep({
   onTitle,
   colorBy,
   onColorBy,
+  tools,
 }: {
   opened: OpenedFile;
   choices: ColumnChoice[];
@@ -45,6 +46,8 @@ export function BuilderStep({
   onTitle: (v: string) => void;
   colorBy: string;
   onColorBy: (v: string) => void;
+  /** Ferramentas da planilha inteira (juntar, acrescentar). */
+  tools?: ReactNode;
 }) {
   const data = choices.filter((c) => !locationColumns.includes(c.name));
   const [selected, setSelected] = useState<string>(data[0]?.name ?? "");
@@ -71,6 +74,7 @@ export function BuilderStep({
 
   return (
     <div className="builder">
+      {tools && <div className="builder-tools">{tools}</div>}
       <aside className="builder-columns" aria-label="Colunas">
         <span className="builder-caption">Colunas · {data.filter((c) => c.include).length} de {data.length} no mapa</span>
         <ul>
