@@ -554,6 +554,11 @@ export class CityMap {
     this.map.flyTo({ ...camera, essential: true });
   }
 
+  /** Muda a câmera sem animação (ex.: trocar de aba). */
+  jumpTo(camera: Partial<Camera>): void {
+    this.map.jumpTo(camera);
+  }
+
   setTheme(theme: Theme): void {
     this.styleOptions = { ...this.styleOptions, theme };
     this.styleReady = false;

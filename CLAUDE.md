@@ -29,9 +29,11 @@ Especialistas em `.claude/agents/`. Delegue ao agente quando o assunto for dele:
 
 ```
 [marca .................... 2D/3D  Medir  Na tela  Compartilhar]   TopBar (components/TopBar.tsx)
+[Mapa 1 × | Mapa 2 × | +]                                          abas de mapa (components/MapTabs.tsx)
 [trilho][painel][          mapa + busca flutuante          ][Na tela]
 ```
 
+- **Abas de mapa** (`MapTabs` + `mapTabs.ts`): como abas do navegador. Cada aba guarda camadas no projeto, filtros, câmera e prédios acesos; aba nova começa zerada. Motor, biblioteca e dados (públicos e importados) são os mesmos em todas. Link compartilhado abre numa aba nova. Salvas no localStorage (`cityview.map-tabs`).
 - **Trilho** (`components/Shell.tsx` · `Rail`): Camadas · Adicionar · Detalhes · Ajustes. Um painel por vez (clicar de novo fecha).
 - **Painel** (`Panel` + `PanelCard`): fundo cinza, conteúdo em cartões brancos, título 18/600. Camadas = um `LayerCard` por camada no projeto (olho = visível/escondida, ⋯ = ações, legenda dentro, que também filtra por categoria via `CityMap.setCategoryFilter`). "Adicionar" lista o que dá para pôr no mapa.
 - **Na tela** (`WidgetsPanel`, à direita): números do que está visível, recalculados ao parar de mexer o mapa (`CityMap.viewportSummary`).

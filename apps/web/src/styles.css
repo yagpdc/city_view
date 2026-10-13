@@ -58,6 +58,90 @@ button, input, select, textarea { font: inherit; }
 
 .workspace { flex: 1; min-height: 0; display: flex; position: relative; }
 
+/* Abas de mapa: como as do navegador (cada aba = uma visão; mesmos dados e motor) */
+.map-tabs {
+  flex: none;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 40px;
+  padding: 0 var(--cv-space-2);
+  overflow-x: auto;
+  scrollbar-width: none;
+  border-bottom: 1px solid var(--cv-border);
+  background: var(--cv-surface);
+  z-index: 2;
+}
+.map-tabs::-webkit-scrollbar { display: none; }
+.map-tab {
+  flex: 0 1 200px;
+  min-width: 112px;
+  display: flex;
+  align-items: center;
+  gap: var(--cv-space-2);
+  height: 34px;
+  margin-bottom: -1px;
+  padding: 0 4px 0 var(--cv-space-3);
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: var(--cv-radius-md) var(--cv-radius-md) 0 0;
+  color: var(--cv-text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+}
+.map-tab:hover { background: var(--cv-surface-press); color: var(--cv-text); }
+.map-tab.is-current { background: var(--cv-bg); border-color: var(--cv-border); color: var(--cv-text); font-weight: 600; }
+.map-tab.is-dragging { opacity: 0.5; }
+.map-tab-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.map-tab-input {
+  flex: 1;
+  min-width: 0;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid var(--cv-focus);
+  border-radius: var(--cv-radius-sm);
+  background: var(--cv-field);
+  color: var(--cv-text);
+  font-size: 13px;
+}
+.map-tab-close {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: var(--cv-radius-sm);
+  background: none;
+  color: var(--cv-text-muted);
+  cursor: pointer;
+  opacity: 0;
+}
+.map-tab:hover .map-tab-close, .map-tab.is-current .map-tab-close, .map-tab-close:focus-visible { opacity: 1; }
+.map-tab-close:hover { background: var(--cv-surface-press); color: var(--cv-text); }
+.map-tab-new {
+  position: sticky;
+  right: 0;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin: 0 0 3px 2px;
+  border: none;
+  border-radius: var(--cv-radius-md);
+  background: var(--cv-surface);
+  color: var(--cv-text-muted);
+  cursor: pointer;
+}
+.map-tab-new:hover { background: var(--cv-surface-press); color: var(--cv-text); }
+@media (hover: none) { .map-tab-close { opacity: 1; } }
+@media (max-width: 767px) {
+  .map-tab { flex-basis: 140px; min-width: 96px; }
+  .map-tab:not(.is-current) .map-tab-close { display: none; }
+}
+
 /* Trilho de ícones: uma tarefa por painel */
 .rail {
   flex: none;

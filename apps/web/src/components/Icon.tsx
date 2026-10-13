@@ -16,6 +16,7 @@ import {
   Layers,
   Library,
   LocateFixed,
+  Map as MapGlyph,
   MapPin,
   Maximize2,
   Minimize2,
@@ -75,6 +76,7 @@ const ICONS = {
   chart: ChartColumn,
   sun: Sun,
   moon: Moon,
+  map: MapGlyph,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof ICONS;

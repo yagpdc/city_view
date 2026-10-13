@@ -1,5 +1,5 @@
 import { data } from "./dataUrl";
-import type { BasemapLook, BuildingPaintResult, DatasetMeta, MapPick, Theme } from "@cityview/engine";
+import type { BasemapLook, BuildingPaintResult, Camera, DatasetMeta, MapPick, Theme } from "@cityview/engine";
 import { CATEGORY_COLORS, categoryColor, geodesicDistanceM, normalizeText } from "@cityview/engine";
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { areaAt, parseCoordinates, searchMunicipios } from "./areas";
@@ -24,13 +24,15 @@ import { CAMERA_PARAM, clearShared, readShared, shareUrl } from "./share";
 import { StreetViewer } from "./components/StreetViewer";
 import { coverageOverlay, nearestStreetImage, streetImageryEnabled } from "./streetImagery";
 import { TopBar } from "./components/TopBar";
+import { MapTabs } from "./components/MapTabs";
+import { createTab, loadTabs, saveTabs, type MapTab } from "./mapTabs";
 import { DropZone } from "./import/DropZone";
 import "./import/import.css";
 import { ImportWizard, type ImportedDataset } from "./import/ImportWizard";
 import { ACCEPTED_EXTENSIONS } from "./import/protocol";
 import { serverApi, type ImportSpec, type ServerDataset } from "./server/api";
 import { useServerDatasets } from "./server/useServerDatasets";
-import { deleteLibraryLayer, listLibraryLayers, loadActiveLayers, saveActiveLayers, saveLibraryLayer } from "./storage/datasets";
+import { deleteLibraryLayer, listLibraryLayers, loadActiveLayers, saveLibraryLayer } from "./storage/datasets";
 import { useUserDatasets, type UserDataset } from "./storage/useUserDatasets";
 import { useCityMap } from "./useCityMap";
 
@@ -96,6 +98,25 @@ function loadFilters(): LayerFilters {
     return {};
   }
 }
+/** Câmera de uma aba nova. */
+const BLANK_CAMERA: Camera = { ...START_CAMERA, pitch: 0, bearing: 0 };
+
+/**
+ * Abas de mapa salvas. A primeira vez monta a aba 1 com o que era guardado antes das abas; um link
+ * compartilhado abre numa aba nova, sem mexer nas abas que a pessoa já tinha.
+ */
+const INITIAL_TABS = (() => {
+  const state = loadTabs(() => ({
+    active: [...RESTORED].filter((id) => !isChoropleth(id)),
+    hidden: [...new Set([...loadHiddenLayers(), ...[...RESTORED].filter(isChoropleth)])],
+    filters: loadFilters(),
+  }));
+  if (!SHARED?.layers) return state;
+  const shared = createTab(state.tabs, { title: "Link compartilhado", active: SHARED.layers, filters: SHARED.f ?? {} });
+  return { tabs: [...state.tabs, shared], current: shared.id };
+})();
+const INITIAL_TAB = INITIAL_TABS.tabs.find((t) => t.id === INITIAL_TABS.current)!;
+
 /** Id da camada no mapa a partir da chave de camada do projeto. */
 const mapIdOf = (key: string) => (key === DATASET_KEY ? CLIENT_DATASET.id : key === PLACES_KEY ? PLACES.id : key);
 /** Onde o filtro por valor vale num dataset em tiles. */
@@ -113,16 +134,15 @@ export function App() {
   /** Painel aberto pelo trilho (null = só o mapa). */
   const [panel, setPanel] = useState<PanelId | null>(() => (isNarrowScreen() ? null : "layers"));
   /** Camadas no projeto mas escondidas (o olho fechado); "active" são as visíveis. */
-  const [hidden, setHidden] = useState<Set<string>>(() =>
-    SHARED?.layers ? loadHiddenLayers() : new Set([...loadHiddenLayers(), ...[...RESTORED].filter(isChoropleth)]),
-  );
-  const [filters, setFilters] = useState<LayerFilters>(() => {
-    const saved = loadFilters();
-    if (!SHARED?.layers) return saved;
-    // Link compartilhado: as camadas do link vêm com o filtro do link (ou sem filtro).
-    const shared = new Set(SHARED.layers.map(mapIdOf));
-    return { ...Object.fromEntries(Object.entries(saved).filter(([id]) => !shared.has(id))), ...(SHARED.f ?? {}) };
-  });
+  /** Abas de mapa (cada uma com as próprias camadas, filtros e câmera) e a aberta. */
+  const [tabs, setTabs] = useState<MapTab[]>(INITIAL_TABS.tabs);
+  const [currentTab, setCurrentTab] = useState(INITIAL_TABS.current);
+  /** Última aba fechada, para "Reabrir". */
+  const [closedTab, setClosedTab] = useState<{ tab: MapTab; index: number } | null>(null);
+  /** Câmera de cada aba (atualizada ao parar de mexer, sem re-renderizar o app). */
+  const cameras = useRef(new Map<string, Camera>());
+  const [hidden, setHidden] = useState<Set<string>>(() => new Set(INITIAL_TAB.hidden));
+  const [filters, setFilters] = useState<LayerFilters>(INITIAL_TAB.filters);
   const initialFilters = useRef(filters);
   const [widgetsOpen, setWidgetsOpen] = useState(() => window.innerWidth >= 1280);
   const [widgets, setWidgets] = useState<ViewportWidget[]>([]);
@@ -138,14 +158,12 @@ export function App() {
   const [columns3d, setColumns3d] = useState(false);
   const [municipios3d, setMunicipios3d] = useState(false);
   /** Camada (id no mapa) que acende os prédios; null = desligado. */
-  const [paintDataset, setPaintDataset] = useState<string | null>(null);
+  const [paintDataset, setPaintDataset] = useState<string | null>(INITIAL_TAB.paintDataset ?? null);
   const paintBuildingsOn = paintDataset !== null;
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [libraryLayers, setLibraryLayers] = useState<LibraryLayer[]>([]);
   const [buildingResult, setBuildingResult] = useState<BuildingPaintResult | null>(null);
-  const [active, setActive] = useState<Set<string>>(() =>
-    SHARED?.layers ? new Set(SHARED.layers) : new Set([...RESTORED].filter((id) => !isChoropleth(id))),
-  );
+  const [active, setActive] = useState<Set<string>>(() => new Set(INITIAL_TAB.active));
   const [demoMeta, setDemoMeta] = useState<DatasetMeta | null>(null);
   const [places, setPlaces] = useState<{ meta: DatasetMeta; release: string; area: string } | null>(null);
   const [serverMetas, setServerMetas] = useState<Record<string, DatasetMeta>>({});
@@ -175,7 +193,7 @@ export function App() {
     // Prédios 3D vêm do extrato detalhado das principais cidades (`pnpm cidades`); o mapa do Brasil vai só até z12.
     buildingsUrl: data("cidades.pmtiles"),
     theme,
-    camera: { ...START_CAMERA, pitch: 0, bearing: 0 },
+    camera: INITIAL_TAB.camera ?? BLANK_CAMERA,
     hash: CAMERA_PARAM,
   });
 
@@ -377,18 +395,32 @@ export function App() {
     setActive((prev) => without(prev, id));
   };
 
-  useEffect(() => saveActiveLayers(active), [active]);
+  // O que está na tela é a aba atual: cada mudança vai para ela.
+  useEffect(() => {
+    setTabs((list) =>
+      list.map((t) => (t.id === currentTab ? { ...t, active: [...active], hidden: [...hidden], filters, paintDataset } : t)),
+    );
+  }, [currentTab, active, hidden, filters, paintDataset]);
+  const tabsRef = useRef({ tabs, currentTab });
+  tabsRef.current = { tabs, currentTab };
+  const persistTabs = useCallback(() => {
+    const { tabs: list, currentTab: current } = tabsRef.current;
+    saveTabs({ tabs: list.map((t) => ({ ...t, camera: cameras.current.get(t.id) ?? t.camera })), current });
+  }, []);
+  useEffect(persistTabs, [tabs, currentTab, persistTabs]);
+  useEffect(() => {
+    if (!map) return;
+    // A câmera de abertura (link ou hash) já conta, mesmo sem mexer no mapa.
+    cameras.current.set(tabsRef.current.currentTab, map.camera);
+    return map.onViewChange(() => {
+      cameras.current.set(tabsRef.current.currentTab, map.camera);
+      persistTabs();
+    });
+  }, [map, persistTabs]);
   // Estabelecimentos: ao aproximar, cada ponto vira marcador com o ícone do tipo de lugar.
   useEffect(() => {
     if (map && places) void placeIconSvgs([...places.meta.categories, "outros"]).then((svgs) => map.setDatasetIcons(PLACES.id, svgs));
   }, [map, places]);
-  useEffect(() => {
-    try {
-      localStorage.setItem(FILTERS_KEY, JSON.stringify(filters));
-    } catch {
-      // Modo privado: segue sem lembrar.
-    }
-  }, [filters]);
   // Filtros lembrados valem assim que o mapa existe (o motor guarda até a camada carregar).
   useEffect(() => {
     if (!map) return;
@@ -407,13 +439,12 @@ export function App() {
   };
   const setCategoryFilter = (id: string, categories: number[] | null) => updateFilter(id, { categories: categories ?? undefined });
   const setWhere = (id: string, where: Where | null) => updateFilter(id, { where: where ?? undefined });
+  // "Reabrir" a aba fechada fica um tempo e some.
   useEffect(() => {
-    try {
-      localStorage.setItem(HIDDEN_KEY, JSON.stringify([...hidden]));
-    } catch {
-      // Modo privado: segue sem lembrar.
-    }
-  }, [hidden]);
+    if (!closedTab) return;
+    const t = window.setTimeout(() => setClosedTab(null), 8000);
+    return () => window.clearTimeout(t);
+  }, [closedTab]);
   // O aviso de "link copiado" some sozinho.
   useEffect(() => {
     if (!shareStatus) return;
@@ -613,6 +644,72 @@ export function App() {
     setPerspective(mode);
     map?.setPerspective(mode);
   };
+
+  // ---------- Abas de mapa ----------
+
+  /** Mostra outra aba: camadas, filtros, prédios e câmera dela. O que é do momento (clique, medição, maquete) fecha. */
+  const switchTab = (id: string, list: MapTab[] = tabs) => {
+    const target = list.find((t) => t.id === id);
+    if (!target || (id === currentTab && list === tabs)) return;
+    if (map) cameras.current.set(currentTab, map.camera);
+    setPick(null);
+    if (measuring) stopMeasure();
+    setMaquete(null);
+    if (streetImageId) closeStreetView();
+    for (const fid of Object.keys(filters)) if (!target.filters[fid]) map?.setLayerFilter(fid, null);
+    for (const [fid, f] of Object.entries(target.filters)) map?.setLayerFilter(fid, f);
+    setActive(new Set(target.active));
+    setHidden(new Set(target.hidden));
+    setFilters(target.filters);
+    setPaintDataset(target.paintDataset ?? null);
+    setCurrentTab(id);
+    const camera = cameras.current.get(id) ?? target.camera ?? BLANK_CAMERA;
+    map?.jumpTo(camera);
+    setPerspective(camera.pitch > 1 ? "3d" : "2d");
+  };
+
+  /** Mapa zerado: sem camadas, no Brasil inteiro. A biblioteca e os seus dados continuam em "Adicionar". */
+  const newTab = () => {
+    const tab = createTab(tabs, { camera: BLANK_CAMERA });
+    const list = [...tabs, tab];
+    setTabs(list);
+    switchTab(tab.id, list);
+    setClosedTab(null);
+    if (!isNarrowScreen()) setPanel("add");
+  };
+
+  const closeTab = (id: string) => {
+    if (tabs.length < 2) return;
+    const index = tabs.findIndex((t) => t.id === id);
+    const tab = tabs[index]!;
+    const camera = id === currentTab && map ? map.camera : (cameras.current.get(id) ?? tab.camera);
+    const rest = tabs.filter((t) => t.id !== id);
+    setTabs(rest);
+    // Como no navegador: fechando a aberta, vai para a vizinha da direita (ou da esquerda, se era a última).
+    if (id === currentTab) switchTab((rest[index] ?? rest[index - 1])!.id, rest);
+    cameras.current.delete(id);
+    setClosedTab({ tab: { ...tab, camera }, index });
+  };
+
+  const reopenTab = () => {
+    if (!closedTab) return;
+    const list = [...tabs];
+    list.splice(Math.min(closedTab.index, list.length), 0, closedTab.tab);
+    setTabs(list);
+    switchTab(closedTab.tab.id, list);
+    setClosedTab(null);
+  };
+
+  const renameTab = (id: string, title: string) => setTabs((list) => list.map((t) => (t.id === id ? { ...t, title } : t)));
+
+  const moveTab = (id: string, toIndex: number) =>
+    setTabs((list) => {
+      const from = list.findIndex((t) => t.id === id);
+      if (from < 0 || from === toIndex) return list;
+      const next = [...list];
+      next.splice(toIndex, 0, ...next.splice(from, 1));
+      return next;
+    });
 
   const changeTheme = (next: Theme) => {
     setTheme(next);
@@ -1226,6 +1323,8 @@ export function App() {
     <div className={`app theme-${theme}`}>
       <TopBar perspective={perspective} onPerspective={changePerspective} onShare={() => void copyShareLink()} widgetsOpen={widgetsOpen} onToggleWidgets={() => setWidgetsOpen((o) => !o)} measuring={measuring} onToggleMeasure={() => (measuring ? stopMeasure() : startMeasure())} />
 
+      <MapTabs tabs={tabs} current={currentTab} onSelect={(id) => switchTab(id)} onNew={newTab} onClose={closeTab} onRename={renameTab} onMove={moveTab} />
+
       <div className="workspace">
         <Rail panel={panel} onPanel={setPanel} badges={{ layers: [...active].length || undefined, details: pick ? 1 : undefined }} />
         {panel && panels[panel]}
@@ -1258,6 +1357,15 @@ export function App() {
             <Suspense fallback={null}>
             <MaqueteView map={map} center={maquete.center} title={maquete.title} datasetIds={maquete.datasetIds} theme={`${theme}-${look}`} datasets={datasetInfos} placeFacts={placeFacts} radius={maquete.radius} onRadius={(r) => setMaquete((m) => (m ? { ...m, radius: r } : m))} onShare={() => void copyShareLink()} onClose={() => setMaquete(null)} />
             </Suspense>
+          )}
+          {closedTab && !shareStatus && (
+            <div className="toast" role="status">
+              <Icon name="map" size={18} />
+              “{closedTab.tab.title}” fechado.
+              <button type="button" className="link" onClick={reopenTab}>
+                Reabrir
+              </button>
+            </div>
           )}
           {shareStatus && maquete && (
             <div className="toast toast-over" role="status">
