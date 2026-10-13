@@ -23,6 +23,7 @@ import {
   Maximize2,
   Minimize2,
   Moon,
+  Palette,
   PanelRight,
   Pencil,
   Plus,
@@ -81,6 +82,7 @@ const ICONS = {
   map: MapGlyph,
   duplicate: Copy,
   hexagon: Hexagon,
+  palette: Palette,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof ICONS;

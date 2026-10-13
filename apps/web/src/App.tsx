@@ -12,7 +12,8 @@ import { placeIcon, placeIconSvgs } from "./placeIcons";
 import { Icon } from "./components/Icon";
 import { AddRow, DatapackMeta } from "./components/AddRow";
 import { MeasurePanel } from "./components/MeasurePanel";
-import type { DatasetFilter, MeasureMode, MeasureState, Where } from "@cityview/engine";
+import type { DataStyle, DatasetFilter, MeasureMode, MeasureState, Where } from "@cityview/engine";
+import { DEFAULT_DATA_STYLE, normalizeDataStyle } from "@cityview/engine";
 import { DATAPACKS, dataUrl } from "./catalog";
 import { PickDetails, type DatasetInfo } from "./components/PickDetails";
 import { MapPopup, type NearbySource } from "./components/MapPopup";
@@ -25,6 +26,7 @@ import { StreetViewer } from "./components/StreetViewer";
 import { coverageOverlay, nearestStreetImage, streetImageryEnabled } from "./streetImagery";
 import { TopBar } from "./components/TopBar";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { StyleEditor } from "./components/StyleEditor";
 import { MapTabs } from "./components/MapTabs";
 import { createTab, loadTabs, saveTabs, type MapTab } from "./mapTabs";
 import { DropZone } from "./import/DropZone";
@@ -124,6 +126,14 @@ const INITIAL_TABS = (() => {
 })();
 const INITIAL_TAB = INITIAL_TABS.tabs.find((t) => t.id === INITIAL_TABS.current)!;
 
+/** Estilos salvos de uma aba (abas da versão anterior só tinham a lista de "Regiões"). */
+function tabStyles(t: MapTab): Record<string, DataStyle> {
+  const out: Record<string, DataStyle> = {};
+  for (const id of t.regionViews ?? []) out[id] = { ...DEFAULT_DATA_STYLE, shape: "regions" };
+  for (const [id, s] of Object.entries(t.styles ?? {})) out[id] = normalizeDataStyle(s);
+  return out;
+}
+
 /** Id da camada no mapa a partir da chave de camada do projeto. */
 const mapIdOf = (key: string) => (key === DATASET_KEY ? CLIENT_DATASET.id : key === PLACES_KEY ? PLACES.id : key);
 /** Onde o filtro por valor vale num dataset em tiles. */
@@ -166,9 +176,11 @@ export function App() {
   const [municipios3d, setMunicipios3d] = useState(false);
   /** Camada (id no mapa) que acende os prédios; null = desligado. */
   const [paintDataset, setPaintDataset] = useState<string | null>(INITIAL_TAB.paintDataset ?? null);
-  /** Camadas com a vista "Regiões" (estado/município com a contagem); o padrão são as bolinhas. */
-  const [regionViews, setRegionViews] = useState<Set<string>>(() => new Set(INITIAL_TAB.regionViews ?? []));
-  const appliedRegionViews = useRef(new Set<string>());
+  /** Estilo salvo de cada camada (editor de estilo); sem estilo = bolinhas por categoria. */
+  const [styles, setStyles] = useState<Record<string, DataStyle>>(() => tabStyles(INITIAL_TAB));
+  /** Editor de estilo aberto: camada e o rascunho (aparece no mapa na hora, só fica se salvar). */
+  const [styleEditing, setStyleEditing] = useState<{ id: string; title: string; draft: DataStyle } | null>(null);
+  const appliedStyles = useRef<Record<string, string>>({});
   const paintBuildingsOn = paintDataset !== null;
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [libraryLayers, setLibraryLayers] = useState<LibraryLayer[]>([]);
@@ -424,17 +436,21 @@ export function App() {
   // O que está na tela é a aba atual: cada mudança vai para ela.
   useEffect(() => {
     setTabs((list) =>
-      list.map((t) => (t.id === currentTab ? { ...t, active: [...active], hidden: [...hidden], filters, paintDataset, theme, look, regionViews: [...regionViews] } : t)),
+      list.map((t) => (t.id === currentTab ? { ...t, active: [...active], hidden: [...hidden], filters, paintDataset, theme, look, styles, regionViews: undefined } : t)),
     );
-  }, [currentTab, active, hidden, filters, paintDataset, theme, look, regionViews]);
-  // Vista "Regiões": aplica só o que mudou (o motor guarda para camadas que ainda vão carregar).
+  }, [currentTab, active, hidden, filters, paintDataset, theme, look, styles]);
+  // Estilos no mapa: os salvos e, por cima, o rascunho do editor. Aplica só o que mudou.
   useEffect(() => {
     if (!map) return;
-    for (const id of new Set([...appliedRegionViews.current, ...regionViews])) {
-      if (appliedRegionViews.current.has(id) !== regionViews.has(id)) map.setDatasetRegionView(id, regionViews.has(id));
+    const effective: Record<string, DataStyle> = { ...styles, ...(styleEditing ? { [styleEditing.id]: styleEditing.draft } : {}) };
+    for (const id of new Set([...Object.keys(appliedStyles.current), ...Object.keys(effective)])) {
+      const next = effective[id] ? JSON.stringify(effective[id]) : "";
+      if (appliedStyles.current[id] === next) continue;
+      map.setDatasetStyle(id, effective[id] ?? null);
+      if (next) appliedStyles.current[id] = next;
+      else delete appliedStyles.current[id];
     }
-    appliedRegionViews.current = new Set(regionViews);
-  }, [map, regionViews]);
+  }, [map, styles, styleEditing]);
   const tabsRef = useRef({ tabs, currentTab });
   tabsRef.current = { tabs, currentTab };
   const persistTabs = useCallback(() => {
@@ -627,6 +643,7 @@ export function App() {
     map?.removeCatalogLayer(id);
     map?.removeDataset(id);
     setLocalMetas(({ [id]: _, ...rest }) => rest);
+    setStyles(({ [id]: _, ...rest }) => rest);
     void user.remove(id);
     setActive((prev) => without(prev, id));
   };
@@ -716,7 +733,8 @@ export function App() {
     setHidden(new Set(target.hidden));
     setFilters(target.filters);
     setPaintDataset(target.paintDataset ?? null);
-    setRegionViews(new Set(target.regionViews ?? []));
+    setStyles(tabStyles(target));
+    setStyleEditing(null);
     if ((target.theme ?? "light") !== theme) changeTheme(target.theme ?? "light");
     if ((target.look ?? "data") !== look) changeLook(target.look ?? "data");
     setCurrentTab(id);
@@ -765,7 +783,7 @@ export function App() {
     if (!source) return;
     const live = id === currentTab;
     const copy = createTab(tabs, {
-      ...(live ? { active: [...active], hidden: [...hidden], filters, paintDataset, theme, look, regionViews: [...regionViews] } : source),
+      ...(live ? { active: [...active], hidden: [...hidden], filters, paintDataset, theme, look, styles } : source),
       title: `${source.title} (cópia)`,
       camera: live && map ? map.camera : (cameras.current.get(id) ?? source.camera),
     });
@@ -987,7 +1005,7 @@ export function App() {
     // Arquivo antigo: sem contagem por região (e só hexágonos no zoom afastado).
     const loaded = Boolean(map && datasetMeta(id));
     const canRegions = loaded && Boolean(map?.datasetHasRegions(id));
-    const regions = canRegions && !columns3d && regionViews.has(id);
+    const regions = canRegions && !columns3d && styles[id]?.shape === "regions";
     return (
       <>
         <div className="layer-options">
@@ -997,12 +1015,7 @@ export function App() {
             aria-pressed={regions}
             disabled={!canRegions || columns3d}
             onClick={() =>
-              setRegionViews((prev) => {
-                const next = new Set(prev);
-                if (next.has(id)) next.delete(id);
-                else next.add(id);
-                return next;
-              })
+              setStyles((prev) => ({ ...prev, [id]: { ...(prev[id] ?? DEFAULT_DATA_STYLE), ...(regions ? { shape: "points", size: DEFAULT_DATA_STYLE.size } : { shape: "regions" }) } }))
             }
             title={
               !loaded
@@ -1073,7 +1086,7 @@ export function App() {
     layerCards.push({
       key: d.id,
       node: (badge, tone) => (
-        <LayerCard badge={badge} tone={tone} title={d.name} origin="user" meta={meta} visible={active.has(d.id)} onVisible={d.status === "ready" ? (v) => toggle(d.id, v) : undefined} actions={actions} status={working ? "working" : d.status === "error" ? "error" : undefined} progress={working ? d.progress : undefined}>
+        <LayerCard badge={badge} tone={tone} title={d.name} origin="user" meta={meta} visible={active.has(d.id)} onVisible={d.status === "ready" ? (v) => toggle(d.id, v) : undefined} onStyle={serverMetas[d.id] ? () => openStyle(d.id, d.name) : undefined} actions={actions} status={working ? "working" : d.status === "error" ? "error" : undefined} progress={working ? d.progress : undefined}>
           {datasetLegend(d.id)}
           {datasetValueFilter(d.id)}
           {datasetOptions(d.id)}
@@ -1095,6 +1108,7 @@ export function App() {
           meta={<><span className="num">{int.format(d.count)}</span> pontos · neste navegador</>}
           visible={active.has(d.id)}
           onVisible={(v) => toggle(d.id, v)}
+          onStyle={d.format === "pmtiles" && localMetas[d.id] ? () => openStyle(d.id, d.manifest.name) : undefined}
           actions={[
             { label: "Enquadrar no mapa", icon: "frame", onClick: () => focusUserDataset(d) },
             ...(d.source
@@ -1171,6 +1185,7 @@ export function App() {
           meta={<>Overture Maps · <span className="num">{int.format(places.meta.records)}</span> · versão {places.release}</>}
           visible={active.has(PLACES_KEY)}
           onVisible={(v) => toggle(PLACES_KEY, v)}
+          onStyle={() => openStyle(PLACES.id, "Estabelecimentos")}
           actions={[
             { label: "Sobre a fonte", icon: "external", onClick: () => window.open("https://docs.overturemaps.org/attribution/", "_blank", "noreferrer") },
             { label: "Tirar do mapa", icon: "eyeOff", onClick: () => removeFromMap(PLACES_KEY) },
@@ -1195,6 +1210,7 @@ export function App() {
           meta={<><span className="num">{int.format(demoMeta.records)}</span> registros</>}
           visible={active.has(DATASET_KEY)}
           onVisible={(v) => toggle(DATASET_KEY, v)}
+          onStyle={() => openStyle(CLIENT_DATASET.id, CLIENT_DATASET.name)}
           actions={[{ label: "Tirar do mapa", icon: "eyeOff", onClick: () => removeFromMap(DATASET_KEY) }]}
         >
           {datasetLegend(CLIENT_DATASET.id)}
@@ -1256,6 +1272,36 @@ export function App() {
   }
 
   const letter = (i: number) => String.fromCharCode(65 + (i % 26));
+
+  /** Abre o editor de estilo de uma camada (o rascunho começa no estilo salvo). */
+  function openStyle(id: string, title: string) {
+    setStyleEditing({ id, title, draft: styles[id] ?? DEFAULT_DATA_STYLE });
+    // A camada precisa estar visível para ver a prévia.
+    setActive((prev) => new Set(prev).add(datasetKey(id)));
+  }
+  const editingMeta = styleEditing ? datasetMeta(styleEditing.id) : undefined;
+  const styleEditor = styleEditing && editingMeta && (
+    <StyleEditor
+      key={styleEditing.id}
+      title={styleEditing.title}
+      style={styleEditing.draft}
+      numericColumns={editingMeta.columns
+        .filter((c) => c.type === "number")
+        .map((c) => ({ name: c.name, label: datasetInfos[styleEditing.id]?.fieldLabels?.[c.name] ?? c.name }))}
+      hasCategories={editingMeta.categories.length > 0}
+      hasRegions={Boolean(map?.datasetHasRegions(styleEditing.id))}
+      onChange={(draft) => setStyleEditing((e) => (e ? { ...e, draft } : e))}
+      onSave={() => {
+        const { id, draft } = styleEditing;
+        setStyles((prev) => {
+          const { [id]: _, ...rest } = prev;
+          return JSON.stringify(draft) === JSON.stringify(DEFAULT_DATA_STYLE) ? rest : { ...rest, [id]: draft };
+        });
+        setStyleEditing(null);
+      }}
+      onDiscard={() => setStyleEditing(null)}
+    />
+  );
 
   const layersPanel = (
     <Panel
@@ -1450,6 +1496,7 @@ export function App() {
         <main className="map-area">
           <div ref={containerRef} className="map" />
           <SearchBox search={search} onSelect={selectSearch} />
+          {styleEditor}
           <DropZone onFile={openImport} />
           {shareStatus && !maquete && (
             <div className="toast" role="status">

@@ -104,6 +104,7 @@ export function LayerCard({
   meta,
   visible,
   onVisible,
+  onStyle,
   actions,
   status,
   progress,
@@ -117,6 +118,8 @@ export function LayerCard({
   meta: ReactNode;
   visible: boolean;
   onVisible?: (visible: boolean) => void;
+  /** Abre o editor de estilo da camada. */
+  onStyle?: () => void;
   actions?: LayerAction[];
   status?: "working" | "error";
   progress?: number;
@@ -139,6 +142,12 @@ export function LayerCard({
           <span className="spinner" aria-label="Processando" />
         ) : (
           onVisible && (
+            <>
+            {onStyle && (
+              <button type="button" className="icon-button sm" onClick={onStyle} aria-label={`Editar o estilo de ${title}`} title="Editar estilo">
+                <Icon name="palette" size={18} />
+              </button>
+            )}
             <button
               type="button"
               className="icon-button sm"
@@ -148,6 +157,7 @@ export function LayerCard({
             >
               <Icon name={visible ? "eye" : "eyeOff"} size={18} />
             </button>
+            </>
           )
         )}
         {actions && actions.length > 0 && <LayerMenu title={title} actions={actions} />}

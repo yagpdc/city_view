@@ -17,6 +17,8 @@ export const streetImageryEnabled = Boolean(TOKEN);
 export interface StreetImage {
   id: string;
   thumbUrl: string;
+  /** Versão grande (2048 px), para a foto ampliada; cai na de 1024 se não houver. */
+  largeUrl: string;
   capturedAt: Date | null;
   author: string | null;
   /** Distância até o ponto pedido, em metros (haversine; só para ordenar e exibir). */
@@ -27,6 +29,7 @@ export interface StreetImage {
 interface ApiImage {
   id: string;
   thumb_1024_url?: string;
+  thumb_2048_url?: string;
   captured_at?: number;
   creator?: { username?: string };
   geometry?: { coordinates: [number, number] };
@@ -66,7 +69,7 @@ export function nearestStreetImage([lon, lat]: [number, number]): Promise<Street
   if (!pending) {
     const dLon = SEARCH_DEG / Math.max(0.2, Math.cos((lat * Math.PI) / 180));
     const params = new URLSearchParams({
-      fields: "id,thumb_1024_url,captured_at,creator,geometry",
+      fields: "id,thumb_1024_url,thumb_2048_url,captured_at,creator,geometry",
       bbox: [lon - dLon, lat - SEARCH_DEG, lon + dLon, lat + SEARCH_DEG].map((v) => v.toFixed(6)).join(","),
       limit: "50",
     });
@@ -79,6 +82,7 @@ export function nearestStreetImage([lon, lat]: [number, number]): Promise<Street
       return {
         id: best.img.id,
         thumbUrl: best.img.thumb_1024_url!,
+        largeUrl: best.img.thumb_2048_url ?? best.img.thumb_1024_url!,
         capturedAt: best.img.captured_at ? new Date(best.img.captured_at) : null,
         author: best.img.creator?.username ?? null,
         distanceM: best.d,

@@ -20,6 +20,7 @@ import { paintBuildings, type BuildingPaintResult, type BuildingRecord } from ".
 import { circleArea, type AreaGeometry } from "./geo";
 import type { NearbySummary, SearchHit } from "./nearby";
 import { RegionBoundaries, type RegionLevelSource } from "./regions";
+import { DEFAULT_DATA_STYLE, type DataStyle } from "./dataStyle";
 import { lineLengthM, polygonMeasure } from "./measure";
 import { loadMaqueteData, type MaqueteData, type MaqueteInputPoint } from "./maquete/extract";
 
@@ -219,6 +220,8 @@ export class CityMap {
     layer.regionBoundaries = this.regionBoundaries;
     if (this.hexViews.has(id)) layer.setHexView(true);
     if (this.regionViews.has(id)) layer.setRegionView(true);
+    const style = this.dataStyles.get(id);
+    if (style) layer.setDataStyle(style);
     this.datasets.push(layer);
     this.whenStyleReady(() => layer.attach());
     return layer;
@@ -314,6 +317,16 @@ export class CityMap {
     if (on) this.hexViews.add(id);
     else this.hexViews.delete(id);
     this.datasets.find((d) => d.id === id)?.setHexView(on);
+  }
+
+  /** Estilos do editor por dataset (vale também para os que ainda vão carregar). */
+  private readonly dataStyles = new Map<string, DataStyle>();
+
+  /** Aplica o estilo do editor a um dataset (prévia ao vivo ou o salvo); null volta ao padrão. */
+  setDatasetStyle(id: string, style: DataStyle | null): void {
+    if (style) this.dataStyles.set(id, style);
+    else this.dataStyles.delete(id);
+    this.datasets.find((d) => d.id === id)?.setDataStyle(style ?? DEFAULT_DATA_STYLE);
   }
 
   /** Vista "Regiões" de um dataset: a malha com a contagem; as bolinhas entram ao aproximar. */

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { nearestStreetImage, streetImageryEnabled, type StreetImage } from "../streetImagery";
+import { PhotoLightbox } from "./PhotoLightbox";
 
 const date = new Intl.DateTimeFormat("pt-BR", { month: "short", year: "numeric" });
 
@@ -15,6 +16,7 @@ export function StreetPhoto({
   variant?: "inline" | "hero";
 }) {
   const [state, setState] = useState<{ image?: StreetImage | null; error?: string }>({});
+  const [zoomed, setZoomed] = useState(false);
   const [lon, lat] = lngLat;
 
   useEffect(() => {
@@ -40,15 +42,16 @@ export function StreetPhoto({
   if (hero) {
     return (
       <figure className="street-photo-hero">
-        <button
-          type="button"
-          className="street-photo-open"
-          onClick={() => (onOpen ? onOpen(img.id) : window.open(img.pageUrl, "_blank", "noreferrer"))}
-          title="Andar pela rua"
-        >
+        <button type="button" className="street-photo-open" onClick={() => setZoomed(true)} title="Ampliar a foto">
           <img src={img.thumbUrl} alt="Foto da rua mais próxima" />
-          {onOpen && <span className="street-photo-cta">Andar pela rua · 3D</span>}
+          <span className="street-photo-cta">
+            <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+            </svg>
+            Ampliar
+          </span>
         </button>
+        {zoomed && <PhotoLightbox image={img} onClose={() => setZoomed(false)} onStreetView={onOpen} />}
         <figcaption>
           a {Math.round(img.distanceM)} m{img.capturedAt ? ` · ${date.format(img.capturedAt)}` : ""} ·{" "}
           <a href={img.pageUrl} target="_blank" rel="noreferrer">

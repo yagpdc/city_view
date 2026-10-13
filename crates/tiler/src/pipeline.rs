@@ -94,6 +94,11 @@ pub struct ColumnInfo {
     pub name: String,
     #[serde(rename = "type")]
     pub kind: &'static str,
+    /// Menor e maior valor (colunas de número): escala de cor e de tamanho no editor de estilo.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub min: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -552,13 +557,24 @@ fn build_tiles(
     let tile_columns: Vec<ColumnInfo> = t
         .columns
         .iter()
-        .map(|c| ColumnInfo {
-            name: c.name.clone(),
-            kind: match c.data {
-                ColumnData::Number(_) => "number",
-                ColumnData::Category { .. } => "category",
-                ColumnData::Text(_) => "text",
-            },
+        .map(|c| {
+            let (min, max) = match &c.data {
+                ColumnData::Number(v) => {
+                    let (lo, hi) = v.iter().filter(|x| x.is_finite()).fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), &x| (lo.min(x), hi.max(x)));
+                    if lo <= hi { (Some(lo), Some(hi)) } else { (None, None) }
+                }
+                _ => (None, None),
+            };
+            ColumnInfo {
+                name: c.name.clone(),
+                kind: match c.data {
+                    ColumnData::Number(_) => "number",
+                    ColumnData::Category { .. } => "category",
+                    ColumnData::Text(_) => "text",
+                },
+                min,
+                max,
+            }
         })
         .collect();
     let mut point_fields = serde_json::Map::new();

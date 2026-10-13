@@ -6,6 +6,7 @@ import { MaqueteDetails } from "./MaqueteDetails";
 import type { DatasetInfo } from "./PickDetails";
 import type { PlaceFacts } from "../compare";
 import { nearestStreetImage, streetImageryEnabled, type StreetImage } from "../streetImagery";
+import { PhotoLightbox } from "./PhotoLightbox";
 
 const RADII = [150, 300, 500] as const;
 const int = new Intl.NumberFormat("pt-BR");
@@ -301,6 +302,7 @@ const monthYear = new Intl.DateTimeFormat("pt-BR", { month: "short", year: "nume
 function MaquetePhoto({ lngLat, center, onClose }: { lngLat: [number, number]; center: boolean; onClose: () => void }) {
   const [image, setImage] = useState<StreetImage | null | undefined>(undefined);
   const [failed, setFailed] = useState(false);
+  const [zoomed, setZoomed] = useState(false);
   useEffect(() => {
     let cancelled = false;
     nearestStreetImage(lngLat)
@@ -319,9 +321,10 @@ function MaquetePhoto({ lngLat, center, onClose }: { lngLat: [number, number]; c
       </button>
       {image ? (
         <>
-          <a href={image.pageUrl} target="_blank" rel="noreferrer" title="Abrir na Mapillary">
+          <button type="button" className="maquete-photo-open" onClick={() => setZoomed(true)} title="Ampliar a foto">
             <img src={image.thumbUrl} alt={`${label}: rua mais próxima`} />
-          </a>
+          </button>
+          {zoomed && <PhotoLightbox image={image} onClose={() => setZoomed(false)} />}
           <figcaption>
             a {Math.round(image.distanceM)} m{image.capturedAt ? ` · ${monthYear.format(image.capturedAt)}` : ""} · Mapillary · CC BY-SA
           </figcaption>

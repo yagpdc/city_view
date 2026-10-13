@@ -507,7 +507,7 @@
 @media (max-width: 767px) { .map-popup { width: 250px; } }
 
 /* Cartão do mapa: foto em destaque */
-.map-popup { width: 340px; }
+.map-popup { width: 400px; }
 .cv-popup .maplibregl-popup-content { padding: 0 0 12px; overflow-x: hidden; }
 .map-popup > :not(.street-photo-hero) { margin-left: 16px; margin-right: 16px; }
 .map-popup h4 { margin-top: 10px; margin-right: 14px; }
@@ -517,7 +517,7 @@
 .street-photo-open { position: relative; display: block; width: 100%; padding: 0; border: 0; background: #000; cursor: pointer; }
 .street-photo-open img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
 .street-photo-cta {
-  position: absolute; left: 10px; bottom: 10px; padding: 6px 10px; border-radius: 999px;
+  position: absolute; left: 10px; bottom: 10px; display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px;
   background: rgba(0, 0, 0, 0.65); color: #fff; font-size: 12px; font-weight: 600; backdrop-filter: blur(4px);
 }
 .street-photo-open:hover .street-photo-cta { background: rgba(0, 0, 0, 0.8); }
@@ -529,7 +529,7 @@
 .cv-popup .maplibregl-popup-close-button { z-index: 2; top: 8px; right: 8px; width: 28px; height: 28px; border-radius: 50%; background: rgba(0,0,0,.55); color: #fff; font-size: 18px; line-height: 1; padding: 0; }
 .cv-popup .maplibregl-popup-close-button:hover { background: rgba(0,0,0,.75); }
 .map-popup-actions .btn { height: var(--cv-control-h-sm); }
-@media (max-width: 767px) { .map-popup { width: 270px; } }
+@media (max-width: 767px) { .map-popup { width: 280px; } }
 
 /* ---------- Builder de dados (passo "Dados") ---------- */
 .wizard:has(.builder) { width: min(1120px, 100%); }
@@ -632,3 +632,39 @@
 .preview-caption { margin: 0 0 6px; font-size: 12px; }
 .preview-tall { max-height: 320px; overflow: auto; }
 .preview-tall thead th { position: sticky; top: 0; z-index: 1; background: var(--cv-float); }
+
+/* Foto de rua ampliada: quase do tamanho do mapa, por cima do mapa e da maquete */
+.photo-lightbox {
+  position: absolute; inset: 0; z-index: 30; display: grid; place-items: center; padding: 24px; container-type: size;
+  background: rgba(10, 14, 22, 0.72); backdrop-filter: blur(6px);
+  animation: cv-fade-in 160ms var(--cv-ease);
+}
+@keyframes cv-fade-in { from { opacity: 0; } }
+.photo-lightbox-frame {
+  position: relative; display: flex; flex-direction: column; margin: 0; max-width: 100%; max-height: 100%;
+  border-radius: var(--cv-radius-xl); overflow: hidden; background: #0b0f17; box-shadow: var(--cv-shadow-4);
+}
+.photo-lightbox-open { position: relative; display: block; min-height: 0; cursor: zoom-in; }
+.photo-lightbox-open img {
+  display: block; width: auto; height: auto;
+  /* Pouco menos que o mapa: o espaço da legenda fica de fora. */
+  max-width: calc(100cqw - 48px); max-height: calc(100cqh - 120px);
+  object-fit: contain;
+}
+.photo-lightbox-hint {
+  position: absolute; right: 12px; bottom: 12px; display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 12px; border-radius: 999px; background: rgba(0, 0, 0, 0.6); color: #fff; font-size: 13px; font-weight: 600;
+  opacity: 0; transition: opacity 150ms var(--cv-ease);
+}
+.photo-lightbox-open:hover .photo-lightbox-hint, .photo-lightbox-open:focus-visible .photo-lightbox-hint { opacity: 1; }
+.photo-lightbox-frame figcaption {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  padding: 10px 14px; background: #ffffff; color: var(--cv-text-muted); font-size: 12px;
+}
+.photo-lightbox-frame figcaption .btn { height: var(--cv-control-h-sm); }
+.photo-lightbox-close {
+  position: absolute; right: 12px; top: 12px; width: 40px; height: 40px; display: grid; place-items: center;
+  border: 0; border-radius: 50%; background: rgba(255, 255, 255, 0.92); color: #151a24; cursor: pointer; box-shadow: var(--cv-shadow-2);
+}
+.photo-lightbox-close:hover { background: #fff; }
+.maquete-photo-open { display: block; width: 100%; padding: 0; border: 0; background: none; cursor: zoom-in; }

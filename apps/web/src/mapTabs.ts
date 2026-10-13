@@ -3,7 +3,7 @@
  * câmera, prédios acesos, tema e estilo do mapa base). O motor, a biblioteca e os dados (públicos e importados) são os mesmos para
  * todas; uma aba nova só começa sem nada ligado. Tudo fica neste navegador (localStorage).
  */
-import type { BasemapLook, Camera, DatasetFilter, Theme } from "@cityview/engine";
+import type { BasemapLook, Camera, DataStyle, DatasetFilter, Theme } from "@cityview/engine";
 
 export interface MapTab {
   id: string;
@@ -17,7 +17,9 @@ export interface MapTab {
   camera?: Camera;
   /** Camada que acende os prédios (id no mapa). */
   paintDataset?: string | null;
-  /** Camadas (id no mapa) com a vista "Regiões" ligada; as outras mostram só bolinhas. */
+  /** Estilo salvo de cada camada (id no mapa), pelo editor de estilo. */
+  styles?: Record<string, DataStyle>;
+  /** Versão anterior (só a vista "Regiões"): vira `styles` ao abrir. */
   regionViews?: string[];
   /** Aparência do mapa base (abas salvas antes disso: claro, "Para dados"). */
   theme?: Theme;

@@ -12,6 +12,7 @@ import { whereExpressions, type WhereClause } from "./filter";
 import { ICON_PIXEL_RATIO, rasterizeMarker } from "./icons";
 import { loadNearby, searchPoints, type NearbySummary, type SearchHit } from "./nearby";
 import { regionLabel, type RegionBoundaries } from "./regions";
+import { DEFAULT_DATA_STYLE, PALETTES, metersPerPixelAtZoom0, type DataStyle } from "./dataStyle";
 
 /** Metadados gravados pelo cityview-tiler (`cityview` no JSON do PMTiles, versão 2). */
 export interface DatasetMeta {
@@ -34,7 +35,7 @@ export interface DatasetMeta {
   colorBy?: string | null;
   title?: string | null;
   /** Colunas presentes nos pontos. */
-  columns: { name: string; type: "number" | "category" | "text" }[];
+  columns: { name: string; type: "number" | "category" | "text"; min?: number; max?: number }[];
   bounds?: [number, number, number, number];
   /** Há índice de linhas no servidor (detalhes completos pelo id). */
   hasRowIndex?: boolean;
@@ -128,6 +129,8 @@ export class DatasetLayer {
   private hexView = false;
   /** Vista "Regiões": a malha com a contagem de cada região; as bolinhas entram ao aproximar. */
   private regionView = false;
+  /** Estilo do editor (forma, cor, tamanho…). Hexágonos e regiões também são formas. */
+  private dataStyle: DataStyle = DEFAULT_DATA_STYLE;
   /** Malhas compartilhadas (definidas pelo CityMap antes de anexar). */
   regionBoundaries: RegionBoundaries | null = null;
   /** Pedido de montagem em andamento (descarta respostas antigas). */
@@ -387,8 +390,12 @@ export class DatasetLayer {
 
   setVisible(visible: boolean): void {
     this.visible = visible;
+    const s = this.dataStyle;
     for (const id of this.allLayerIds) {
-      if (this.map.getLayer(id)) this.map.setLayoutProperty(id, "visibility", visible ? "visible" : "none");
+      if (!this.map.getLayer(id)) continue;
+      // Marcadores com ícone só na forma "pontos"; nomes conforme a escolha do editor.
+      const on = visible && (id === this.iconsLayerId ? s.labels && s.shape === "points" : id === this.labelsLayerId ? s.labels : true);
+      this.map.setLayoutProperty(id, "visibility", on ? "visible" : "none");
     }
   }
 
@@ -418,6 +425,18 @@ export class DatasetLayer {
     if (on === this.extruded) return;
     this.extruded = on;
     this.rebuildDataLayers();
+  }
+
+  /** Aplica um estilo do editor (prévia ao vivo ou o salvo). */
+  setDataStyle(style: DataStyle): void {
+    this.dataStyle = style;
+    this.hexView = style.shape === "hex";
+    this.regionView = style.shape === "regions";
+    this.rebuildDataLayers();
+  }
+
+  getDataStyle(): DataStyle {
+    return this.dataStyle;
   }
 
   /** Vista de densidade em hexágonos (opcional); desligada, as bolinhas aparecem em todos os zooms. */
@@ -471,7 +490,7 @@ export class DatasetLayer {
    */
   viewportSummary(): (AreaSummary & { mode: "points" | "hex" }) | null {
     if (!this.visible) return null;
-    const usePoints = this.map.getZoom() >= this.meta.pointsZoom && this.map.getLayer(this.pointsLayerId);
+    const usePoints = this.map.getZoom() >= this.meta.pointsZoom && this.map.getLayer(this.pointsLayerId) && this.dataStyle.shape !== "heatmap";
     if (usePoints) {
       const seen = new Set<string | number>();
       const byCategory = this.meta.categories.map(() => 0);
@@ -718,7 +737,7 @@ export class DatasetLayer {
       type: "fill",
       paint: {
         "fill-color": this.densityColor(count),
-        "fill-opacity": 0.72,
+        "fill-opacity": 0.72 * this.dataStyle.opacity,
         "fill-outline-color": "rgba(255,255,255,0.25)",
       },
     };
@@ -774,23 +793,132 @@ export class DatasetLayer {
     // Com hexágonos, os pontos entram no zoom de rua; sem, desde o zoom mais afastado que o arquivo tiver.
     const lowest = this.meta.pointsMinZoom ?? this.meta.pointsZoom;
     const pointsFrom = hex ? this.meta.pointsZoom : this.regionShown ? Math.max(lowest, REGION_POINTS_FROM) : lowest;
-    return [
-      ...(hex ? [this.hexLayer()] : []),
-      {
-        id: this.pointsLayerId,
-        type: "circle",
-        source: this.sourceId,
-        "source-layer": "points",
-        minzoom: pointsFrom,
-        filter: this.pointsFilter(),
+    return [...(hex ? [this.hexLayer()] : []), this.recordsLayer(pointsFrom)];
+  }
+
+  /** Menor e maior valor de uma coluna de número (metadados do tiler; arquivos antigos: o que já carregou). */
+  private range(column: string): { min: number; max: number } {
+    const c = this.meta.columns.find((x) => x.name === column);
+    if (c?.min !== undefined && c.max !== undefined) return { min: c.min, max: c.max > c.min ? c.max : c.min + 1 };
+    const r = this.columnRange(column);
+    return r && r.max > r.min ? r : { min: 0, max: 1 };
+  }
+
+  /** Fator de tamanho pela coluna escolhida (metade no menor valor, o dobro no maior). */
+  private sizeFactor(): ExpressionSpecification | number {
+    const col = this.dataStyle.sizeBy;
+    if (!col) return 1;
+    const { min, max } = this.range(col);
+    return ["interpolate", ["linear"], ["coalesce", ["to-number", ["get", col]], min], min, 0.5, max, 2] as ExpressionSpecification;
+  }
+
+  /** Cor de cada registro conforme o estilo. */
+  private recordColor(): ExpressionSpecification | string {
+    const c = this.dataStyle.color;
+    if (c.mode === "single") return c.value;
+    if (c.mode === "value") {
+      const { min, max } = this.range(c.column);
+      const pal = PALETTES[c.palette];
+      const stops = pal.flatMap((color, i) => [min + ((max - min) * i) / (pal.length - 1), color]);
+      return ["case", ["has", c.column], ["interpolate", ["linear"], ["to-number", ["get", c.column]], ...stops], OTHER_COLOR] as unknown as ExpressionSpecification;
+    }
+    return this.pointColor();
+  }
+
+  /** Tamanho que cresce com o zoom (tudo dentro do interpolate de zoom, como o MapLibre exige). */
+  private zoomSize(stops: [number, number][], exponential = false): ExpressionSpecification {
+    const f = this.sizeFactor();
+    const out = stops.flatMap(([z, v]) => [z, f === 1 ? v : ["*", v, f]]);
+    return ["interpolate", exponential ? ["exponential", 2] : ["linear"], ["zoom"], ...out] as unknown as ExpressionSpecification;
+  }
+
+  /** Raio em metros → px em cada zoom (tamanho real no chão), na latitude do centro da camada. */
+  private metersToPx(meters: number): ExpressionSpecification {
+    const b = this.meta.bounds;
+    const lat = b ? (b[1] + b[3]) / 2 : 0;
+    const r0 = meters / metersPerPixelAtZoom0(lat);
+    return this.zoomSize([[0, r0], [24, r0 * 2 ** 24]], true);
+  }
+
+  private squareImage(): string {
+    const name = "cv-square-sdf";
+    if (!this.map.hasImage(name)) {
+      const n = 64;
+      const data = new Uint8ClampedArray(n * n * 4).fill(255);
+      this.map.addImage(name, { width: n, height: n, data }, { sdf: true });
+    }
+    return name;
+  }
+
+  /** A camada dos registros na forma escolhida (pontos, círculos, quadrados ou mancha de calor). */
+  private recordsLayer(minzoom: number): LayerSpecification {
+    const s = this.dataStyle;
+    const base = { id: this.pointsLayerId, source: this.sourceId, "source-layer": "points", minzoom, filter: this.pointsFilter() };
+    const ring = this.labelTheme === "dark" ? "#10141c" : "#ffffff";
+    if (s.shape === "heatmap") {
+      const pal = s.color.mode === "value" ? PALETTES[s.color.palette] : PALETTES.densidade;
+      const ramp = pal.flatMap((c, i) => [(i + 1) / pal.length, c]);
+      return {
+        ...base,
+        type: "heatmap",
         paint: {
-          "circle-color": this.pointColor(),
-          // Ponto do dado (docs/DESIGN.md · Mapa 1): anel da cor do chão separa vizinhos. Afastado, pequeno.
-          "circle-radius": ["interpolate", ["linear"], ["zoom"], 0, 2, 8, 2.6, 12, 3, 14, 3.2, 16, 4.5, 19, 7],
-          "circle-stroke-color": this.labelTheme === "dark" ? "#10141c" : "#ffffff",
-          "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 0, 0.4, 12, 0.7, 16, 1.5],
+          "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 0, s.size * 0.6, 14, s.size, 18, s.size * 1.8],
+          "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 0, 0.6, 14, 1.6],
+          "heatmap-weight": this.sizeFactor(),
+          "heatmap-color": ["interpolate", ["linear"], ["heatmap-density"], 0, "rgba(0,0,0,0)", ...ramp] as unknown as ExpressionSpecification,
+          "heatmap-opacity": s.opacity,
         },
+      } as LayerSpecification;
+    }
+    if (s.shape === "squares") {
+      // Ícone quadrado de 64 px colorido (SDF): lado em metros vira escala do ícone em cada zoom.
+      const b = this.meta.bounds;
+      const lat = b ? (b[1] + b[3]) / 2 : 0;
+      const side0 = s.size / metersPerPixelAtZoom0(lat) / 64;
+      return {
+        ...base,
+        type: "symbol",
+        layout: {
+          "icon-image": this.squareImage(),
+          "icon-size": this.zoomSize([[0, side0], [24, side0 * 2 ** 24]], true),
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+          "icon-rotation-alignment": "map",
+          "icon-pitch-alignment": "map",
+        },
+        paint: { "icon-color": this.recordColor(), "icon-opacity": s.opacity * 0.6, "icon-halo-color": ring, "icon-halo-width": s.stroke ? 1 : 0 },
+      } as LayerSpecification;
+    }
+    if (s.shape === "circles") {
+      return {
+        ...base,
+        type: "circle",
+        paint: {
+          "circle-color": this.recordColor(),
+          "circle-radius": this.metersToPx(s.size),
+          "circle-opacity": s.opacity * 0.4,
+          "circle-stroke-color": this.recordColor(),
+          "circle-stroke-opacity": s.stroke ? s.opacity : 0,
+          "circle-stroke-width": 1.2,
+          "circle-pitch-alignment": "map",
+          "circle-pitch-scale": "map",
+        },
+      } as LayerSpecification;
+    }
+    // Pontos (também por baixo dos hexágonos e das regiões, ao aproximar).
+    const r = s.shape === "points" ? s.size : DEFAULT_DATA_STYLE.size;
+    return {
+      ...base,
+      type: "circle",
+      paint: {
+        "circle-color": this.recordColor(),
+        // Ponto do dado (docs/DESIGN.md · Mapa 1): anel da cor do chão separa vizinhos. Afastado, pequeno.
+        "circle-radius": this.zoomSize([[0, r * 0.45], [8, r * 0.58], [12, r * 0.67], [14, r * 0.72], [16, r], [19, r * 1.55]]),
+        "circle-opacity": s.opacity,
+        "circle-stroke-color": ring,
+        "circle-stroke-width": s.stroke ? (["interpolate", ["linear"], ["zoom"], 0, 0.4, 12, 0.7, 16, 1.5] as ExpressionSpecification) : 0,
+        "circle-stroke-opacity": s.opacity,
       },
-    ];
+    } as LayerSpecification;
   }
 }
