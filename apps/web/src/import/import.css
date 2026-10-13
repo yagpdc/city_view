@@ -535,7 +535,8 @@
 .wizard-note { display: flex; align-items: flex-start; gap: 8px; margin: 0; padding: 8px 10px; border-radius: var(--cv-radius-md); background: var(--cv-surface); font-size: 13px; line-height: 18px; color: var(--cv-text-muted); }
 .wizard-note svg { flex: none; margin-top: 1px; }
 .builder { display: grid; grid-template-columns: 230px 1fr; grid-template-areas: "tools tools" "cols panel" "bottom bottom"; gap: 12px; min-height: 0; }
-.builder-tools { grid-area: tools; }
+.builder { flex: none; grid-template-rows: auto minmax(240px, auto) auto; }
+.builder-tools { grid-area: tools; display: flex; flex-direction: column; gap: 8px; }
 .builder-caption { display: block; margin-bottom: 6px; font-size: 12px; font-weight: 600; color: var(--cv-text-muted); }
 .builder-columns { grid-area: cols; display: flex; flex-direction: column; min-height: 0; max-height: 380px; padding: 8px; border: 1px solid var(--cv-border); border-radius: var(--cv-radius-lg, 10px); background: var(--cv-float); }
 .builder-columns ul { margin: 0; padding: 0; list-style: none; overflow: auto; }
@@ -606,3 +607,20 @@
 .table-tool-map label > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .table-tool-map select { min-width: 0; width: 100%; }
 .table-tool-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* Filtrar, regras e tags, coluna calculada */
+.table-tool-card input { height: 32px; min-width: 120px; padding: 0 8px; border: 1px solid var(--cv-border); border-radius: var(--cv-radius-md); background: var(--cv-field); color: var(--cv-text); font-size: 13px; }
+.table-tool-card .segmented { margin: 0; }
+.conditions { display: flex; flex-direction: column; gap: 6px; }
+.condition-row { align-items: center; }
+.condition-row select, .condition-row input { min-width: 0; flex: 1 1 140px; }
+.conditions-foot { display: flex; align-items: center; gap: 8px; }
+.rule-block { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border-left: 3px solid var(--cv-action-subtle); border-radius: var(--cv-radius-sm); background: var(--cv-surface); }
+.rule-label { font-size: 12px; font-weight: 700; color: var(--cv-text-muted); min-width: 48px; }
+.table-tool-add { align-self: flex-start; }
+.compute-op { min-width: 64px !important; font-weight: 700; }
+.wizard-crash { display: flex; flex-direction: column; gap: 12px; max-width: 480px; padding: 24px; }
+.wizard-crash h2 { margin: 0; font-size: 18px; }
+.wizard-crash p { margin: 0; }
+.wizard-crash .btn { align-self: flex-end; }
+.table-tool-card input[aria-invalid="true"] { border-color: var(--cv-danger); }

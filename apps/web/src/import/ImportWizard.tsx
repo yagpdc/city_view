@@ -16,6 +16,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BuilderStep, type ColumnChoice } from "./BuilderStep";
 import { TableTools } from "./TableTools";
+import { RowTools } from "./RowTools";
 import type { ImportSpec } from "../server/api";
 import { LARGE_FILE_BYTES, SAMPLE_ROWS, SERVER_FORMATS, fileFormat, type BuildSummary, type Delimiter, type Encoding, type OpenedFile } from "./protocol";
 import { useImportWorker } from "./useImportWorker";
@@ -755,7 +756,12 @@ export function ImportWizard({ file, restore, serverAvailable, onCancel, onImpor
               onTitle={setTitle}
               colorBy={colorBy}
               onColorBy={setColorBy}
-              tools={tableTools()}
+              tools={
+                <>
+                  {tableTools()}
+                  <RowTools columns={choices.map((c) => ({ name: c.name, type: c.type }))} onStep={(st) => setRecipe((r) => [...r, st])} />
+                </>
+              }
             />
           )}
 

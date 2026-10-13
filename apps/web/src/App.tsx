@@ -24,6 +24,7 @@ import { CAMERA_PARAM, clearShared, readShared, shareUrl } from "./share";
 import { StreetViewer } from "./components/StreetViewer";
 import { coverageOverlay, nearestStreetImage, streetImageryEnabled } from "./streetImagery";
 import { TopBar } from "./components/TopBar";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { MapTabs } from "./components/MapTabs";
 import { createTab, loadTabs, saveTabs, type MapTab } from "./mapTabs";
 import { DropZone } from "./import/DropZone";
@@ -1473,6 +1474,20 @@ export function App() {
         }}
       />
       {importJob && (
+        <ErrorBoundary
+          fallback={(e) => (
+            <div className="wizard-backdrop" role="presentation">
+              <div className="wizard wizard-crash" role="alertdialog" aria-labelledby="wizard-crash-title">
+                <h2 id="wizard-crash-title">O assistente encontrou um erro</h2>
+                <p className="muted">Nada foi alterado no mapa nem nos seus dados. Feche e tente de novo; se repetir, nos conte o que estava fazendo.</p>
+                <p className="wizard-error">{e.message}</p>
+                <button type="button" className="btn btn-primary" onClick={() => setImportJob(null)}>
+                  Fechar
+                </button>
+              </div>
+            </div>
+          )}
+        >
         <ImportWizard
           key={`${importJob.file.name}:${importJob.restore?.datasetId ?? ""}:${importJob.restore?.mode ?? ""}`}
           file={importJob.file}
@@ -1482,6 +1497,7 @@ export function App() {
           onImport={finishImport}
           onSendToServer={(file, spec) => void sendToServer(file, spec)}
         />
+        </ErrorBoundary>
       )}
     </div>
   );

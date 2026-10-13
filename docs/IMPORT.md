@@ -84,6 +84,11 @@ grande"*, senão … · condições E/OU sobre qualquer coluna · várias regras
 
 **Linhas** — filtrar (manter só/remover as que…) · amostra · ordenar (só para a visualização).
 
+> **Estado (2026-10-13):** ✅ no builder, **Filtrar linhas** (manter só / remover, condições E/OU), **Regras e tags**
+> (coluna nova; "se… senão, se… senão"; a primeira que bate vence) e **Coluna calculada** (a + − × ÷ b, coluna ou
+> número). Operadores de número valem em qualquer coluna e o valor aceita "1.000", "1.000,50" e "1000.5": numa amostra
+> pequena um número pode ter sido detectado como categoria. Faltam: tags múltiplas, amostra e ordenar.
+
 **Juntar com outra planilha** — completar a planilha atual (ou uma camada já no mapa) com colunas de outro
 arquivo, casando por uma coluna-chave (CNPJ, código, nome normalizado): "as empresas estão nesta, as
 localizações naquela". Mostra quantas linhas casaram, quantas não, e as que bateram mais de uma vez (escolher
