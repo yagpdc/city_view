@@ -6,7 +6,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import type { MaqueteData, XY } from "./extract";
+import { localToLngLat, type MaqueteData, type XY } from "./extract";
 
 export interface MaqueteView {
   id: "plan" | "south" | "east";
@@ -82,6 +82,14 @@ export class MaqueteScene {
   private down: { x: number; y: number } | null = null;
   /** Chamado quando o usuário clica num prédio, num ponto ou no vazio. */
   onSelect: ((selection: MaqueteSelection) => void) | null = null;
+  /**
+   * Clique (sem arrastar) num lugar do disco: [lon, lat] do ponto e a posição 3D dele (para ancorar um
+   * cartão com `toScreen`).
+   */
+  onPlaceClick: ((lngLat: [number, number], anchor: [number, number, number]) => void) | null = null;
+  /** A cada quadro desenhado (para elementos HTML que acompanham a cena). */
+  onFrame: (() => void) | null = null;
+  private markerHead: THREE.Mesh | null = null;
   private radius = 300;
   private top = 60;
   private frame = 0;
@@ -439,7 +447,46 @@ export class MaqueteScene {
     const selection = this.pick(e);
     this.select(selection);
     this.onSelect?.(selection);
+    const place = this.placeAt(e);
+    if (place) this.onPlaceClick?.(place.lngLat, place.anchor);
   };
+
+  /** Ponto do disco sob o cursor (telhado de prédio ou chão), em [lon, lat] e em 3D. */
+  private placeAt(e: PointerEvent): { lngLat: [number, number]; anchor: [number, number, number] } | null {
+    if (!this.data) return null;
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    for (const r of this.viewRects()) if (x >= r.left && x <= r.left + r.width && y >= r.top && y <= r.top + r.height) return null;
+    this.raycaster.setFromCamera(new THREE.Vector2((x / rect.width) * 2 - 1, -(y / rect.height) * 2 + 1), this.camera);
+    let point: THREE.Vector3 | null = this.body ? (this.raycaster.intersectObject(this.body, false)[0]?.point ?? null) : null;
+    if (!point) {
+      const ground = new THREE.Vector3();
+      if (!this.raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), ground)) return null;
+      if (Math.hypot(ground.x, ground.z) > this.radius) return null;
+      point = ground;
+    }
+    const [lon, lat] = localToLngLat(this.data.center, [point.x, -point.z]);
+    return { lngLat: [lon, lat], anchor: [point.x, point.y, point.z] };
+  }
+
+  /** Ponto do topo da haste do ponto escolhido (para ancorar o cartão da foto). */
+  centerAnchor(): [number, number, number] {
+    return [0, this.top * 1.25 + this.radius * 0.025, 0];
+  }
+
+  /** Esconde o losango do topo da haste (quando um cartão ocupa o lugar dele). */
+  set markerHeadVisible(on: boolean) {
+    if (this.markerHead) this.markerHead.visible = on;
+  }
+
+  /** Posição na tela (px, relativo à maquete) de um ponto 3D; null se estiver atrás da câmera. */
+  toScreen([x, y, z]: [number, number, number]): { x: number; y: number } | null {
+    const v = new THREE.Vector3(x, y, z).project(this.camera);
+    if (v.z > 1) return null;
+    const { clientWidth: w, clientHeight: h } = this.container;
+    return { x: ((v.x + 1) / 2) * w, y: ((1 - v.y) / 2) * h };
+  }
 
   /** O que está sob o cursor na vista principal (as vistas técnicas não respondem a clique). */
   private pick(e: PointerEvent): MaqueteSelection {
@@ -518,6 +565,7 @@ export class MaqueteScene {
     );
     const head = new THREE.Mesh(new THREE.OctahedronGeometry(R * 0.022), new THREE.MeshBasicMaterial({ color: this.palette.accent }));
     head.position.y = h + R * 0.025;
+    this.markerHead = head;
     const ring = new THREE.Mesh(
       new THREE.RingGeometry(R * 0.04, R * 0.05, 64),
       new THREE.MeshBasicMaterial({ color: this.palette.accent, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false }),
@@ -552,6 +600,7 @@ export class MaqueteScene {
     }
     this.controls.update();
     this.render();
+    this.onFrame?.();
   };
 
   private render(): void {

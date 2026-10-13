@@ -5,6 +5,7 @@
  */
 import { normalizeCep, parseLooseDate, parseLooseNumber } from "./clean";
 import type { Row } from "./detect";
+import { joinIndex, joinKey } from "./join";
 import { isEmpty, normalizeName } from "./values";
 
 export type Condition =
@@ -31,7 +32,30 @@ export type RecipeStep =
   | { op: "bucket"; column: string; edges: number[]; to?: string; labels?: string[] }
   | { op: "compute"; to: string; a: string; operator: "+" | "-" | "*" | "/"; b: string | number }
   | { op: "rules"; to: string; rules: { when: Condition[]; match: "all" | "any"; value: string }[]; otherwise?: string }
-  | { op: "filter"; keep: boolean; when: Condition[]; match: "all" | "any" };
+  | { op: "filter"; keep: boolean; when: Condition[]; match: "all" | "any" }
+  /**
+   * Completa cada linha com colunas de outra planilha, casando `key` (desta) com `otherKey` (da outra).
+   * Chave tolerante: sem acentos, caixa, pontuação e zeros à esquerda ("00.360.305/0001-04" = "360305000104").
+   * Várias linhas da outra para a mesma chave: a primeira, ou a soma dos números.
+   */
+  | {
+      op: "join";
+      source: string;
+      label: string;
+      key: string;
+      otherKey: string;
+      columns: { from: string; to: string }[];
+      multiple?: "first" | "sum";
+      /** Coluna nova com quantas linhas da outra planilha casaram. */
+      countAs?: string;
+    }
+  /** Acrescenta as linhas de outra planilha (coluna da outra → coluna desta); os passos seguintes valem para elas. */
+  | { op: "append"; source: string; label: string; map: Record<string, string> };
+
+/** Outras planilhas usadas por "juntar" e "acrescentar" (id → linhas como vieram do arquivo). */
+export interface RecipeContext {
+  tables: Record<string, Row[]>;
+}
 
 const fmt = (n: number) => (Number.isFinite(n) ? String(Math.round(n * 1e9) / 1e9) : "");
 const num = (v: string | undefined) => (isEmpty(v) ? null : parseLooseNumber(v!) ?? parseLooseNumber(v!, "br"));
@@ -75,7 +99,7 @@ function bucketLabel(edges: number[], i: number): string {
 }
 
 /** Aplica um passo a uma linha (devolve a mesma linha alterada, ou `null` se o filtro a remove). */
-function applyStep(row: Row, s: RecipeStep): Row | null {
+function applyStep(row: Row, s: RecipeStep, ctx?: RecipeContext): Row | null {
   switch (s.op) {
     case "rename":
       if (s.column in row) {
@@ -169,27 +193,62 @@ function applyStep(row: Row, s: RecipeStep): Row | null {
     }
     case "filter":
       return matches(row, s.when, s.match) === s.keep ? row : null;
+    case "join": {
+      const table = ctx?.tables[s.source];
+      const hits = (table && joinIndex(table, s.otherKey).get(joinKey(row[s.key]))) ?? [];
+      for (const c of s.columns) {
+        if (hits.length === 0) row[c.to] = "";
+        else if (s.multiple === "sum" && hits.length > 1) {
+          const nums = hits.map((h) => num(h[c.from]));
+          row[c.to] = nums.every((n) => n !== null) ? fmt(nums.reduce<number>((a, b) => a + b!, 0)) : (hits[0]![c.from] ?? "");
+        } else row[c.to] = hits[0]![c.from] ?? "";
+      }
+      if (s.countAs) row[s.countAs] = String(hits.length);
+      return row;
+    }
+    case "append":
+      // As linhas novas entram em `applyRecipe`/`appendedRows`; linha a linha não muda nada.
+      return row;
   }
 }
 
 /** Aplica a receita a uma linha (cópia). `null` = a linha saiu por um filtro. */
-export function applyRecipeToRow(row: Row, recipe: RecipeStep[]): Row | null {
+export function applyRecipeToRow(row: Row, recipe: RecipeStep[], ctx?: RecipeContext): Row | null {
   let out: Row | null = { ...row };
   for (const step of recipe) {
-    out = applyStep(out, step);
+    out = applyStep(out, step, ctx);
     if (out === null) return null;
   }
   return out;
 }
 
-/** Aplica a receita a todas as linhas, descartando as filtradas. */
-export function applyRecipe(rows: Row[], recipe: RecipeStep[]): Row[] {
+/**
+ * Linhas acrescentadas por passos "append", já com os passos seguintes aplicados (na ordem da receita).
+ * Quem lê o arquivo principal aos pedaços chama isto no fim.
+ */
+export function* appendedRows(recipe: RecipeStep[], ctx?: RecipeContext): Generator<Row> {
+  for (let i = 0; i < recipe.length; i++) {
+    const s = recipe[i]!;
+    if (s.op !== "append") continue;
+    const rest = recipe.slice(i + 1);
+    for (const r of ctx?.tables[s.source] ?? []) {
+      const mapped: Row = {};
+      for (const [from, to] of Object.entries(s.map)) if (to) mapped[to] = r[from] ?? "";
+      const next = applyRecipeToRow(mapped, rest, ctx);
+      if (next) yield next;
+    }
+  }
+}
+
+/** Aplica a receita a todas as linhas, descartando as filtradas; as acrescentadas vêm no fim. */
+export function applyRecipe(rows: Row[], recipe: RecipeStep[], ctx?: RecipeContext): Row[] {
   if (recipe.length === 0) return rows;
   const out: Row[] = [];
   for (const r of rows) {
-    const next = applyRecipeToRow(r, recipe);
+    const next = applyRecipeToRow(r, recipe, ctx);
     if (next) out.push(next);
   }
+  for (const r of appendedRows(recipe, ctx)) out.push(r);
   return out;
 }
 
@@ -202,6 +261,10 @@ export function columnsAfter(headers: string[], recipe: RecipeStep[]): string[] 
     else if (s.op === "drop") cols = cols.filter((c) => c !== s.column);
     else if (s.op === "split") s.into.forEach(add);
     else if (s.op === "concat" || s.op === "compute" || s.op === "rules") add(s.to);
+    else if (s.op === "join") {
+      s.columns.forEach((c) => add(c.to));
+      if (s.countAs) add(s.countAs);
+    } else if (s.op === "append") Object.values(s.map).filter(Boolean).forEach(add);
     else if ((s.op === "bucket" || s.op === "date") && s.to) add(s.to);
   }
   return cols;
@@ -244,5 +307,9 @@ export function describeStep(s: RecipeStep): string {
       return `Regras → "${s.to}" (${s.rules.length})`;
     case "filter":
       return `${s.keep ? "Manter só" : "Remover"} linhas com ${s.when.length} ${s.when.length === 1 ? "condição" : "condições"}`;
+    case "join":
+      return `Juntar com "${s.label}" (${s.key} = ${s.otherKey}, +${s.columns.length} ${s.columns.length === 1 ? "coluna" : "colunas"})`;
+    case "append":
+      return `Acrescentar as linhas de "${s.label}"`;
   }
 }

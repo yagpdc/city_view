@@ -59,6 +59,12 @@ export interface MaqueteInputPoint {
 }
 
 const M_PER_DEG_LAT = 111_320;
+
+/** Metros locais da maquete (x leste, y norte, a partir do centro) → [lon, lat]. */
+export function localToLngLat(center: Position, [x, y]: XY): Position {
+  const mLon = M_PER_DEG_LAT * Math.cos((center[1] * Math.PI) / 180);
+  return [center[0] + x / mLon, center[1] + y / M_PER_DEG_LAT];
+}
 const lonToTile = (lon: number, z: number) => Math.floor(((lon + 180) / 360) * 2 ** z);
 function latToTile(lat: number, z: number): number {
   const r = (Math.max(-85.05, Math.min(85.05, lat)) * Math.PI) / 180;

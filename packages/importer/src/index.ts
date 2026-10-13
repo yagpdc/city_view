@@ -16,4 +16,5 @@ export { geoJsonToRows, geometryAnchor, type GeoJsonRows, type Geometry } from "
 export { RESERVED_COLUMNS, detectHeaderRow, detectJunkRows, excelSerialToDate, normalizeCep, parseBoolean, parseLooseDate, parseLooseNumber, uniqueHeaders, type JunkFinding } from "./clean";
 export { BRAZIL_UTM_ZONES, applyCoordinateFix, inBrazil, parseCoordinate, splitLatLon, suggestCoordinateFix, utmToLatLon, type CoordinateFix } from "./coords";
 export { looseKey, profileColumn, type ColumnProblem, type ColumnProfile } from "./profile";
-export { applyRecipe, applyRecipeToRow, columnsAfter, describeStep, matches, type Condition, type RecipeStep } from "./recipe";
+export { appendedRows, applyRecipe, applyRecipeToRow, columnsAfter, describeStep, matches, type Condition, type RecipeContext, type RecipeStep } from "./recipe";
+export { joinIndex, joinKey, joinStats, suggestAppendMap, suggestJoinKeys, type JoinStats } from "./join";

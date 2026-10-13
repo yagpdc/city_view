@@ -5,6 +5,7 @@ import { Icon } from "./Icon";
 import { MaqueteDetails } from "./MaqueteDetails";
 import type { DatasetInfo } from "./PickDetails";
 import type { PlaceFacts } from "../compare";
+import { nearestStreetImage, streetImageryEnabled, type StreetImage } from "../streetImagery";
 
 const RADII = [150, 300, 500] as const;
 const int = new Intl.NumberFormat("pt-BR");
@@ -57,6 +58,14 @@ export function MaqueteView({
   const [rects, setRects] = useState<ReturnType<MaqueteScene["viewRects"]>>([]);
   const [selection, setSelection] = useState<MaqueteSelection>(null);
   const [place, setPlace] = useState<PlaceFacts | null>(null);
+  /**
+   * Foto de rua presa a um lugar da maquete: começa no topo da haste do ponto escolhido (no lugar do losango);
+   * clicar (sem arrastar) em outro lugar do disco leva a foto para lá. O × fecha.
+   */
+  const [photo, setPhoto] = useState<{ lngLat: [number, number]; anchor: [number, number, number]; center: boolean } | null>(null);
+  const photoRef = useRef<HTMLDivElement>(null);
+  const anchorRef = useRef<[number, number, number] | null>(null);
+  anchorRef.current = photo?.anchor ?? null;
   useEffect(() => {
     let cancelled = false;
     setPlace(null);
@@ -75,6 +84,16 @@ export function MaqueteView({
     const scene = new MaqueteScene(host, map.maquetePalette());
     sceneRef.current = scene;
     scene.onSelect = setSelection;
+    if (streetImageryEnabled) scene.onPlaceClick = (lngLat, anchor) => setPhoto({ lngLat, anchor, center: false });
+    // O cartão da foto acompanha o lugar a cada quadro (sem re-renderizar o React).
+    scene.onFrame = () => {
+      const el = photoRef.current;
+      const anchor = anchorRef.current;
+      if (!el || !anchor) return;
+      const p = scene.toScreen(anchor);
+      el.style.visibility = p ? "visible" : "hidden";
+      if (p) el.style.transform = `translate(${Math.round(p.x)}px, ${Math.round(p.y)}px)`;
+    };
     const update = () => {
       setRects(scene.viewRects());
       setCompact(host.clientWidth < 760);
@@ -100,6 +119,7 @@ export function MaqueteView({
         setSelection(null);
         sceneRef.current?.setData(data);
         setState({ data, loading: false });
+        if (streetImageryEnabled && sceneRef.current) setPhoto({ lngLat: [center[0], center[1]], anchor: sceneRef.current.centerAnchor(), center: true });
       })
       .catch((e: Error) => !cancelled && setState({ error: e.message, loading: false }));
     return () => {
@@ -119,6 +139,10 @@ export function MaqueteView({
   useEffect(() => {
     if (sceneRef.current) sceneRef.current.autoRotate = rotating;
   }, [rotating]);
+  // O losango some enquanto a foto ocupa o lugar dele.
+  useEffect(() => {
+    if (sceneRef.current) sceneRef.current.markerHeadVisible = !photo?.center;
+  }, [photo, state.data]);
   useEffect(() => {
     if (!sceneRef.current) return;
     sceneRef.current.showViews = views;
@@ -153,6 +177,11 @@ export function MaqueteView({
   return (
     <section className="maquete" aria-label="Maquete 3D">
       <div className="maquete-canvas" ref={hostRef} />
+      {photo && !state.loading && (
+        <div className="maquete-photo-anchor" ref={photoRef}>
+          <MaquetePhoto key={photo.lngLat.join(",")} lngLat={photo.lngLat} center={photo.center} onClose={() => setPhoto(null)} />
+        </div>
+      )}
 
       <header className="maquete-head">
         <div className="maquete-title">
@@ -205,7 +234,9 @@ export function MaqueteView({
           )}
         </dl>
         {place && <PlaceCard place={place} />}
-        <p className="maquete-note">{compact ? "Toque" : "Clique"} num prédio ou alfinete para ver os dados.</p>
+        <p className="maquete-note">
+          {compact ? "Toque" : "Clique"} num prédio ou alfinete para ver os dados{streetImageryEnabled ? ", ou em qualquer lugar para ver a foto da rua" : ""}.
+        </p>
         {data.stats.withHeight < data.stats.buildings && (
           <p className="maquete-note">
             {int.format(data.stats.buildings - data.stats.withHeight)} prédios sem altura no OpenStreetMap aparecem com altura estimada.
@@ -261,6 +292,46 @@ export function MaqueteView({
         </div>
       )}
     </section>
+  );
+}
+
+const monthYear = new Intl.DateTimeFormat("pt-BR", { month: "short", year: "numeric" });
+
+/** Cartão com a foto de rua mais próxima de um lugar da maquete (Mapillary), com crédito e licença. */
+function MaquetePhoto({ lngLat, center, onClose }: { lngLat: [number, number]; center: boolean; onClose: () => void }) {
+  const [image, setImage] = useState<StreetImage | null | undefined>(undefined);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    nearestStreetImage(lngLat)
+      .then((img) => !cancelled && setImage(img))
+      .catch(() => !cancelled && setFailed(true));
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- o cartão é recriado (key) a cada lugar
+  }, []);
+  const label = center ? "Foto do ponto" : "Foto deste lugar";
+  return (
+    <figure className="maquete-photo" aria-label={label}>
+      <button type="button" className="maquete-photo-close" onClick={onClose} aria-label="Fechar foto" title="Fechar foto">
+        <Icon name="close" size={16} />
+      </button>
+      {image ? (
+        <>
+          <a href={image.pageUrl} target="_blank" rel="noreferrer" title="Abrir na Mapillary">
+            <img src={image.thumbUrl} alt={`${label}: rua mais próxima`} />
+          </a>
+          <figcaption>
+            a {Math.round(image.distanceM)} m{image.capturedAt ? ` · ${monthYear.format(image.capturedAt)}` : ""} · Mapillary · CC BY-SA
+          </figcaption>
+        </>
+      ) : (
+        <p className={`maquete-photo-empty ${image === undefined && !failed ? "is-loading" : ""}`}>
+          {failed ? "Foto indisponível agora." : image === null ? "Sem foto de rua por perto." : "Procurando foto…"}
+        </p>
+      )}
+    </figure>
   );
 }
 
