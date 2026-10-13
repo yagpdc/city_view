@@ -13,6 +13,17 @@ use crate::{mercator, table::{NO_CATEGORY, Table}};
 
 /// Lado da célula da grade de busca, em unidades de mundo (2^20 ≈ 10 km no equador).
 const CELL_BITS: u32 = 20;
+/// Distância máxima até o contorno para um ponto de fora entrar na região (2^19 ≈ 5 km no equador).
+const NEAR_LIMIT: f64 = (1u64 << 19) as f64;
+
+/// Distância² de um ponto a um segmento.
+fn segment_dist2(x: f64, y: f64, (ax, ay): (f64, f64), (bx, by): (f64, f64)) -> f64 {
+    let (dx, dy) = (bx - ax, by - ay);
+    let len2 = dx * dx + dy * dy;
+    let t = if len2 > 0.0 { (((x - ax) * dx + (y - ay) * dy) / len2).clamp(0.0, 1.0) } else { 0.0 };
+    let (px, py) = (ax + t * dx - x, ay + t * dy - y);
+    px * px + py * py
+}
 
 struct Polygon {
     region: u32,
@@ -84,8 +95,42 @@ impl RegionLevel {
         Ok(RegionLevel { id: id.to_owned(), codes, polygons, grid })
     }
 
-    /// Índice da região que contém o ponto (coordenadas de mundo).
+    /// Região do ponto: a que o contém ou, fora de todas (malha simplificada corta o litoral e as divisas), a de
+    /// contorno mais próximo até NEAR_LIMIT.
     fn locate(&self, x: f64, y: f64) -> Option<u32> {
+        self.containing(x, y).or_else(|| self.nearest(x, y))
+    }
+
+    fn nearest(&self, x: f64, y: f64) -> Option<u32> {
+        let (cx, cy) = ((x as u64 >> CELL_BITS) as i64, (y as u64 >> CELL_BITS) as i64);
+        let mut best: Option<(f64, u32)> = None;
+        let mut seen = std::collections::HashSet::new();
+        for dx in -1..=1 {
+            for dy in -1..=1 {
+                let (gx, gy) = (cx + dx, cy + dy);
+                if gx < 0 || gy < 0 {
+                    continue;
+                }
+                for &i in self.grid.get(&(gx as u32, gy as u32)).into_iter().flatten() {
+                    if !seen.insert(i) {
+                        continue;
+                    }
+                    let p = &self.polygons[i as usize];
+                    for ring in &p.rings {
+                        for w in ring.windows(2) {
+                            let d = segment_dist2(x, y, w[0], w[1]);
+                            if d < NEAR_LIMIT * NEAR_LIMIT && best.is_none_or(|(b, _)| d < b) {
+                                best = Some((d, p.region));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        best.map(|(_, r)| r)
+    }
+
+    fn containing(&self, x: f64, y: f64) -> Option<u32> {
         let key = ((x as u64 >> CELL_BITS) as u32, (y as u64 >> CELL_BITS) as u32);
         self.grid.get(&key)?.iter().map(|&i| &self.polygons[i as usize]).find_map(|p| {
             if x < p.bbox[0] || x > p.bbox[2] || y < p.bbox[1] || y > p.bbox[3] {
@@ -167,5 +212,7 @@ mod tests {
         assert_eq!(at(-46.9, -23.8).as_deref(), Some("A"));
         assert_eq!(at(-46.5, -23.5).as_deref(), Some("35"), "dentro do buraco de A, na região 35");
         assert_eq!(at(-40.0, -10.0), None);
+        // Pouco fora do contorno (litoral simplificado): entra na região mais próxima.
+        assert_eq!(at(-47.01, -23.5).as_deref(), Some("A"));
     }
 }
