@@ -36,6 +36,27 @@ fn colunas_viram_pmtiles_em_memoria() {
 }
 
 #[test]
+fn pontos_em_todos_os_zooms_e_rarefeitos_onde_lotam() {
+    let build = |n: usize, step: f64| {
+        let lat: Vec<f64> = (0..n).map(|i| -23.55 + (i % 200) as f64 * step).collect();
+        let lon: Vec<f64> = (0..n).map(|i| -46.63 + (i / 200) as f64 * step).collect();
+        let table = table_from_points(&lat, &lon, ColorInput::None, vec![], FINEST_RESOLUTION).expect("tabela");
+        let opts = BuildOptions { name: "teste", color_by: None, title: None };
+        pipeline::build_in_memory(&table, &opts, &|_, _| {}).expect("pmtiles").1
+    };
+    // Planilha pequena: todos os pontos já no zoom 0 (mais os hexágonos do mesmo tile).
+    let small = build(654, 0.001);
+    let z0 = small.zooms.iter().find(|z| z.zoom == 0).expect("zoom 0");
+    assert!(z0.features >= 654, "zoom 0 com {} feições", z0.features);
+    // Muitos pontos num lugar só: no zoom 0 fica no máximo um por célula da grade; no 14, todos.
+    let crowded = build(40_000, 0.00001);
+    let z0 = crowded.zooms.iter().find(|z| z.zoom == 0).expect("zoom 0");
+    let z14 = crowded.zooms.iter().find(|z| z.zoom == pipeline::POINTS_ZOOM).expect("zoom 14");
+    assert!(z0.features < 40_000, "zoom 0 deveria estar rarefeito: {}", z0.features);
+    assert_eq!(z14.features, 40_000);
+}
+
+#[test]
 fn categorias_compactas_dao_o_mesmo_resultado() {
     let lat = vec![-23.55, -23.56, -23.57, -23.58];
     let lon = vec![-46.63, -46.64, -46.65, -46.66];

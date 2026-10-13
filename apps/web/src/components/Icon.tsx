@@ -12,6 +12,7 @@ import {
   Eye,
   EyeOff,
   FileUp,
+  Hexagon,
   Funnel,
   Info,
   Layers,
@@ -79,6 +80,7 @@ const ICONS = {
   moon: Moon,
   map: MapGlyph,
   duplicate: Copy,
+  hexagon: Hexagon,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof ICONS;

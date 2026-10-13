@@ -87,6 +87,16 @@ export function MapPopup({
         </p>
       )}
       {summary !== undefined && <p className="map-popup-summary">{String(summary)}</p>}
+      {/* Afastado, numa área muito densa, o ponto representa a região e vem sem as colunas. */}
+      {record && Object.keys(record.properties).length === 0 && (
+        <p className="map-popup-summary">
+          Ponto de uma área com muitos registros.{" "}
+          <button type="button" className="link" onClick={() => map.flyTo({ center, zoom: 15 })}>
+            Aproximar aqui
+          </button>{" "}
+          para ver os dados de cada um.
+        </p>
+      )}
 
       <div className="map-popup-actions">
         <button type="button" className="btn" aria-expanded={expanded} onClick={() => setExpanded((x) => !x)}>

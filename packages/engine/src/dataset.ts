@@ -18,6 +18,11 @@ export interface DatasetMeta {
   records: number;
   hexMaxZoom: number;
   pointsZoom: number;
+  /**
+   * Primeiro zoom com pontos (tiler a partir de 2026-10-13: 0). Ausente nos arquivos antigos, que só têm pontos
+   * a partir de `pointsZoom`: neles os hexágonos continuam sendo a vista afastada.
+   */
+  pointsMinZoom?: number;
   densityBreaks: number[];
   /** Rótulos das categorias de cor, por índice (a última pode ser "Outros"). */
   categories: string[];
@@ -112,6 +117,8 @@ export class DatasetLayer {
   private visible = true;
   /** Hexágonos como colunas 3D. */
   private extruded = false;
+  /** Vista de densidade (hexágonos) escolhida no cartão; o padrão são as bolinhas em todos os zooms. */
+  private hexView = false;
   private readonly sourceId: string;
   private readonly hexLayerId: string;
   private readonly pointsLayerId: string;
@@ -270,23 +277,52 @@ export class DatasetLayer {
 
   setFilter(filter: DatasetFilter): void {
     this.filter = { ...filter };
-    if (!this.map.getLayer(this.hexLayerId)) return;
-    const count = this.countExpression();
-    this.map.setPaintProperty(this.hexLayerId, this.extruded ? "fill-extrusion-color" : "fill-color", this.densityColor(count));
-    if (this.extruded) this.map.setPaintProperty(this.hexLayerId, "fill-extrusion-height", this.columnHeight(count));
-    this.map.setFilter(this.hexLayerId, [">", count, 0]);
-    this.map.setFilter(this.pointsLayerId, this.pointsFilter());
+    if (this.map.getLayer(this.hexLayerId)) {
+      const count = this.countExpression();
+      this.map.setPaintProperty(this.hexLayerId, this.extruded ? "fill-extrusion-color" : "fill-color", this.densityColor(count));
+      if (this.extruded) this.map.setPaintProperty(this.hexLayerId, "fill-extrusion-height", this.columnHeight(count));
+      this.map.setFilter(this.hexLayerId, [">", count, 0]);
+    }
+    if (this.map.getLayer(this.pointsLayerId)) this.map.setFilter(this.pointsLayerId, this.pointsFilter());
     if (this.map.getLayer(this.iconsLayerId)) this.map.setFilter(this.iconsLayerId, this.pointsFilter());
     if (this.map.getLayer(this.labelsLayerId)) this.map.setFilter(this.labelsLayerId, this.pointsFilter());
   }
 
-  /** Hexágonos como colunas 3D (altura e cor pela densidade). */
+  /** Hexágonos como colunas 3D (altura e cor pela densidade). Liga os hexágonos enquanto durar. */
   setExtruded(on: boolean): void {
     if (on === this.extruded) return;
     this.extruded = on;
-    if (!this.map.getLayer(this.hexLayerId)) return;
-    this.map.removeLayer(this.hexLayerId);
-    this.map.addLayer(this.hexLayer(), this.pointsLayerId);
+    this.rebuildDataLayers();
+  }
+
+  /** Vista de densidade em hexágonos (opcional); desligada, as bolinhas aparecem em todos os zooms. */
+  setHexView(on: boolean): void {
+    if (on === this.hexView) return;
+    this.hexView = on;
+    this.rebuildDataLayers();
+  }
+
+  isHexView(): boolean {
+    return this.hexView;
+  }
+
+  /** Os pontos existem em zoom baixo neste arquivo? (arquivos antigos: não, só hexágonos) */
+  get hasLowZoomPoints(): boolean {
+    return this.meta.pointsMinZoom !== undefined && this.meta.pointsMinZoom < this.meta.pointsZoom;
+  }
+
+  /** Hexágonos aparecem: escolhidos, em colunas 3D, ou porque o arquivo antigo não tem pontos afastados. */
+  private get hexShown(): boolean {
+    return this.hexView || this.extruded || !this.hasLowZoomPoints;
+  }
+
+  /** Refaz hexágonos e pontos (mudou a vista); marcadores e rótulos ficam. */
+  private rebuildDataLayers(): void {
+    if (!this.map.getSource(this.sourceId)) return;
+    for (const id of [this.hexLayerId, this.pointsLayerId]) if (this.map.getLayer(id)) this.map.removeLayer(id);
+    const beforeId = this.map.getLayer(this.iconsLayerId) ? this.iconsLayerId : this.map.getLayer(this.labelsLayerId) ? this.labelsLayerId : undefined;
+    const base = beforeId ?? this.map.getStyle().layers.find((l) => l.type === "symbol")?.id;
+    for (const layer of this.layers()) this.map.addLayer(layer, base);
     this.setVisible(this.visible);
   }
 
@@ -325,13 +361,18 @@ export class DatasetLayer {
       }
       return { count, byCategory, cells: count, mode: "points" };
     }
-    if (!this.map.getLayer(this.hexLayerId)) return null;
+    if (!this.map.getSource(this.sourceId)) return null;
+    // Contagem exata pelos hexágonos, mesmo quando a vista são as bolinhas (os tiles trazem as duas camadas).
+    const shown = Boolean(this.map.getLayer(this.hexLayerId));
+    const features = shown ? this.map.queryRenderedFeatures({ layers: [this.hexLayerId] }) : this.map.querySourceFeatures(this.sourceId, { sourceLayer: "hex" });
+    const bounds = this.map.getBounds();
     const unique = new Map<string, HexFeature>();
-    for (const f of this.map.queryRenderedFeatures({ layers: [this.hexLayerId] })) {
+    for (const f of features) {
       const ring = (f.geometry as { type: string; coordinates: [number, number][][] }).coordinates?.[0];
       if (!ring?.length) continue;
       const cx = ring.reduce((s, p) => s + p[0], 0) / ring.length;
       const cy = ring.reduce((s, p) => s + p[1], 0) / ring.length;
+      if (!shown && !bounds.contains([cx, cy])) continue;
       const key = `${cx.toFixed(4)},${cy.toFixed(4)}`;
       if (!unique.has(key)) unique.set(key, { type: "Feature", geometry: { type: "Polygon", coordinates: [ring] }, properties: f.properties as Record<string, number> });
     }
@@ -596,21 +637,24 @@ export class DatasetLayer {
   }
 
   private layers(): LayerSpecification[] {
+    const hex = this.hexShown;
+    // Com hexágonos, os pontos entram no zoom de rua; sem, desde o zoom mais afastado que o arquivo tiver.
+    const pointsFrom = hex ? this.meta.pointsZoom : (this.meta.pointsMinZoom ?? this.meta.pointsZoom);
     return [
-      this.hexLayer(),
+      ...(hex ? [this.hexLayer()] : []),
       {
         id: this.pointsLayerId,
         type: "circle",
         source: this.sourceId,
         "source-layer": "points",
-        minzoom: this.meta.pointsZoom,
+        minzoom: pointsFrom,
         filter: this.pointsFilter(),
         paint: {
           "circle-color": this.pointColor(),
-          // Ponto do dado (docs/DESIGN.md · Mapa 1): anel da cor do chão separa vizinhos.
-          "circle-radius": ["interpolate", ["linear"], ["zoom"], 14, 2.5, 16, 4.5, 19, 7],
+          // Ponto do dado (docs/DESIGN.md · Mapa 1): anel da cor do chão separa vizinhos. Afastado, pequeno.
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 0, 2, 8, 2.6, 12, 3, 14, 3.2, 16, 4.5, 19, 7],
           "circle-stroke-color": this.labelTheme === "dark" ? "#10141c" : "#ffffff",
-          "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 14, 0.5, 16, 1.5],
+          "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 0, 0.4, 12, 0.7, 16, 1.5],
         },
       },
     ];

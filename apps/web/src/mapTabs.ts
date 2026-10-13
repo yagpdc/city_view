@@ -17,6 +17,8 @@ export interface MapTab {
   camera?: Camera;
   /** Camada que acende os prédios (id no mapa). */
   paintDataset?: string | null;
+  /** Camadas (id no mapa) com a vista de hexágonos ligada; as outras mostram bolinhas. */
+  hexViews?: string[];
   /** Aparência do mapa base (abas salvas antes disso: claro, "Para dados"). */
   theme?: Theme;
   look?: BasemapLook;

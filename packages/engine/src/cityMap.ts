@@ -95,6 +95,8 @@ export class CityMap {
   private readonly catalog = new Map<string, CatalogLayer>();
   /** Filtro por camada (dataset ou catálogo), guardado mesmo antes de a camada existir. */
   private readonly layerFilters = new Map<string, DatasetFilter>();
+  /** Datasets com a vista de hexágonos ligada (vale também para os que ainda vão carregar). */
+  private readonly hexViews = new Set<string>();
   /** Ícones por categoria pedidos para cada dataset (aplicados também a datasets que ainda vão carregar). */
   private readonly datasetIcons = new Map<string, (string | null)[]>();
   /** Camadas externas genéricas (ex.: cobertura de fotos de rua); voltam após troca de estilo. */
@@ -205,6 +207,7 @@ export class CityMap {
     if (filter) layer.setFilter(filter);
     const icons = this.datasetIcons.get(id);
     if (icons) void layer.setIcons(icons);
+    if (this.hexViews.has(id)) layer.setHexView(true);
     this.datasets.push(layer);
     this.whenStyleReady(() => layer.attach());
     return layer;
@@ -293,6 +296,18 @@ export class CityMap {
   /** Hexágonos dos datasets como colunas 3D. */
   setDatasetsExtruded(on: boolean): void {
     for (const d of this.datasets) d.setExtruded(on);
+  }
+
+  /** Vista de densidade (hexágonos) de um dataset; desligada = bolinhas em todos os zooms. */
+  setDatasetHexView(id: string, on: boolean): void {
+    if (on) this.hexViews.add(id);
+    else this.hexViews.delete(id);
+    this.datasets.find((d) => d.id === id)?.setHexView(on);
+  }
+
+  /** O arquivo tem pontos no zoom afastado? (os antigos só têm hexágonos lá) */
+  datasetHasLowZoomPoints(id: string): boolean {
+    return this.datasets.find((d) => d.id === id)?.hasLowZoomPoints ?? false;
   }
 
   /** Polígonos de uma camada do catálogo como prismas 3D. */

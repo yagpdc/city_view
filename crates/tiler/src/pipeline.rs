@@ -3,12 +3,14 @@
 //! Contrato de saída (metadados `cityview` versão 2, consumido pelo @cityview/engine):
 //! - layer `hex`, zooms 0..=HEX_MAX_ZOOM: polígonos H3 com `n` (total), `a` (área km²) e
 //!   `c0`..`cN` (contagem por categoria de cor; omitida quando zero)
-//! - layer `points`, zoom POINTS_ZOOM (overzoom acima): id da feição = id da linha (1..);
-//!   `_c` = índice da categoria de cor; colunas numéricas e categóricas pelo nome
+//! - layer `points`, zooms POINTS_MIN_ZOOM..=POINTS_ZOOM (overzoom acima): id da feição = id da linha (1..);
+//!   `_c` = índice da categoria de cor; colunas numéricas e categóricas pelo nome. Abaixo de POINTS_ZOOM,
+//!   tile com mais de POINT_BUDGET pontos fica com um ponto por célula de uma grade 256×256 (só `_c`):
+//!   as bolinhas continuam mostrando onde há dado; os números exatos vêm dos hexágonos.
 //! - `rows.idx`: posição (u64 LE) de cada linha no CSV de origem, indexada por id - 1
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fs::File,
     io::{BufWriter, Write},
     path::Path,
@@ -29,6 +31,12 @@ use crate::{
 
 pub const HEX_MAX_ZOOM: u8 = 13;
 pub const POINTS_ZOOM: u8 = 14;
+/// Pontos desde o mundo inteiro: planilhas pequenas aparecem como bolinhas em qualquer zoom.
+pub const POINTS_MIN_ZOOM: u8 = 0;
+/// Acima disso (por tile, abaixo de POINTS_ZOOM) os pontos são rarefeitos pela grade.
+const POINT_BUDGET: usize = 5_000;
+/// Grade de rarefação: 2^8 = 256 células por lado do tile (~1 px num tile de 256 px).
+const GRID_BITS: u32 = 8;
 /// Resolução H3 usada em cada zoom 0..=13 (hexágono com ~15–40 px de lado na tela).
 pub const ZOOM_RESOLUTION: [u8; HEX_MAX_ZOOM as usize + 1] = [1, 1, 1, 2, 2, 3, 3, 4, 4, 5, 6, 6, 7, 8];
 pub const FINEST_RESOLUTION: Resolution = Resolution::Eight;
@@ -185,7 +193,7 @@ where
     Ok(stats)
 }
 
-fn hex_zoom(writer: &mut Writer, hexes: &[Hex], z: u8) -> Result<ZoomStats, Error> {
+fn hex_pairs(hexes: &[Hex], z: u8) -> Vec<Pair> {
     let max_tile = (1i64 << z) - 1;
     let mut pairs: Vec<Pair> = hexes
         .par_iter()
@@ -201,30 +209,184 @@ fn hex_zoom(writer: &mut Writer, hexes: &[Hex], z: u8) -> Result<ZoomStats, Erro
         })
         .collect();
     pairs.par_sort_unstable();
+    pairs
+}
 
-    write_groups(writer, &pairs, z, |tx, ty, group| {
-        let mut layer = LayerBuilder::new("hex");
-        let mut ring = Vec::with_capacity(7);
-        let mut props: Vec<(&str, Value)> = Vec::with_capacity(2 + K);
-        for &(_, _, _, idx) in group {
-            let h = &hexes[idx as usize];
-            ring.clear();
-            ring.extend(h.ring.iter().map(|&(x, y)| (mercator::to_local(x, tx as i64, z), mercator::to_local(y, ty as i64, z))));
-            props.clear();
-            props.push(("n", Value::UInt(h.agg.n as u64)));
-            props.push(("a", Value::Float(h.area_km2)));
-            for (key, &count) in COUNT_KEYS.iter().zip(&h.agg.by) {
-                if count > 0 {
-                    props.push((key, Value::UInt(count as u64)));
+/// Camada `hex` de um tile, já codificada (sem gzip); None se ficou vazia.
+fn encode_hex(hexes: &[Hex], group: &[Pair], tx: u32, ty: u32, z: u8) -> Option<(Vec<u8>, usize)> {
+    let mut layer = LayerBuilder::new("hex");
+    let mut ring = Vec::with_capacity(7);
+    let mut props: Vec<(&str, Value)> = Vec::with_capacity(2 + K);
+    for &(_, _, _, idx) in group {
+        let h = &hexes[idx as usize];
+        ring.clear();
+        ring.extend(h.ring.iter().map(|&(x, y)| (mercator::to_local(x, tx as i64, z), mercator::to_local(y, ty as i64, z))));
+        props.clear();
+        props.push(("n", Value::UInt(h.agg.n as u64)));
+        props.push(("a", Value::Float(h.area_km2)));
+        for (key, &count) in COUNT_KEYS.iter().zip(&h.agg.by) {
+            if count > 0 {
+                props.push((key, Value::UInt(count as u64)));
+            }
+        }
+        layer.add_polygon(None, &mut ring, &props);
+    }
+    if layer.is_empty() {
+        return None;
+    }
+    let mut raw = Vec::new();
+    layer.write_to(&mut raw);
+    Some((raw, layer.len()))
+}
+
+/// Pares (tile, índice da linha) dos pontos num zoom.
+fn point_pairs(t: &Table, indices: &[u32], z: u8) -> Vec<Pair> {
+    let shift = 32 - z as u32;
+    let mut pairs: Vec<Pair> = indices
+        .par_iter()
+        .map(|&i| {
+            let (tx, ty) = ((t.x[i as usize] as u64 >> shift) as u32, (t.y[i as usize] as u64 >> shift) as u32);
+            (pmtiles::tile_id(z, tx, ty), tx, ty, i)
+        })
+        .collect();
+    pairs.par_sort_unstable();
+    pairs
+}
+
+/// Camada `points` de um tile (sem gzip). `full`: com todas as colunas; senão só a categoria (tile rarefeito).
+fn encode_points(t: &Table, group: &[Pair], tx: u32, ty: u32, z: u8, full: bool) -> (Vec<u8>, usize) {
+    let shift = 32 - z as u32;
+    let local_shift = shift - EXTENT_BITS;
+    let mut layer = LayerBuilder::new("points");
+    let mut props: Vec<(&str, Value)> = Vec::with_capacity(1 + t.columns.len());
+    for &(_, _, _, idx) in group {
+        let i = idx as usize;
+        let x = ((t.x[i] as u64 - ((tx as u64) << shift)) >> local_shift) as i32;
+        let y = ((t.y[i] as u64 - ((ty as u64) << shift)) >> local_shift) as i32;
+        props.clear();
+        if t.category[i] != NO_CATEGORY {
+            props.push(("_c", Value::UInt(t.category[i] as u64)));
+        }
+        if full {
+            for col in &t.columns {
+                match &col.data {
+                    ColumnData::Number(v) if !v[i].is_nan() => props.push((&col.name, Value::Double(v[i]))),
+                    ColumnData::Category { ids, dict } if ids[i] != u32::MAX => props.push((&col.name, Value::Str(&dict[ids[i] as usize]))),
+                    ColumnData::Text(v) if !v[i].is_empty() => props.push((&col.name, Value::Str(&v[i]))),
+                    _ => {}
                 }
             }
-            layer.add_polygon(None, &mut ring, &props);
         }
-        (!layer.is_empty()).then(|| {
-            let (gz, raw) = gzip_layer(&layer);
-            (gz, raw, layer.len())
+        layer.add_point(Some(i as u64 + 1), x, y, &props);
+    }
+    let mut raw = Vec::new();
+    layer.write_to(&mut raw);
+    (raw, layer.len())
+}
+
+/// Pontos de um zoom abaixo de POINTS_ZOOM, a partir dos do zoom de cima: tile que passa de POINT_BUDGET (ou que
+/// já veio rarefeito) fica com um ponto por célula da grade. Devolve os índices, se cada um veio de tile
+/// rarefeito, e os tiles rarefeitos (gravados só com a categoria).
+fn thin_points(t: &Table, from: &[u32], from_lossy: &[bool], z: u8) -> (Vec<u32>, Vec<bool>, HashSet<u64>) {
+    let shift = 32 - z as u32;
+    let cell_shift = shift - GRID_BITS;
+    let mask = (1u64 << GRID_BITS) - 1;
+    let mut items: Vec<(u64, u32, u32, bool)> = from
+        .par_iter()
+        .zip(from_lossy.par_iter())
+        .map(|(&i, &lossy)| {
+            let (x, y) = (t.x[i as usize] as u64, t.y[i as usize] as u64);
+            let tile = pmtiles::tile_id(z, (x >> shift) as u32, (y >> shift) as u32);
+            let cell = ((((x >> cell_shift) & mask) << GRID_BITS) | ((y >> cell_shift) & mask)) as u32;
+            (tile, cell, i, lossy)
         })
-    })
+        .collect();
+    items.par_sort_unstable_by_key(|it| (it.0, it.1, it.2));
+    let mut out = Vec::with_capacity(items.len());
+    let mut out_lossy = Vec::with_capacity(items.len());
+    let mut lossy_tiles = HashSet::new();
+    for group in items.chunk_by(|a, b| a.0 == b.0) {
+        let crowded = group.len() > POINT_BUDGET;
+        if crowded || group.iter().any(|it| it.3) {
+            lossy_tiles.insert(group[0].0);
+        }
+        if crowded {
+            for cell in group.chunk_by(|a, b| a.1 == b.1) {
+                out.push(cell[0].2);
+                out_lossy.push(true);
+            }
+        } else {
+            for it in group {
+                out.push(it.2);
+                out_lossy.push(it.3);
+            }
+        }
+    }
+    (out, out_lossy, lossy_tiles)
+}
+
+/// Um zoom com hexágonos e pontos no mesmo tile (o PMTiles guarda um tile por z/x/y).
+fn mixed_zoom(writer: &mut Writer, t: &Table, hexes: &[Hex], points: &[u32], lossy: &HashSet<u64>, z: u8) -> Result<ZoomStats, Error> {
+    let hp = hex_pairs(hexes, z);
+    let pp = point_pairs(t, points, z);
+    let hg: Vec<&[Pair]> = hp.chunk_by(|a, b| a.0 == b.0).collect();
+    let pg: Vec<&[Pair]> = pp.chunk_by(|a, b| a.0 == b.0).collect();
+    // União ordenada pelos ids de tile.
+    let mut tiles: Vec<(u64, u32, u32, Option<&[Pair]>, Option<&[Pair]>)> = Vec::with_capacity(hg.len().max(pg.len()));
+    let (mut i, mut j) = (0, 0);
+    while i < hg.len() || j < pg.len() {
+        let hid = hg.get(i).map(|g| g[0].0);
+        let pid = pg.get(j).map(|g| g[0].0);
+        match (hid, pid) {
+            (Some(a), Some(b)) if a == b => {
+                tiles.push((a, hg[i][0].1, hg[i][0].2, Some(hg[i]), Some(pg[j])));
+                i += 1;
+                j += 1;
+            }
+            (Some(a), Some(b)) if a < b => {
+                tiles.push((a, hg[i][0].1, hg[i][0].2, Some(hg[i]), None));
+                i += 1;
+            }
+            (Some(a), None) => {
+                tiles.push((a, hg[i][0].1, hg[i][0].2, Some(hg[i]), None));
+                i += 1;
+            }
+            (_, Some(b)) => {
+                tiles.push((b, pg[j][0].1, pg[j][0].2, None, Some(pg[j])));
+                j += 1;
+            }
+            (None, None) => break,
+        }
+    }
+    let mut stats = ZoomStats { zoom: z, ..Default::default() };
+    for batch in tiles.chunks(WRITE_BATCH) {
+        let encoded: Vec<Option<(u64, Vec<u8>, usize, usize)>> = batch
+            .par_iter()
+            .map(|&(id, tx, ty, h, p)| {
+                let mut raw = Vec::new();
+                let mut features = 0;
+                if let Some((bytes, n)) = h.and_then(|g| encode_hex(hexes, g, tx, ty, z)) {
+                    raw.extend_from_slice(&bytes);
+                    features += n;
+                }
+                if let Some(g) = p {
+                    let (bytes, n) = encode_points(t, g, tx, ty, z, !lossy.contains(&id));
+                    raw.extend_from_slice(&bytes);
+                    features += n;
+                }
+                (!raw.is_empty()).then(|| (id, pmtiles::gzip(&raw), raw.len(), features))
+            })
+            .collect();
+        for (id, gz, raw, features) in encoded.into_iter().flatten() {
+            writer.add_tile(id, &gz)?;
+            stats.tiles += 1;
+            stats.features += features;
+            stats.bytes += gz.len();
+            stats.max_raw = stats.max_raw.max(raw);
+            stats.max_gz = stats.max_gz.max(gz.len());
+        }
+    }
+    Ok(stats)
 }
 
 fn points_zoom(writer: &mut Writer, t: &Table) -> Result<ZoomStats, Error> {
@@ -351,14 +513,29 @@ fn build_tiles(
     let breaks = density_breaks(&levels);
     lap("agregação H3", &mut clock);
 
+    // Pontos de cada zoom, de baixo (mais perto) para cima: cada nível parte do anterior, já rarefeito.
+    let mut point_levels: Vec<(Vec<u32>, HashSet<u64>)> = vec![(Vec::new(), HashSet::new()); HEX_MAX_ZOOM as usize + 1];
+    let mut from: Vec<u32> = (0..t.len() as u32).collect();
+    let mut from_lossy = vec![false; t.len()];
+    for z in (POINTS_MIN_ZOOM..=HEX_MAX_ZOOM).rev() {
+        let (kept, kept_lossy, lossy_tiles) = thin_points(t, &from, &from_lossy, z);
+        point_levels[z as usize] = (kept.clone(), lossy_tiles);
+        from = kept;
+        from_lossy = kept_lossy;
+    }
+    drop((from, from_lossy));
+    lap("rarefação dos pontos", &mut clock);
+
     let mut zooms = Vec::new();
     for z in 0..=HEX_MAX_ZOOM {
         progress(Stage::Tiling, z as f32 / (POINTS_ZOOM as f32 + 1.0));
         let res = Resolution::try_from(ZOOM_RESOLUTION[z as usize])?;
         let hexes = &levels.iter().find(|(r, _)| *r == res).expect("nível calculado").1;
-        zooms.push(hex_zoom(&mut writer, hexes, z)?);
+        let (points, lossy) = &point_levels[z as usize];
+        zooms.push(mixed_zoom(&mut writer, t, hexes, points, lossy, z)?);
+        point_levels[z as usize] = (Vec::new(), HashSet::new());
     }
-    lap("tiles de hexágonos", &mut clock);
+    lap("tiles de hexágonos e pontos", &mut clock);
     progress(Stage::Tiling, 0.9);
     zooms.push(points_zoom(&mut writer, t)?);
     lap("tiles de pontos", &mut clock);
@@ -390,13 +567,14 @@ fn build_tiles(
         "generator": "cityview-tiler",
         "vector_layers": [
             { "id": "hex", "fields": hex_fields, "minzoom": 0, "maxzoom": HEX_MAX_ZOOM },
-            { "id": "points", "fields": point_fields, "minzoom": POINTS_ZOOM, "maxzoom": POINTS_ZOOM },
+            { "id": "points", "fields": point_fields, "minzoom": POINTS_MIN_ZOOM, "maxzoom": POINTS_ZOOM },
         ],
         "cityview": {
             "version": 2,
             "records": t.len(),
             "hexMaxZoom": HEX_MAX_ZOOM,
             "pointsZoom": POINTS_ZOOM,
+            "pointsMinZoom": POINTS_MIN_ZOOM,
             "zoomResolutions": ZOOM_RESOLUTION,
             "densityBreaks": breaks,
             "categoryProperty": "_c",

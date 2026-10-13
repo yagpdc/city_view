@@ -166,6 +166,9 @@ export function App() {
   const [municipios3d, setMunicipios3d] = useState(false);
   /** Camada (id no mapa) que acende os prédios; null = desligado. */
   const [paintDataset, setPaintDataset] = useState<string | null>(INITIAL_TAB.paintDataset ?? null);
+  /** Camadas com a vista de hexágonos (densidade); o padrão são as bolinhas. */
+  const [hexViews, setHexViews] = useState<Set<string>>(() => new Set(INITIAL_TAB.hexViews ?? []));
+  const appliedHexViews = useRef(new Set<string>());
   const paintBuildingsOn = paintDataset !== null;
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [libraryLayers, setLibraryLayers] = useState<LibraryLayer[]>([]);
@@ -412,9 +415,17 @@ export function App() {
   // O que está na tela é a aba atual: cada mudança vai para ela.
   useEffect(() => {
     setTabs((list) =>
-      list.map((t) => (t.id === currentTab ? { ...t, active: [...active], hidden: [...hidden], filters, paintDataset, theme, look } : t)),
+      list.map((t) => (t.id === currentTab ? { ...t, active: [...active], hidden: [...hidden], filters, paintDataset, theme, look, hexViews: [...hexViews] } : t)),
     );
-  }, [currentTab, active, hidden, filters, paintDataset, theme, look]);
+  }, [currentTab, active, hidden, filters, paintDataset, theme, look, hexViews]);
+  // Vista de hexágonos: aplica só o que mudou (o motor guarda para camadas que ainda vão carregar).
+  useEffect(() => {
+    if (!map) return;
+    for (const id of new Set([...appliedHexViews.current, ...hexViews])) {
+      if (appliedHexViews.current.has(id) !== hexViews.has(id)) map.setDatasetHexView(id, hexViews.has(id));
+    }
+    appliedHexViews.current = new Set(hexViews);
+  }, [map, hexViews]);
   const tabsRef = useRef({ tabs, currentTab });
   tabsRef.current = { tabs, currentTab };
   const persistTabs = useCallback(() => {
@@ -696,6 +707,7 @@ export function App() {
     setHidden(new Set(target.hidden));
     setFilters(target.filters);
     setPaintDataset(target.paintDataset ?? null);
+    setHexViews(new Set(target.hexViews ?? []));
     if ((target.theme ?? "light") !== theme) changeTheme(target.theme ?? "light");
     if ((target.look ?? "data") !== look) changeLook(target.look ?? "data");
     setCurrentTab(id);
@@ -744,7 +756,7 @@ export function App() {
     if (!source) return;
     const live = id === currentTab;
     const copy = createTab(tabs, {
-      ...(live ? { active: [...active], hidden: [...hidden], filters, paintDataset, theme, look } : source),
+      ...(live ? { active: [...active], hidden: [...hidden], filters, paintDataset, theme, look, hexViews: [...hexViews] } : source),
       title: `${source.title} (cópia)`,
       camera: live && map ? map.camera : (cameras.current.get(id) ?? source.camera),
     });
@@ -963,9 +975,34 @@ export function App() {
   };
   const datasetOptions = (id: string) => {
     const painting = paintDataset === id;
+    // Arquivo antigo: só tem hexágonos no zoom afastado (bolinhas só a partir da rua).
+    const legacy = Boolean(map && datasetMeta(id) && !map.datasetHasLowZoomPoints(id));
+    const hex = legacy || columns3d || hexViews.has(id);
     return (
       <>
         <div className="layer-options">
+          <button
+            type="button"
+            className={`chip-toggle ${hex ? "is-on" : ""}`}
+            aria-pressed={hex}
+            disabled={legacy || columns3d}
+            onClick={() =>
+              setHexViews((prev) => {
+                const next = new Set(prev);
+                if (next.has(id)) next.delete(id);
+                else next.add(id);
+                return next;
+              })
+            }
+            title={
+              legacy
+                ? "Esta camada foi gerada antes das bolinhas em todos os zooms: importe de novo para ver os pontos afastado"
+                : "Densidade em hexágonos no lugar das bolinhas (até o zoom de rua)"
+            }
+          >
+            <Icon name="hexagon" size={16} />
+            Hexágonos
+          </button>
           <button type="button" className={`chip-toggle ${columns3d ? "is-on" : ""}`} aria-pressed={columns3d} onClick={() => toggleColumns(!columns3d)}>
             <Icon name="box3d" size={16} />
             Colunas 3D
