@@ -2,12 +2,13 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Icon, type IconName } from "./Icon";
 
 /** Painéis do trilho à esquerda: uma tarefa por vez (docs/DESIGN.md · Estrutura). */
-export type PanelId = "layers" | "add" | "details" | "settings";
+export type PanelId = "layers" | "add" | "details" | "settings" | "widgets";
 
 const RAIL: { id: PanelId; label: string; icon: IconName }[] = [
   { id: "layers", label: "Camadas", icon: "layers" },
   { id: "add", label: "Adicionar", icon: "addCircle" },
   { id: "details", label: "Detalhes", icon: "info" },
+  { id: "widgets", label: "Widgets", icon: "widgets" },
   { id: "settings", label: "Ajustes", icon: "sliders" },
 ];
 
@@ -23,6 +24,8 @@ export function Rail({ panel, onPanel, badges }: { panel: PanelId | null; onPane
             className={`rail-item ${on ? "is-active" : ""}`}
             aria-pressed={on}
             aria-controls="panel"
+            aria-label={r.label}
+            title={r.label}
             onClick={() => onPanel(on ? null : r.id)}
           >
             <span className="rail-icon">

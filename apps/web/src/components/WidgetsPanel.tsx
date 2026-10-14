@@ -14,17 +14,10 @@ export interface ViewportWidget {
   filtered?: boolean;
 }
 
-/** Painel "Na tela" à direita: números do que está visível agora, atualizados ao mover o mapa. */
-export function WidgetsPanel({ widgets, onClose }: { widgets: ViewportWidget[]; onClose: () => void }) {
+/** Widget "Na tela": números do que está visível agora, atualizados ao mover o mapa. */
+export function ViewportSummary({ widgets }: { widgets: ViewportWidget[] }) {
   return (
-    <aside className="widgets" aria-label="Na tela">
-      <header className="panel-header">
-        <h2>Na tela</h2>
-        <button type="button" className="icon-button sm" onClick={onClose} aria-label="Fechar painel Na tela">
-          <Icon name="close" size={18} />
-        </button>
-      </header>
-      <div className="panel-body">
+    <div className="viewport-summary">
         {widgets.length === 0 && (
           <section className="panel-card empty-card">
             <span className="empty-icon">
@@ -74,7 +67,6 @@ export function WidgetsPanel({ widgets, onClose }: { widgets: ViewportWidget[]; 
             </section>
           );
         })}
-      </div>
-    </aside>
+    </div>
   );
 }

@@ -6,7 +6,8 @@ import { areaAt, parseCoordinates, searchMunicipios } from "./areas";
 import type { Comparison, PlaceFacts } from "./compare";
 import { SearchBox, type SearchResult } from "./components/SearchBox";
 import { CategoryLegend, LayerCard, Panel, PanelCard, Rail, ScaleLegend, type LayerAction, type PanelId } from "./components/Shell";
-import { WidgetsPanel, type ViewportWidget } from "./components/WidgetsPanel";
+import { ViewportSummary, type ViewportWidget } from "./components/WidgetsPanel";
+import { FloatingWidget, type WidgetRect } from "./components/FloatingWidget";
 import { ValueFilter, type FilterColumn } from "./components/ValueFilter";
 import { placeIcon, placeIconSvgs } from "./placeIcons";
 import { Icon } from "./components/Icon";
@@ -79,6 +80,13 @@ const RESTORED = loadActiveLayers([PLACES_KEY, STREET_KEY]);
 const MaqueteView = lazy(() => import("./components/MaqueteView").then((m) => ({ default: m.MaqueteView })));
 
 const isNarrowScreen = () => window.matchMedia("(max-width: 767px)").matches;
+
+const SUMMARY_WIDGET_KEY = "cityview.widget-na-tela";
+/** Posição inicial do widget "Na tela": canto superior direito, abaixo do Compartilhar. */
+function defaultSummaryRect(): WidgetRect {
+  const w = 300;
+  return { x: Math.max(80, window.innerWidth - w - 24), y: 64, w, h: 360 };
+}
 
 const HIDDEN_KEY = "cityview.hidden-layers";
 function loadHiddenLayers(): Set<string> {
@@ -161,7 +169,24 @@ export function App() {
   const [hidden, setHidden] = useState<Set<string>>(() => new Set(INITIAL_TAB.hidden));
   const [filters, setFilters] = useState<LayerFilters>(INITIAL_TAB.filters);
   const initialFilters = useRef(filters);
-  const [widgetsOpen, setWidgetsOpen] = useState(() => window.innerWidth >= 1280);
+  /** Widget "Na tela" solto sobre o mapa (posição, tamanho, minimizado); null = fora do mapa. */
+  const [summaryWidget, setSummaryWidget] = useState<WidgetRect | null>(() => {
+    try {
+      const raw = localStorage.getItem(SUMMARY_WIDGET_KEY);
+      return raw === null ? (window.innerWidth >= 1280 ? defaultSummaryRect() : null) : (JSON.parse(raw) as WidgetRect | null);
+    } catch {
+      return null;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(SUMMARY_WIDGET_KEY, JSON.stringify(summaryWidget));
+    } catch {
+      // Modo privado: segue sem lembrar.
+    }
+  }, [summaryWidget]);
+  /** Os números só são calculados com o widget aberto (e não minimizado). */
+  const widgetsOpen = summaryWidget !== null && !summaryWidget.minimized;
   const [widgets, setWidgets] = useState<ViewportWidget[]>([]);
   const [measuring, setMeasuring] = useState(false);
   /** Maquete holográfica aberta (cobre o mapa). */
@@ -893,7 +918,6 @@ export function App() {
     setPick(null);
     // Imersiva: a maquete ganha a área toda do mapa.
     setPanel(null);
-    setWidgetsOpen(false);
     setMaquete({ center: p.dataset?.lngLat ?? p.lngLat, title, datasetIds, radius: 300 });
   };
 
@@ -906,7 +930,6 @@ export function App() {
       if (!sharedMaquete.current) return;
       sharedMaquete.current = null;
       setPanel(null);
-      setWidgetsOpen(false);
       setMaquete({ center: shared.c, title: shared.t, radius: shared.r, datasetIds: places && active.has(PLACES_KEY) ? [PLACES.id] : [] });
     };
     if (places || !active.has(PLACES_KEY)) return open();
@@ -1527,7 +1550,34 @@ export function App() {
     </Panel>
   );
 
-  const panels: Record<PanelId, ReactNode> = { layers: layersPanel, add: addPanel, details: detailsPanel, settings: settingsPanel };
+  const widgetsPanel = (
+    <Panel title="Widgets" onClose={() => setPanel(null)}>
+      <p className="panel-intro">Janelas soltas sobre o mapa: arraste pelo título, mude o tamanho pelo canto, minimize ou feche.</p>
+      <PanelCard>
+        <div className="widget-option">
+          <span className="widget-option-icon" aria-hidden="true">
+            <Icon name="chart" size={20} />
+          </span>
+          <div>
+            <b>Na tela</b>
+            <span className="muted">Quantos registros de cada camada estão visíveis agora, por categoria. Atualiza ao mover o mapa.</span>
+          </div>
+          {summaryWidget ? (
+            <button type="button" className="btn btn-sm" onClick={() => setSummaryWidget(null)}>
+              Tirar
+            </button>
+          ) : (
+            <button type="button" className="btn btn-primary btn-sm" onClick={() => setSummaryWidget(defaultSummaryRect())}>
+              Pôr no mapa
+            </button>
+          )}
+        </div>
+      </PanelCard>
+      <p className="hint left">Mais widgets em breve: gráficos por camada, comparação entre áreas, tabela dos registros visíveis.</p>
+    </Panel>
+  );
+
+  const panels: Record<PanelId, ReactNode> = { layers: layersPanel, add: addPanel, details: detailsPanel, settings: settingsPanel, widgets: widgetsPanel };
 
   return (
     <div className={`app theme-${theme}`}>
@@ -1548,18 +1598,13 @@ export function App() {
           <div ref={containerRef} className="map" />
           <SearchBox search={search} onSelect={selectSearch} />
           {styleEditor}
+          {summaryWidget && !maquete && (
+            <FloatingWidget title="Na tela" rect={summaryWidget} onRect={setSummaryWidget} onClose={() => setSummaryWidget(null)}>
+              <ViewportSummary widgets={widgets} />
+            </FloatingWidget>
+          )}
           {/* Ações sobre o mapa, no canto superior direito (no lugar da barra do topo). */}
           <div className="map-actions">
-            <button
-              type="button"
-              className={`map-action-icon ${widgetsOpen ? "is-on" : ""}`}
-              aria-pressed={widgetsOpen}
-              aria-label={widgetsOpen ? "Esconder o painel Na tela" : "Mostrar o painel Na tela"}
-              title="Na tela"
-              onClick={() => setWidgetsOpen((o) => !o)}
-            >
-              <Icon name="widgets" size={18} />
-            </button>
             <button type="button" className="btn btn-primary map-action-share" onClick={() => void copyShareLink()}>
               <Icon name="share" size={16} />
               <span>Compartilhar</span>
@@ -1665,7 +1710,7 @@ export function App() {
           {streetImageId && <StreetViewer imageId={streetImageId} onCamera={(c) => map?.setLocationMarker(c)} onClose={closeStreetView} />}
         </main>
 
-        {widgetsOpen && <WidgetsPanel widgets={widgets} onClose={() => setWidgetsOpen(false)} />}
+
       </div>
 
       {libraryOpen && <LibraryPanel onClose={() => setLibraryOpen(false)} onAddLayer={addLibraryLayer} />}
