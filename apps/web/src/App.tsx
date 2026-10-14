@@ -1596,15 +1596,15 @@ export function App() {
 
         <main className="map-area">
           <div ref={containerRef} className="map" />
-          <SearchBox search={search} onSelect={selectSearch} />
           {styleEditor}
           {summaryWidget && !maquete && (
             <FloatingWidget title="Na tela" rect={summaryWidget} onRect={setSummaryWidget} onClose={() => setSummaryWidget(null)}>
               <ViewportSummary widgets={widgets} />
             </FloatingWidget>
           )}
-          {/* Ações sobre o mapa, no canto superior direito (no lugar da barra do topo). */}
+          {/* Busca e Compartilhar no canto superior direito: as gavetas abrem pela esquerda e não cobrem a busca. */}
           <div className="map-actions">
+            <SearchBox search={search} onSelect={selectSearch} />
             <button type="button" className="btn btn-primary map-action-share" onClick={() => void copyShareLink()}>
               <Icon name="share" size={16} />
               <span>Compartilhar</span>

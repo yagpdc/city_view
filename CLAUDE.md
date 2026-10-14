@@ -29,7 +29,7 @@ Especialistas em `.claude/agents/`. Delegue ao agente quando o assunto for dele:
 
 ```
 [marca | Mapa 1 × | Mapa 2 × | +]                                  faixa do topo: marca + abas (components/MapTabs.tsx)
-[gaveta | busca ... mapa em tela cheia ............. [Compartilhar]]
+[gaveta ... mapa em tela cheia ......... [busca][Compartilhar]]
 [(abre    widgets soltos (ex.: "Na tela")                       (●)]
 [ à esq.)                                                       (●)]
  (●) = botões redondos à direita (Camadas · Adicionar · Detalhes · Widgets · Ajustes): lado oposto às gavetas

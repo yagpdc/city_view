@@ -1,4 +1,4 @@
-import { useRef, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { Icon } from "./Icon";
 
 /** Posição e tamanho de um widget sobre o mapa (px, relativo à área do mapa). */
@@ -13,6 +13,8 @@ export interface WidgetRect {
 const MIN_W = 240;
 const MIN_H = 140;
 const HEAD_H = 44;
+/** Largura da coluna de botões redondos à direita (o widget não para em cima dela). */
+const RAIL_SPACE = 60;
 
 /**
  * Janela de widget solta sobre o mapa: arrasta pelo título, redimensiona pelo canto, minimiza (só o título) e
@@ -42,11 +44,25 @@ export function FloatingWidget({
   };
   const clamp = (r: WidgetRect): WidgetRect => {
     const b = bounds();
-    const w = Math.min(Math.max(MIN_W, r.w), b.w - 16);
+    // A faixa da direita fica livre para a coluna de botões redondos.
+    const right = RAIL_SPACE;
+    const w = Math.min(Math.max(MIN_W, r.w), b.w - 16 - right);
     const h = Math.min(Math.max(MIN_H, r.h), b.h - 16);
     const shownH = r.minimized ? HEAD_H : h;
-    return { ...r, w, h, x: Math.min(Math.max(8, r.x), b.w - w - 8), y: Math.min(Math.max(8, r.y), b.h - shownH - 8) };
+    return { ...r, w, h, x: Math.min(Math.max(8, r.x), b.w - w - 8 - right), y: Math.min(Math.max(8, r.y), b.h - shownH - 8) };
   };
+
+  // Posição salva de outro tamanho de tela (ou de antes da coluna de botões): traz para dentro ao abrir e ao redimensionar.
+  useEffect(() => {
+    const fix = () => {
+      const c = clamp(rect);
+      if (c.x !== rect.x || c.y !== rect.y || c.w !== rect.w || c.h !== rect.h) onRect(c);
+    };
+    fix();
+    window.addEventListener("resize", fix);
+    return () => window.removeEventListener("resize", fix);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rect]);
 
   /** Arrasto genérico: mover (pelo título) ou redimensionar (pelo canto). */
   const drag = (e: React.PointerEvent, mode: "move" | "resize") => {

@@ -934,7 +934,7 @@ a { color: var(--cv-link); }
 }
 .map-search { left: var(--cv-space-3); width: min(380px, calc(100% - 210px)); }
 @media (max-width: 767px) {
-  .rail { right: 8px; top: 56px; width: auto; }
+  .rail { right: 8px; top: 64px; width: auto; }
   .rail-item { width: 40px; height: 40px; }
   .rail-item .rail-icon { width: 40px; height: 40px; }
   /* A gaveta para antes da coluna de botões. */
@@ -963,3 +963,10 @@ a { color: var(--cv-link); }
 .widget-option { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; }
 .widget-option > div { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
 .widget-option-icon { width: 40px; height: 40px; display: grid; place-items: center; border-radius: var(--cv-radius-md); background: var(--cv-action-subtle); color: var(--cv-action-subtle-text); }
+
+/* Busca ao lado do Compartilhar (canto superior direito), longe das gavetas que abrem pela esquerda */
+.map-actions .map-search { position: relative; top: auto; left: auto; width: clamp(220px, 30vw, 380px); }
+@media (max-width: 767px) {
+  .map-actions { left: 8px; right: 8px; }
+  .map-actions .map-search { flex: 1; width: auto; min-width: 0; }
+}
