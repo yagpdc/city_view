@@ -82,10 +82,10 @@ const MaqueteView = lazy(() => import("./components/MaqueteView").then((m) => ({
 const isNarrowScreen = () => window.matchMedia("(max-width: 767px)").matches;
 
 const SUMMARY_WIDGET_KEY = "cityview.widget-na-tela";
-/** Posição inicial do widget "Na tela": canto superior direito, abaixo do Compartilhar. */
+/** Posição inicial do widget "Na tela": à direita, ao lado da coluna de botões. */
 function defaultSummaryRect(): WidgetRect {
   const w = 300;
-  return { x: Math.max(80, window.innerWidth - w - 24), y: 64, w, h: 360 };
+  return { x: Math.max(12, window.innerWidth - w - 72), y: 64, w, h: 360 };
 }
 
 const HIDDEN_KEY = "cityview.hidden-layers";

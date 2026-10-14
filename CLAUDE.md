@@ -29,15 +29,15 @@ Especialistas em `.claude/agents/`. Delegue ao agente quando o assunto for dele:
 
 ```
 [marca | Mapa 1 × | Mapa 2 × | +]                                  faixa do topo: marca + abas (components/MapTabs.tsx)
-[(●) mapa em tela cheia ........................... [Compartilhar]]
-[(●)  gaveta   busca          widgets soltos (ex.: "Na tela")     ]
-[(●) (painel)                                                     ]
- (●) = botões redondos flutuando (Camadas · Adicionar · Detalhes · Widgets · Ajustes)
+[gaveta | busca ... mapa em tela cheia ............. [Compartilhar]]
+[(abre    widgets soltos (ex.: "Na tela")                       (●)]
+[ à esq.)                                                       (●)]
+ (●) = botões redondos à direita (Camadas · Adicionar · Detalhes · Widgets · Ajustes): lado oposto às gavetas
  botão direito no mapa: medir, visualização avançada, copiar coordenadas
 ```
 
 - **Abas de mapa** (`MapTabs` + `mapTabs.ts`): como abas do navegador. Cada aba guarda camadas no projeto, filtros, câmera, prédios acesos, tema e estilo do mapa base; aba nova começa zerada (herda só a aparência). Botão direito: Duplicar, Renomear, Fechar, Fechar as outras. Motor, biblioteca e dados (públicos e importados) são os mesmos em todas. Link compartilhado abre numa aba nova, com o nome da aba (`n` no link). Salvas no localStorage (`cityview.map-tabs`).
-- **Botões redondos** (`components/Shell.tsx` · `Rail`, flutuando à esquerda do mapa): Camadas · Adicionar · Detalhes · Widgets · Ajustes. Um por vez (clicar de novo fecha); nome no tooltip.
+- **Botões redondos** (`components/Shell.tsx` · `Rail`, flutuando à direita do mapa, lado oposto às gavetas): Camadas · Adicionar · Detalhes · Widgets · Ajustes. Um por vez (clicar de novo fecha); nome no tooltip.
 - **Gaveta** (`Panel` + `PanelCard`): cartão flutuante sobre o mapa (não empurra o mapa), fundo cinza, conteúdo em cartões brancos, título 18/600. Camadas = um `LayerCard` por camada no projeto (olho = visível/escondida, ⋯ = ações, legenda dentro, que também filtra por categoria via `CityMap.setCategoryFilter`). "Adicionar" lista o que dá para pôr no mapa.
 - **Widgets** (`FloatingWidget`): janelas soltas sobre o mapa, que arrastam (título), redimensionam (canto), minimizam e fecham; posição lembrada. A gaveta "Widgets" lista os disponíveis. **Na tela** (`ViewportSummary`): números do que está visível, recalculados ao parar de mexer o mapa (`CityMap.viewportSummary`).
 - Sobre o mapa, só o que é do lugar: busca (`SearchBox`), cartão do clique (`MapPopup`), maquete 3D (`MaqueteView`, cores do mapa, cena three.js em `packages/engine/src/maquete`, cobre o mapa), visualizador de rua (`StreetViewer`), controles do mapa.

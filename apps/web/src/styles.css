@@ -916,10 +916,10 @@ a { color: var(--cv-link); }
 }
 @media (max-width: 767px) { .map-search { width: calc(100% - 128px); } }
 
-/* ---------- Mapa em foco: botões redondos flutuando, gavetas e widgets sobre o mapa ---------- */
+/* ---------- Mapa em foco: botões redondos à direita, gavetas abrindo pela esquerda (nunca se cobrem) ---------- */
 .workspace { position: relative; }
 .rail {
-  position: absolute; left: 12px; top: 12px; z-index: 6; width: auto; gap: 8px; padding: 0;
+  position: absolute; right: 12px; left: auto; top: 64px; z-index: 6; width: auto; gap: 8px; padding: 0;
   background: none; border: 0;
 }
 .rail-item { width: 44px; height: 44px; padding: 0; border-radius: 50%; background: var(--cv-float); box-shadow: var(--cv-shadow-2); justify-content: center; }
@@ -929,18 +929,17 @@ a { color: var(--cv-link); }
 .rail-item.is-active { background: var(--cv-action); color: var(--cv-on-action); }
 .rail-badge { top: 2px; right: 2px; }
 .panel {
-  position: absolute; left: 68px; top: 12px; bottom: 12px; z-index: 7; width: 360px; max-width: calc(100% - 80px);
+  position: absolute; left: 12px; top: 12px; bottom: 12px; z-index: 7; width: 360px; max-width: calc(100% - 80px);
   border: 1px solid var(--cv-border); border-radius: var(--cv-radius-xl); box-shadow: var(--cv-shadow-3); overflow: hidden;
 }
-.map-search { left: 68px; width: min(380px, calc(100% - 270px)); }
-.style-editor { left: 68px; }
+.map-search { left: var(--cv-space-3); width: min(380px, calc(100% - 210px)); }
 @media (max-width: 767px) {
-  .rail { left: 8px; top: 8px; width: auto; }
+  .rail { right: 8px; top: 56px; width: auto; }
   .rail-item { width: 40px; height: 40px; }
   .rail-item .rail-icon { width: 40px; height: 40px; }
-  .panel { left: 8px; right: 8px; top: 8px; bottom: 8px; width: auto; max-width: none; }
-  .map-search { left: 56px; width: calc(100% - 112px); }
-  .style-editor { left: 8px; }
+  /* A gaveta para antes da coluna de botões. */
+  .panel { left: 8px; right: 60px; top: 8px; bottom: 8px; width: auto; max-width: none; }
+  .map-search { left: 8px; width: calc(100% - 128px); }
 }
 
 /* Widget solto sobre o mapa */
