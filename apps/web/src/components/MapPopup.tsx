@@ -4,7 +4,6 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 const SUMMARY_KEYS = ["endereco", "address", "endereço", "cidade"];
 import { FieldValue, formatField, labelled, type DatasetInfo } from "./PickDetails";
 import { StreetPhoto } from "./StreetPhoto";
-import { streetImageryEnabled } from "../streetImagery";
 import { Icon, type IconName } from "./Icon";
 
 const int = new Intl.NumberFormat("pt-BR");
@@ -12,7 +11,8 @@ const RADII = [200, 500, 1000];
 /** Campos em "Mais informações" (todos ficam na barra lateral). */
 const MAX_FIELDS = 8;
 
-type PopupView = "record" | "aggregate" | "area" | "photo";
+/** Aba do cartão: o registro, a região da sua camada ou uma camada de áreas (`area:<id da camada>`). */
+type PopupView = "record" | "aggregate" | `area:${string}`;
 
 /** Camada em tiles ligada; `user` = dado da pessoa (para dizer "importe de novo" quando faltar a contagem). */
 export interface UserLayer {
@@ -60,13 +60,6 @@ function ScrollRow({ children }: { children: ReactNode }) {
   );
 }
 
-/** "Cubatão · SP" a partir da feição de uma camada de áreas. */
-function areaTitle(c: MapPick["catalog"][number]): string {
-  const p = c.properties;
-  const code = String(p.codigo ?? c.featureId ?? "");
-  return p.nome ? `${p.nome}${p.uf && code.length > 2 ? ` · ${p.uf}` : ""}` : c.datapack.name;
-}
-
 const meters = (m: number) =>
   m < 1000 ? `${Math.round(m)} m` : `${new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 }).format(m / 1000)} km`;
 
@@ -105,8 +98,8 @@ export function MapPopup({
   /** Camadas em tiles ligadas (para "Seus dados aqui" no clique numa região). */
   userLayers?: UserLayer[];
 }) {
-  // O que há sob o clique: o ponto (registro), a região da sua camada, a área de uma camada de áreas (IBGE,
-  // biblioteca) e a foto da rua. Mais de uma coisa: botões no topo para escolher o que ver.
+  // O que há sob o clique, uma aba por camada: o ponto (registro, com a foto da rua), a região da sua camada e a
+  // área de uma camada de áreas (IBGE, biblioteca). Mais de uma coisa: botões no topo para escolher o que ver.
   const areaPicks = pick.catalog.filter((c) => c.datapack.geometry === "polygon");
   const recordPick = pick.dataset?.kind === "record" ? pick.dataset : null;
   const aggregatePick = pick.dataset?.kind === "aggregate" ? pick.dataset : null;
@@ -117,12 +110,13 @@ export function MapPopup({
     views.push({ key: "record", label: t, icon: "pin" });
   }
   if (aggregatePick) views.push({ key: "aggregate", label: aggregatePick.name ?? "Região", icon: "map" });
-  if (areaPicks.length) views.push({ key: "area", label: areaTitle(areaPicks[0]!), icon: "layers" });
-  if (streetImageryEnabled && views.length > 0) views.push({ key: "photo", label: "Foto da rua", icon: "camera" });
+  // Cada camada de áreas (IBGE, biblioteca) na sua aba.
+  for (const c of areaPicks) views.push({ key: `area:${c.datapack.id}`, label: c.datapack.name, icon: "layers" });
   // De longe, a área vale mais que o ponto acertado; de perto, o ponto.
-  const preferred: PopupView = areaPicks.length && (!pick.dataset || map.camera.zoom < 12) ? "area" : (views[0]?.key ?? "record");
+  const preferred: PopupView = areaPicks.length && (!pick.dataset || map.camera.zoom < 12) ? `area:${areaPicks[0]!.datapack.id}` : (views[0]?.key ?? "record");
   const [view, setView] = useState<PopupView>(preferred);
-  const areaMode = view === "area" && areaPicks.length > 0;
+  const areaPick = view.startsWith("area:") ? areaPicks.find((c) => `area:${c.datapack.id}` === view) : undefined;
+  const areaMode = Boolean(areaPick);
   const record = view === "record" ? recordPick : null;
   const info = pickInfo;
   const center = pick.dataset?.lngLat ?? pick.lngLat;
@@ -165,20 +159,11 @@ export function MapPopup({
       </ScrollRow>
     ) : null;
 
-  if (view === "photo") {
-    return (
-      <div className="map-popup map-popup-photo">
-        {tabs}
-        <StreetPhoto lngLat={center} onOpen={onStreetView} variant="hero" />
-      </div>
-    );
-  }
-
   if (areaMode) {
     return (
       <div className="map-popup map-popup-area">
         {tabs}
-        <AreaSummary map={map} picks={areaPicks} userLayers={userLayers} />
+        <AreaSummary map={map} picks={[areaPick!]} userLayers={userLayers} />
         <div className="map-popup-actions">
           <button type="button" className="btn" onClick={onDetails}>
             Detalhes

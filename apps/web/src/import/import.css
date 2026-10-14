@@ -507,7 +507,7 @@
 @media (max-width: 767px) { .map-popup { width: 250px; } }
 
 /* Cartão do mapa: foto em destaque */
-.map-popup { width: 400px; }
+.map-popup { width: 460px; }
 .cv-popup .maplibregl-popup-content { padding: 0 0 12px; overflow-x: hidden; }
 .map-popup > :not(.street-photo-hero) { margin-left: 16px; margin-right: 16px; }
 .map-popup h4 { margin-top: 10px; margin-right: 14px; }
@@ -529,7 +529,7 @@
 .cv-popup .maplibregl-popup-close-button { z-index: 2; top: 8px; right: 8px; width: 28px; height: 28px; border-radius: 50%; background: rgba(0,0,0,.55); color: #fff; font-size: 18px; line-height: 1; padding: 0; }
 .cv-popup .maplibregl-popup-close-button:hover { background: rgba(0,0,0,.75); }
 .map-popup-actions .btn { height: var(--cv-control-h-sm); }
-@media (max-width: 767px) { .map-popup { width: 280px; } }
+@media (max-width: 767px) { .map-popup { width: min(320px, calc(100vw - 32px)); } }
 
 /* ---------- Builder de dados (passo "Dados") ---------- */
 .wizard:has(.builder) { width: min(1120px, 100%); }
@@ -711,5 +711,3 @@
 .map-popup-tabs button.is-on { border-color: var(--cv-action); background: var(--cv-action-subtle); color: var(--cv-action-subtle-text); }
 .map-popup-area:has(.map-popup-tabs) { padding-top: 0; }
 .map-popup-area:has(.map-popup-tabs) .area-summary { padding-top: 12px; }
-.map-popup-photo .street-photo-hero { margin: 0; }
-.map-popup-photo { padding-bottom: 4px; }
