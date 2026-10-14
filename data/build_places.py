@@ -206,7 +206,10 @@ def region_specs() -> list[dict]:
 def tile(parquet: Path, area: str) -> None:
     out_dir = OUT_DIR / "places" / area
     spec = OUT_DIR / "places" / f"{area}.spec.json"
-    spec.write_text(json.dumps({**SPEC, "regions": region_specs()}, ensure_ascii=False, indent=2), encoding="utf-8")
+    regions = region_specs()
+    # O recorte é um retângulo e pega países vizinhos: fica só o que cai num estado do Brasil.
+    clip = {"clipTo": "uf"} if any(r["id"] == "uf" for r in regions) else {}
+    spec.write_text(json.dumps({**SPEC, "regions": regions, **clip}, ensure_ascii=False, indent=2), encoding="utf-8")
     log("gerando tiles (tiler em Rust)…")
     subprocess.run(
         ["cargo", "run", "--release", "-q", "-p", "tiler", "--", str(parquet), str(out_dir), str(spec)],

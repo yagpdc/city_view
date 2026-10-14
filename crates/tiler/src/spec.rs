@@ -61,6 +61,10 @@ pub struct ImportSpec {
     /// Malhas para contar os registros por região (estado, município…), na ordem do mais amplo ao mais fino.
     #[serde(default)]
     pub regions: Vec<RegionSpec>,
+    /// Id de uma das malhas de `regions` ("clipTo" no JSON): registros fora de todas as regiões dela saem
+    /// do resultado (ex.: "uf" deixa só o que está no Brasil).
+    #[serde(default)]
+    pub clip_to: Option<String>,
 }
 
 /// Uma malha em GeoJSON: `id` do nível ("uf", "mun"), caminho do arquivo e a propriedade com o código.

@@ -98,6 +98,39 @@ impl Table {
     pub fn is_empty(&self) -> bool {
         self.x.is_empty()
     }
+
+    /// Fica só com as linhas marcadas (todas as colunas juntas) e refaz o retângulo envolvente.
+    pub fn retain(&mut self, keep: &[bool]) {
+        fn pick<T: Clone>(v: &mut Vec<T>, keep: &[bool]) {
+            let mut i = 0;
+            v.retain(|_| {
+                i += 1;
+                keep[i - 1]
+            });
+        }
+        pick(&mut self.x, keep);
+        pick(&mut self.y, keep);
+        pick(&mut self.cells, keep);
+        pick(&mut self.category, keep);
+        if let Some(o) = &mut self.offsets {
+            pick(o, keep);
+        }
+        for c in &mut self.columns {
+            match &mut c.data {
+                ColumnData::Number(v) => pick(v, keep),
+                ColumnData::Category { ids, .. } => pick(ids, keep),
+                ColumnData::Text(v) => pick(v, keep),
+            }
+        }
+        let mut b = [f64::INFINITY, f64::INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY];
+        for (&x, &y) in self.x.iter().zip(&self.y) {
+            let (lon, lat) = crate::mercator::unproject(x, y);
+            b = [b[0].min(lon), b[1].min(lat), b[2].max(lon), b[3].max(lat)];
+        }
+        if b[0] <= b[2] {
+            self.bounds = b;
+        }
+    }
 }
 
 #[derive(Default)]

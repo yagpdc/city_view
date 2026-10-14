@@ -114,6 +114,8 @@ pub struct Report {
     pub zooms: Vec<ZoomStats>,
     pub timings: Vec<(&'static str, f64)>,
     pub tiles_bytes: u64,
+    /// Registros tirados pelo recorte (`clip_to`).
+    pub clipped: u64,
 }
 
 fn aggregate_finest(t: &Table) -> HashMap<u64, Agg> {
@@ -625,6 +627,7 @@ fn build_tiles(
         zooms,
         timings,
         tiles_bytes: 0,
+        clipped: 0,
     };
     Ok((writer, info, metadata, report))
 }

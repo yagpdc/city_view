@@ -60,6 +60,9 @@ fn main() -> ExitCode {
         "\n{} linhas · {} válidas · {} ignoradas (sem coordenadas {}, inválidas {}, impossíveis {}) · {} fora do Brasil",
         s.rows, report.records, s.invalid, s.sem_coordenadas, s.coordenada_invalida, s.fora_do_mundo, s.outside_brazil
     );
+    if report.clipped > 0 {
+        println!("{} fora da malha do recorte (clip_to) e tirados", report.clipped);
+    }
     if !report.categories.is_empty() {
         println!("categorias de cor: {}", report.categories.join(", "));
     }

@@ -29,6 +29,13 @@ pub fn project(lon: f64, lat: f64) -> Option<(u32, u32)> {
     Some((x.clamp(0.0, WORLD - 1.0) as u32, y.clamp(0.0, WORLD - 1.0) as u32))
 }
 
+/// Volta das coordenadas de mundo para lon/lat (graus).
+pub fn unproject(x: u32, y: u32) -> (f64, f64) {
+    let lon = x as f64 / WORLD * 360.0 - 180.0;
+    let n = PI * (1.0 - 2.0 * y as f64 / WORLD);
+    (lon, n.sinh().atan().to_degrees())
+}
+
 /// Índice do tile que contém a coordenada de mundo `v` no zoom `z`.
 pub fn tile_index(v: i64, z: u8) -> i64 {
     v >> (32 - z as u32)

@@ -153,6 +153,17 @@ impl RegionLevel {
     }
 }
 
+/// Tira as linhas que não caem em nenhuma região da malha (ex.: lugares de países vizinhos num recorte
+/// retangular do Brasil). O litoral e as divisas usam a mesma tolerância da contagem. Devolve quantas saíram.
+pub fn clip(level: &RegionLevel, t: &mut Table) -> usize {
+    let keep: Vec<bool> = t.x.par_iter().zip(t.y.par_iter()).map(|(&x, &y)| level.locate(x as f64, y as f64).is_some()).collect();
+    let removed = keep.iter().filter(|k| !**k).count();
+    if removed > 0 {
+        t.retain(&keep);
+    }
+    removed
+}
+
 /// `{ "<nível>": { "<código>": [total, c0, c1, …] } }` só com as regiões que têm algum ponto.
 pub fn count(levels: &[RegionLevel], t: &Table) -> Value {
     let k = t.categories.len();
@@ -214,5 +225,25 @@ mod tests {
         assert_eq!(at(-40.0, -10.0), None);
         // Pouco fora do contorno (litoral simplificado): entra na região mais próxima.
         assert_eq!(at(-47.01, -23.5).as_deref(), Some("A"));
+    }
+
+    #[test]
+    fn recorte_tira_o_que_esta_fora_da_malha_com_todas_as_colunas() {
+        use crate::table::{ColorInput, ColumnData, InputColumn, table_from_points};
+        let json = r#"{"type":"FeatureCollection","features":[
+          {"type":"Feature","properties":{"codigo":"A"},"geometry":{"type":"Polygon","coordinates":[[[-47,-24],[-46,-24],[-46,-23],[-47,-23],[-47,-24]]]}}
+        ]}"#;
+        let level = RegionLevel::from_geojson("t", json, "codigo").expect("malha");
+        // Dentro, longe (fora), no litoral (tolerância) e longe de novo.
+        let lat = [-23.5, -10.0, -23.5, -30.0];
+        let lon = [-46.5, -40.0, -47.01, -60.0];
+        let names = ["dentro", "longe", "litoral", "vizinho"].map(String::from).to_vec();
+        let mut t = table_from_points(&lat, &lon, ColorInput::None, vec![InputColumn::Text("nome".into(), names)], crate::pipeline::FINEST_RESOLUTION).expect("tabela");
+        assert_eq!(clip(&level, &mut t), 2);
+        assert_eq!(t.len(), 2);
+        assert_eq!(t.cells.len(), 2);
+        let ColumnData::Text(kept) = &t.columns[0].data else { panic!("coluna de texto") };
+        assert_eq!(kept, &["dentro", "litoral"]);
+        assert!(t.bounds[0] < -47.0 && t.bounds[2] > -46.6 && t.bounds[1] > -23.6, "retângulo refeito: {:?}", t.bounds);
     }
 }

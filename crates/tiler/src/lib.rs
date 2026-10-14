@@ -37,13 +37,28 @@ pub fn process(input: &Path, out_dir: &Path, spec: &ImportSpec, progress: &(dyn 
         files::read_csv(&source, spec, pipeline::FINEST_RESOLUTION, &read_progress)?
     };
     let read_secs = started.secs();
+    let mut table = table;
     let mut levels = Vec::new();
     for r in &spec.regions {
         let json = std::fs::read_to_string(&r.path)?;
         levels.push(regions::RegionLevel::from_geojson(&r.id, &json, &r.code).map_err(Error::from)?);
     }
+    let clip_started = clock::Stopwatch::start();
+    let mut clipped = None;
+    if let Some(id) = &spec.clip_to {
+        let level = levels.iter().find(|l| &l.id == id).ok_or_else(|| Error::from(format!("clip_to: malha \"{id}\" não está em regions")))?;
+        let removed = regions::clip(level, &mut table);
+        if table.is_empty() {
+            return Err("nenhum registro dentro da malha do recorte".into());
+        }
+        clipped = Some(removed);
+    }
     let opts = pipeline::BuildOptions { name: &spec.name, color_by: spec.color_by.as_deref(), title: spec.title.as_deref(), regions: &levels };
     let mut report = pipeline::build(&table, out_dir, &opts, progress)?;
     report.timings.insert(0, ("leitura + projeção + H3", read_secs));
+    if let Some(removed) = clipped {
+        report.timings.insert(1, ("recorte pela malha", clip_started.secs()));
+        report.clipped = removed as u64;
+    }
     Ok(report)
 }
