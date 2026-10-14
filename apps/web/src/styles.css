@@ -259,8 +259,13 @@ button, input, select, textarea { font: inherit; }
   font-weight: 700;
 }
 .layer-card-text { display: flex; flex-direction: column; flex: 1; min-width: 0; }
-.layer-card-text b { font-size: 14px; line-height: 19px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.layer-card-text > span { font-size: 12px; line-height: 16px; color: var(--cv-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Nome em até duas linhas e a fonte quebrando (cortar "Índice de Conhecimento d…" escondia o que a camada é). */
+.layer-card-text { gap: 3px; }
+.layer-card-text b { font-size: 14px; line-height: 19px; font-weight: 600; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.layer-card-text > span { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; font-size: 12px; line-height: 16px; color: var(--cv-text-muted); }
+.layer-card-head { align-items: flex-start; }
+.layer-card-head > .icon-button, .layer-card-head > .layer-menu, .layer-card-head > .spinner { margin-top: 2px; }
+.legend-unit { font-size: 11px; font-weight: 600; color: var(--cv-text-muted); }
 .layer-card-body { display: flex; flex-direction: column; gap: 10px; padding: 0 12px 12px 50px; }
 .layer-progress { margin: 0 12px 10px 50px; }
 .layer-menu { position: relative; }
@@ -573,7 +578,11 @@ a { color: var(--cv-link); }
 .pick p { margin: 0; }
 .pick .coords { font-family: var(--cv-font-mono); font-size: 12px; }
 .pick-card { padding: var(--cv-space-3) var(--cv-space-4); border-radius: var(--cv-radius-lg); background: var(--cv-surface); border: 1px solid var(--cv-border); }
-.pick-card h4 { margin: 0 0 6px; font-size: 15px; font-weight: 600; }
+.pick-card h4 { margin: 0 0 6px; font-size: 18px; line-height: 23px; font-weight: 700; letter-spacing: -0.01em; }
+.pick-layer { display: block; margin-bottom: 2px; font-size: 12px; font-weight: 600; color: var(--cv-text-muted); }
+.pick-card .pick-category { margin-bottom: 12px; }
+.pick-card .metric { background: var(--cv-float); }
+.pick-card .field-icon { background: var(--cv-float); }
 .pick-card dl { margin: 0; display: grid; gap: 4px; font-size: 13px; }
 .pick-card dl div { display: flex; justify-content: space-between; gap: var(--cv-space-2); }
 .pick-card dt { color: var(--cv-text-muted); }
@@ -1045,3 +1054,5 @@ a { color: var(--cv-link); }
 .map-crosshair::before, .map-crosshair::after { content: ""; position: absolute; background: var(--cv-text); box-shadow: 0 0 0 1px var(--cv-float); border-radius: 1px; }
 .map-crosshair::before { left: 10px; top: 0; width: 2px; height: 22px; }
 .map-crosshair::after { top: 10px; left: 0; width: 22px; height: 2px; }
+.layer-card-text .origin-tag, .area-summary-layer .origin-tag { margin-right: 0; }
+.layer-card-meta { min-width: 0; }

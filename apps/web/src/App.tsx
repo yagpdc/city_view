@@ -186,6 +186,12 @@ const POINTS_ONLY_NOTE = "As condições valem para os pontos: aproxime o mapa. 
 const int = new Intl.NumberFormat("pt-BR");
 const compact = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1, notation: "compact" });
 
+/** "2026-09-23.1" (versão do Overture) → "set. 2026". */
+const releaseMonth = (release: string) => {
+  const m = /^(\d{4})-(\d{2})/.exec(release);
+  return m ? new Intl.DateTimeFormat("pt-BR", { month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(+m[1]!, +m[2]! - 1, 15))) : release;
+};
+
 const without = (set: Set<string>, id: string) => {
   const next = new Set(set);
   next.delete(id);
@@ -1324,7 +1330,11 @@ export function App() {
           tone={tone}
           title="Estabelecimentos"
           origin="public"
-          meta={<>Overture Maps · <span className="num">{int.format(places.meta.records)}</span> · versão {places.release}</>}
+          meta={
+            <span title={`${int.format(places.meta.records)} lugares · versão ${places.release}`}>
+              Overture Maps · {compact.format(places.meta.records)} lugares · {releaseMonth(places.release)}
+            </span>
+          }
           visible={active.has(PLACES_KEY)}
           onVisible={(v) => toggle(PLACES_KEY, v)}
           onStyle={() => openStyle(PLACES.id, "Estabelecimentos")}

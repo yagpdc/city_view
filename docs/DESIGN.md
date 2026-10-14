@@ -82,6 +82,14 @@ Cada um tem prancheta própria na biblioteca, com estados (normal, passar o mous
 - Moléculas: seletor segmentado e abas, busca com sugestões, item de camada/resultado e legendas, seção da barra lateral com filtro em árvore, mensagens (aviso, dica, vazio, esqueleto, progresso).
 - Mapa: marcadores e rótulos, cartão do lugar, controles do mapa.
 
+Regra de ouro (2026-10-14): **nenhuma informação como texto solto**. Cada dado ganha um componente pelo que ele é:
+
+- **Campo** (`FieldRows`): ícone em círculo + rótulo pequeno + valor, agrupado em Contato · Detalhes · Sobre o dado. O tipo vem do nome da coluna e do valor: site e redes viram link com o nome ("Facebook"), telefone formatado e clicável, e-mail clicável, data "17 de set. de 2026", nota 0–1 de confiança vira medidor (Alta/Média/Baixa), endereço/cidade/UF com alfinete, códigos técnicos (`professional_service`) em texto. Vale para qualquer planilha.
+- **Indicador** (`Metric`): rótulo inteiro em cima, número grande e unidade curta ao lado ("0,8 %", não "0,8 Proporção (%)").
+- **Barra empilhada** (`CategoryStack`): as 3 maiores categorias e "outras", com legenda e números.
+- **Selo** sobre foto (distância), **balão ⓘ** (`InfoTip`) para crédito, licença e de onde veio o dado, **etiqueta de origem** (Público / Seu dado).
+- **Widget**: cartão branco dentro da janela solta; números de destaque em `widget-stats`, barras em `widget-bars`, aviso em `widget-note`, vazio com ícone + título + o que fazer.
+
 ## Estrutura da tela
 
 Inspirada no CARTO Builder: regiões claras, uma tarefa por painel, hierarquia forte.

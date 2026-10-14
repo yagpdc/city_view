@@ -758,3 +758,70 @@
 .photo-credit div { display: grid; grid-template-columns: 64px 1fr; gap: 8px; }
 .photo-credit dt { opacity: 0.7; }
 .photo-credit dd { margin: 0; font-weight: 600; }
+
+/* ---------- Campos do registro (FieldRows): ícone, rótulo e valor formatado ---------- */
+.field-groups { display: flex; flex-direction: column; gap: 12px; }
+.field-group h5 { margin: 0 0 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--cv-text-muted); }
+.field-group ul { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.field-row { display: flex; align-items: flex-start; gap: 10px; padding: 6px 0; }
+.field-row + .field-row { border-top: 1px solid var(--cv-border); }
+.field-icon { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--cv-surface); color: var(--cv-text-muted); }
+.field-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.field-label { font-size: 11px; font-weight: 600; color: var(--cv-text-muted); }
+.field-value { font-size: 13px; line-height: 18px; color: var(--cv-text); overflow-wrap: anywhere; }
+.field-value a { color: var(--cv-link); font-weight: 600; text-decoration: none; }
+.field-value a:hover { text-decoration: underline; }
+.field-score { display: flex; align-items: center; gap: 8px; }
+.field-score-track { flex: none; width: 64px; height: 6px; border-radius: 3px; background: var(--cv-surface-press); overflow: hidden; }
+.field-score-track span { display: block; height: 100%; border-radius: 3px; }
+.field-score.is-high .field-score-track span { background: var(--cv-success); }
+.field-score.is-mid .field-score-track span { background: var(--cv-warning); }
+.field-score.is-low .field-score-track span { background: var(--cv-danger); }
+.popup-fact-sub { font-size: 12px; color: var(--cv-text-muted); }
+
+/* ---------- Indicadores (Metric) e cartão da área ---------- */
+.metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.metric { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: var(--cv-radius-md); background: var(--cv-surface); min-width: 0; }
+.metric-label { font-size: 12px; line-height: 16px; color: var(--cv-text-muted); }
+.metric-value { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px; }
+.metric-value b { font-size: 20px; line-height: 24px; font-weight: 600; letter-spacing: -0.02em; color: var(--cv-text); }
+.metric-unit { font-size: 12px; font-weight: 600; color: var(--cv-text-muted); }
+.area-summary { gap: 12px; }
+.area-summary-head { display: flex; flex-direction: column; gap: 4px; padding-right: 32px; }
+.area-summary-kind { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--cv-action-subtle-text); }
+.area-summary-head h4 { margin: 0 !important; font-size: 20px; line-height: 26px; font-weight: 700; letter-spacing: -0.01em; }
+.area-summary-source { margin: -4px 0 0; font-size: 11px; color: var(--cv-text-muted); }
+.area-summary-layers { display: flex; flex-direction: column; gap: 6px; padding-top: 12px; border-top: 1px solid var(--cv-border); }
+.area-summary-layers h5 { margin: 0; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--cv-text-muted); }
+.area-summary-layers ul { display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.area-summary-layers li { display: flex; flex-direction: column; gap: 8px; }
+.area-summary-row { align-items: center; }
+.area-summary-layer { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 13px; font-weight: 600; }
+.area-summary-row b { font-size: 20px; font-weight: 600; letter-spacing: -0.02em; }
+.category-stack { display: flex; flex-direction: column; gap: 6px; }
+.category-stack-bar { display: flex; gap: 2px; height: 8px; border-radius: 4px; overflow: hidden; }
+.category-stack-bar span { height: 100%; }
+.category-stack-bar .is-rest { background: var(--cv-surface-press); }
+.category-stack-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--cv-text-muted); }
+.category-stack-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.category-stack-legend i { width: 8px; height: 8px; border-radius: 50%; }
+.category-stack-legend b { font-weight: 600; color: var(--cv-text); }
+
+/* "Por perto" no cartão: mesmo vocabulário dos widgets (barras) e lista dos mais próximos com distância */
+.map-popup-nearby { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--cv-border); }
+.map-popup-nearby header { margin: 0; }
+.map-popup-nearby h5, .map-popup-nearest-title { margin: 0; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--cv-text-muted); }
+.map-popup-nearby p { margin: 0; }
+.map-popup-nearby-total { font-size: 13px; }
+.map-popup-nearby-total b { font-weight: 700; }
+.map-popup-nearest { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.map-popup-nearest li { display: flex; align-items: center; gap: 10px; padding: 7px 0; font-size: 13px; }
+.map-popup-nearest li + li { border-top: 1px solid var(--cv-border); }
+.map-popup-nearest li > i { flex: none; width: 8px; height: 8px; border-radius: 50%; }
+.map-popup-nearest-name { flex: 1; min-width: 0; display: flex; flex-direction: column; font-weight: 600; }
+.map-popup-nearest-name .muted { font-size: 12px; font-weight: 400; }
+.map-popup-nearest-dist { flex: none; padding: 2px 8px; border-radius: 999px; background: var(--cv-surface); font-size: 11px; color: var(--cv-text-muted); }
+/* Foto no painel Detalhes: a mesma do cartão, com cantos arredondados */
+.street-photo-hero.is-inline { border-radius: var(--cv-radius-md); overflow: hidden; }
+.street-photo-hero.is-inline .street-photo-open img { aspect-ratio: 16 / 10; }
+.pick .street-photo { display: flex; flex-direction: column; gap: 8px; margin: 8px 0; }

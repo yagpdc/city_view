@@ -1,8 +1,7 @@
 import { categoryColor, matchesWhere, type CityMap, type MapPick, type NearbySummary, type Where } from "@cityview/engine";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-/** Campos que formam a linha de resumo sob o título (o primeiro que existir). */
-const SUMMARY_KEYS = ["endereco", "address", "endereço", "cidade"];
-import { FieldValue, formatField, labelled, type DatasetInfo } from "./PickDetails";
+import { FieldRows, Metric, humanize } from "./FieldRows";
+import { labelled, type DatasetInfo } from "./PickDetails";
 import { StreetPhoto } from "./StreetPhoto";
 import { InfoTip } from "./InfoTip";
 import { Icon, type IconName } from "./Icon";
@@ -10,7 +9,10 @@ import { Icon, type IconName } from "./Icon";
 const int = new Intl.NumberFormat("pt-BR");
 const RADII = [200, 500, 1000];
 /** Campos em "Mais informações" (todos ficam na barra lateral). */
-const MAX_FIELDS = 8;
+const MAX_FIELDS = 14;
+/** Linha de endereço sob o título: a primeira coluna de endereço que existir; cidade, UF e CEP completam. */
+const ADDRESS_KEYS = ["endereco", "endereço", "address", "logradouro"];
+const PLACE_KEYS = { city: ["cidade", "municipio", "município", "city"], uf: ["uf", "estado", "state"], cep: ["cep", "zip", "postcode"] };
 
 /** Aba do cartão: o registro, a região da sua camada ou uma camada de áreas (`area:<id da camada>`). */
 type PopupView = "record" | "aggregate" | `area:${string}`;
@@ -134,10 +136,18 @@ export function MapPopup({
         : "Neste ponto";
 
   const [expanded, setExpanded] = useState(false);
-  // Linha de endereço/cidade: o primeiro campo que existir, com o rótulo certo.
-  const summaryKey = record ? SUMMARY_KEYS.find((k) => record.properties[k] !== undefined && String(record.properties[k]).trim() !== "") : undefined;
-  const summary = record && summaryKey ? record.properties[summaryKey] : undefined;
-  const summaryLabel = summaryKey === "cidade" ? "Cidade" : "Endereço";
+  // Endereço sob o título: rua na primeira linha, cidade · UF · CEP na segunda (sem endereço, só a cidade).
+  const filled = (k: string) => (record && record.properties[k] !== undefined && String(record.properties[k]).trim() !== "" ? k : undefined);
+  const firstOf = (keys: string[]) => keys.map(filled).find(Boolean);
+  const addressKey = firstOf(ADDRESS_KEYS);
+  const cityKey = firstOf(PLACE_KEYS.city);
+  const ufKey = firstOf(PLACE_KEYS.uf);
+  const cepKey = firstOf(PLACE_KEYS.cep);
+  const prop = (k: string | undefined) => (k && record ? String(record.properties[k]).trim() : "");
+  const placeLine = [prop(cityKey), prop(ufKey), cepKey ? `CEP ${prop(cepKey)}` : ""].filter(Boolean).join(" · ");
+  const summary = addressKey ? prop(addressKey) : placeLine || undefined;
+  const summaryLabel = addressKey ? "Endereço" : "Cidade";
+  const addressKeys = new Set([addressKey, cityKey, ufKey, cepKey].filter((k): k is string => Boolean(k)));
   const isUserRecord = Boolean(record && userLayers?.find((l) => l.id === record.datasetId)?.user);
   /** "Estabelecimentos (Overture Maps)" → nome e fonte separados. */
   const sourceMatch = info?.name.match(/^(.*?)\s*\((.+)\)$/);
@@ -146,9 +156,9 @@ export function MapPopup({
 
   const fields = record
     ? labelled(
-        // Sem o título e sem a coluna de cor (já aparecem no cabeçalho do cartão).
+        // Sem o título, a coluna de cor e o endereço (já aparecem no topo do cartão).
         Object.entries(record.properties).filter(
-          ([k, v]) => k !== info?.title && k !== info?.colorBy && String(v).trim() !== "",
+          ([k, v]) => k !== info?.title && k !== info?.colorBy && !addressKeys.has(k) && String(v).trim() !== "",
         ),
         info?.fieldLabels,
       ).slice(0, MAX_FIELDS)
@@ -213,7 +223,8 @@ export function MapPopup({
           </span>
           <span className="popup-fact-text">
             <span className="popup-fact-label">{summaryLabel}</span>
-            {String(summary)}
+            {summary}
+            {addressKey && placeLine && <span className="popup-fact-sub">{placeLine}</span>}
           </span>
           {sourceName && (
             <InfoTip label={`De onde vem o ${summaryLabel.toLowerCase()}`} placement="top-end">
@@ -247,27 +258,13 @@ export function MapPopup({
 
       {expanded && (
         <div className="map-popup-more">
-          {fields.length > 0 && (
-            <dl>
-              {fields.map(({ key, label, value }) => (
-                <div key={key}>
-                  <dt>{label}</dt>
-                  <dd>
-                    <FieldValue value={value} />
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          )}
+          {fields.length > 0 && <FieldRows fields={fields} />}
           {!record && catalog && (
-            <dl>
+            <div className="metric-grid">
               {catalog.datapack.fields.slice(0, MAX_FIELDS).map((f) => (
-                <div key={f.key}>
-                  <dt>{f.label}</dt>
-                  <dd>{formatField(f, catalog.properties[f.key])}</dd>
-                </div>
+                <Metric key={f.key} field={f} value={catalog.properties[f.key]} />
               ))}
-            </dl>
+            </div>
           )}
           {nearbySource && (
             <Nearby
@@ -286,7 +283,32 @@ export function MapPopup({
   );
 }
 
-/** Nome da área, o valor de cada camada de áreas escolhida e quantos registros seus caem nela. */
+/** Barra empilhada das categorias (as maiores e "outras"), com a legenda embaixo. */
+function CategoryStack({ items, total }: { items: { label: string; n: number; color: string }[]; total: number }) {
+  const shown = items.slice(0, 3);
+  const rest = total - shown.reduce((s, x) => s + x.n, 0);
+  const pct = (n: number) => `${Math.max(1.5, (n / Math.max(1, total)) * 100)}%`;
+  return (
+    <div className="category-stack">
+      <span className="category-stack-bar" aria-hidden="true">
+        {shown.map((x) => (
+          <span key={x.label} style={{ width: pct(x.n), background: x.color }} />
+        ))}
+        {rest > 0 && <span className="is-rest" style={{ width: pct(rest) }} />}
+      </span>
+      <span className="category-stack-legend">
+        {shown.map((x) => (
+          <span key={x.label}>
+            <i style={{ background: x.color }} />
+            {x.label} <b className="num">{int.format(x.n)}</b>
+          </span>
+        ))}
+      </span>
+    </div>
+  );
+}
+
+/** Nome da área, os indicadores de cada camada de áreas escolhida e quanto de cada camada de pontos cai nela. */
 function AreaSummary({
   map,
   picks,
@@ -302,26 +324,34 @@ function AreaSummary({
   const p = first.properties;
   const code = String(p.codigo ?? first.featureId ?? "");
   const isState = code.length <= 2;
-  const name = p.nome ? `${p.nome}${p.uf && !isState ? ` · ${p.uf}` : ""}` : first.datapack.name;
-  const values = picks.flatMap((c) => {
+  const name = p.nome ? String(p.nome) : first.datapack.name;
+  const uf = p.uf && !isState ? String(p.uf) : null;
+  const metrics = picks.flatMap((c) => {
     const r = c.datapack.render;
     const key = r.type === "choropleth" ? r.property : undefined;
     const field = c.datapack.fields.find((f) => f.key === key) ?? c.datapack.fields.find((f) => typeof c.properties[f.key] === "number");
     if (!field) return [];
     const extra = c.datapack.fields.filter((f) => f !== field && typeof c.properties[f.key] === "number").slice(0, compact ? 0 : 2);
-    return [field, ...extra].map((f) => ({ key: `${c.datapack.id}:${f.key}`, label: f === field && c.datapack.category === "Biblioteca" ? c.datapack.name : f.label, value: formatField(f, c.properties[f.key]) }));
+    return [field, ...extra].map((f) => ({
+      key: `${c.datapack.id}:${f.key}`,
+      field: f,
+      value: c.properties[f.key],
+      // Camada da biblioteca: o nome da camada diz mais que o nome técnico da coluna.
+      label: f === field && c.datapack.category === "Biblioteca" ? c.datapack.name : f.label,
+    }));
   });
-  const mine = code
+  const source = first.datapack.attribution || first.datapack.source?.name;
+  const layers = code
     ? userLayers.map(({ id, info, user }) => {
         const row = map.datasetRegionRow(id, code);
-        const top = row
+        const items = row
           ? info.categories
               .map((c, i) => ({ label: info.label ? info.label(c) : c, n: row[i + 1] ?? 0, color: categoryColor(i, info.categories) }))
               .filter((x) => x.n > 0)
               .sort((a, b) => b.n - a.n)
-              .slice(0, 3)
           : [];
-        return { id, name: info.name, total: row ? row[0]! : null, top, user };
+        const sourceMatch = info.name.match(/^(.*?)\s*\((.+)\)$/);
+        return { id, name: sourceMatch ? sourceMatch[1]! : info.name, total: row ? row[0]! : null, items, user };
       })
     : [];
   return (
@@ -329,29 +359,34 @@ function AreaSummary({
       {compact ? (
         <p className="area-summary-kicker">Em {name}</p>
       ) : (
-        <>
-          <span className="area-summary-kicker">{isState ? "Estado" : "Município"}</span>
+        <header className="area-summary-head">
+          <span className="area-summary-kind">
+            <Icon name={isState ? "map" : "landmark"} size={16} />
+            {isState ? "Estado" : "Município"}
+            {uf && <span className="muted"> · {uf}</span>}
+          </span>
           <h4>{name}</h4>
-        </>
+        </header>
       )}
-      {values.length > 0 && (
-        <dl className="area-summary-values">
-          {values.map((v) => (
-            <div key={v.key}>
-              <dt>{v.label}</dt>
-              <dd className="num">{v.value}</dd>
-            </div>
+      {metrics.length > 0 && (
+        <div className="metric-grid">
+          {metrics.map((m) => (
+            <Metric key={m.key} field={m.field} value={m.value} label={m.label} />
           ))}
-        </dl>
+        </div>
       )}
-      {mine.length > 0 && (
-        <div className="area-summary-mine">
-          <span className="area-summary-kicker">Seus dados aqui</span>
+      {!compact && source && <p className="area-summary-source">Fonte: {source}</p>}
+      {layers.length > 0 && (
+        <section className="area-summary-layers">
+          <h5>Camadas nesta área</h5>
           <ul>
-            {mine.map((m) => (
+            {layers.map((m) => (
               <li key={m.id}>
                 <div className="area-summary-row">
-                  <span>{m.name}</span>
+                  <span className="area-summary-layer">
+                    {m.name}
+                    <span className={`origin-tag ${m.user ? "origin-user" : "origin-public"}`}>{m.user ? "Seu dado" : "Público"}</span>
+                  </span>
                   <b className="num">{m.total === null ? "–" : int.format(m.total)}</b>
                 </div>
                 {m.total === null ? (
@@ -359,21 +394,12 @@ function AreaSummary({
                     {m.user ? "Camada sem contagem por região: importe de novo para ver." : "Contagem por região ainda não disponível nesta versão da fonte."}
                   </span>
                 ) : (
-                  m.top.length > 0 && (
-                    <span className="area-summary-cats">
-                      {m.top.map((t) => (
-                        <span key={t.label}>
-                          <i style={{ background: t.color }} />
-                          {t.label} <span className="num">{int.format(t.n)}</span>
-                        </span>
-                      ))}
-                    </span>
-                  )
+                  m.items.length > 0 && <CategoryStack items={m.items} total={m.total} />
                 )}
               </li>
             ))}
           </ul>
-        </div>
+        </section>
       )}
     </div>
   );
@@ -434,7 +460,7 @@ function Nearby({
   return (
     <section className="map-popup-nearby">
       <header>
-        <strong>Por perto</strong>
+        <h5>Por perto</h5>
         <span className="segmented" role="radiogroup" aria-label="Raio">
           {RADII.map((r) => (
             <button
@@ -454,39 +480,46 @@ function Nearby({
       {!summary && !state.error && <p className="muted">Contando {source.name.toLowerCase()}…</p>}
       {summary && (
         <>
-          <p className="muted">
-            {int.format(total)} {source.name.toLowerCase()} em {meters(radius)}
-            {(allowed || where) && " · com o filtro da camada"}
+          <p className="map-popup-nearby-total">
+            <b className="num">{int.format(total)}</b> {source.name.toLowerCase()} em {meters(radius)}
+            {(allowed || where) && <span className="muted"> · com o filtro da camada</span>}
           </p>
           {top.length > 0 && (
-            <ul className="bars">
+            <ul className="widget-bars">
               {top.slice(0, 6).map((c) => (
                 <li key={c.i}>
-                  <span className="bar-label">
+                  <span className="widget-bar-label">
                     <i style={{ background: categoryColor(c.i, info.categories) }} />
-                    {info.label ? info.label(c.label) : c.label}
+                    <span>{info.label ? info.label(c.label) : c.label}</span>
+                    <span className="num">{int.format(c.count)}</span>
                   </span>
-                  <span className="bar-track">
+                  <span className="widget-bar-track">
                     <span style={{ width: `${(c.count / max) * 100}%`, background: categoryColor(c.i, info.categories) }} />
                   </span>
-                  <b>{int.format(c.count)}</b>
                 </li>
               ))}
             </ul>
           )}
           {nearest.length > 0 && (
-            <ol className="map-popup-nearest">
-              {nearest.map((p, k) => (
-                <li key={k}>
-                  {String(p.properties[info.title!])}
-                  {p.properties.categoria ? <span className="muted"> · {String(p.properties.categoria)}</span> : null}
-                  <span className="muted"> · {meters(p.distanceM)}</span>
-                </li>
-              ))}
-            </ol>
+            <>
+              <h5 className="map-popup-nearest-title">Mais perto</h5>
+              <ol className="map-popup-nearest">
+                {nearest.map((p, k) => (
+                  <li key={k}>
+                    <i style={{ background: categoryColor(p.category ?? -1, info.categories) }} aria-hidden="true" />
+                    <span className="map-popup-nearest-name">
+                      {String(p.properties[info.title!])}
+                      {p.properties.categoria ? <span className="muted">{humanize(String(p.properties.categoria))}</span> : null}
+                    </span>
+                    <span className="map-popup-nearest-dist num">{meters(p.distanceM)}</span>
+                  </li>
+                ))}
+              </ol>
+            </>
           )}
         </>
       )}
     </section>
   );
 }
+

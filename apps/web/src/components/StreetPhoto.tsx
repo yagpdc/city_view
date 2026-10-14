@@ -4,7 +4,6 @@ import { PhotoLightbox } from "./PhotoLightbox";
 import { InfoTip } from "./InfoTip";
 import { Icon } from "./Icon";
 
-const date = new Intl.DateTimeFormat("pt-BR", { month: "short", year: "numeric" });
 const longDate = new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" });
 
 /** "15 m", "1,2 km". */
@@ -81,50 +80,38 @@ export function StreetPhoto({
   if (state.image === null) return <p className="muted street-photo-note">Sem foto de rua num raio de ~60 m.</p>;
 
   const img = state.image;
-  if (hero) {
-    return (
-      <figure className="street-photo-hero">
-        <button type="button" className="street-photo-open" onClick={() => setZoomed(true)} title="Ampliar a foto">
-          <img src={img.thumbUrl} alt="Foto da rua mais próxima" />
-          <span className="street-photo-cta">
-            <Icon name="expand" size={16} />
-            Ampliar
-          </span>
-        </button>
-        {/* Distância entre a foto e o ponto: selo sobre a foto. */}
-        <span className="photo-chip photo-distance" title="Distância entre o lugar da foto e o ponto clicado">
-          <Icon name="pin" size={16} />
-          <span className="num">{distanceLabel(img.distanceM)}</span>
+  // Mesma foto nos dois lugares: selo de distância e crédito no balão ⓘ (nada de texto solto embaixo).
+  const figure = (
+    <figure className={`street-photo-hero ${hero ? "" : "is-inline"}`}>
+      <button type="button" className="street-photo-open" onClick={() => setZoomed(true)} title="Ampliar a foto">
+        <img src={img.thumbUrl} alt="Foto da rua mais próxima" loading={hero ? undefined : "lazy"} />
+        <span className="street-photo-cta">
+          <Icon name="expand" size={16} />
+          Ampliar
         </span>
-        <span className="photo-credit-tip">
-          <InfoTip label="Sobre a foto" placement="bottom-end" tone="dark">
-            <PhotoCredit img={img} />
-          </InfoTip>
-        </span>
-        {zoomed && <PhotoLightbox image={img} onClose={() => setZoomed(false)} onStreetView={onOpen} />}
-      </figure>
-    );
-  }
+      </button>
+      {/* Distância entre a foto e o ponto: selo sobre a foto. */}
+      <span className="photo-chip photo-distance" title="Distância entre o lugar da foto e o ponto clicado">
+        <Icon name="pin" size={16} />
+        <span className="num">{distanceLabel(img.distanceM)}</span>
+      </span>
+      <span className="photo-credit-tip">
+        <InfoTip label="Sobre a foto" placement="bottom-end" tone="dark">
+          <PhotoCredit img={img} />
+        </InfoTip>
+      </span>
+      {zoomed && <PhotoLightbox image={img} onClose={() => setZoomed(false)} onStreetView={onOpen} />}
+    </figure>
+  );
+  if (hero) return figure;
   return (
-    <figure className="street-photo">
-      <a href={img.pageUrl} target="_blank" rel="noreferrer" title="Abrir na Mapillary">
-        <img src={img.thumbUrl} alt="Foto da rua mais próxima" loading="lazy" />
-      </a>
-      <figcaption>
-        a {Math.round(img.distanceM)} m{img.capturedAt ? ` · ${date.format(img.capturedAt)}` : ""} ·{" "}
-        <a href={img.pageUrl} target="_blank" rel="noreferrer">
-          Mapillary
-        </a>
-        {img.author ? `, por ${img.author}` : ""} ·{" "}
-        <a href="https://creativecommons.org/licenses/by-sa/4.0/deed.pt-br" target="_blank" rel="noreferrer">
-          CC BY-SA
-        </a>
-      </figcaption>
+    <div className="street-photo">
+      {figure}
       {onOpen && (
         <button type="button" className="btn btn-block" onClick={() => onOpen(img.id)}>
           Andar pela rua (3D)
         </button>
       )}
-    </figure>
+    </div>
   );
 }

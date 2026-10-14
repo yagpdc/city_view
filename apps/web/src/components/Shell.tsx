@@ -138,7 +138,7 @@ export function LayerCard({
           <b title={title}>{title}</b>
           <span>
             {origin && <span className={`origin-tag origin-${origin}`}>{ORIGIN_LABEL[origin]}</span>}
-            {meta}
+            <span className="layer-card-meta">{meta}</span>
           </span>
         </span>
         {status === "working" ? (
@@ -313,6 +313,8 @@ export function CategoryLegend({
 export function ScaleLegend({ colors, min, max, unit }: { colors: string[]; min: string; max: string; unit?: string }) {
   return (
     <div className="legend-scale-block">
+      {/* Unidade em cima, como título da escala; embaixo só o menor e o maior valor. */}
+      {unit && <span className="legend-unit">{unit}</span>}
       <div className="legend-bar">
         {colors.map((c) => (
           <span key={c} style={{ background: c }} />
@@ -320,7 +322,6 @@ export function ScaleLegend({ colors, min, max, unit }: { colors: string[]; min:
       </div>
       <div className="legend-ends num">
         <span>{min}</span>
-        {unit && <span>{unit}</span>}
         <span>{max}</span>
       </div>
     </div>

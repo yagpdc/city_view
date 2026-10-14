@@ -42,6 +42,13 @@ import {
   type LucideIcon,
   ArrowDown,
   ArrowUp,
+  AtSign,
+  CalendarDays,
+  Globe,
+  Mail,
+  Phone,
+  ShieldCheck,
+  Tag,
   ChartBar,
   Download,
   Gauge,
@@ -103,6 +110,13 @@ const ICONS = {
   download: Download,
   arrowUp: ArrowUp,
   arrowDown: ArrowDown,
+  globe: Globe,
+  phone: Phone,
+  mail: Mail,
+  at: AtSign,
+  calendar: CalendarDays,
+  tag: Tag,
+  shield: ShieldCheck,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof ICONS;

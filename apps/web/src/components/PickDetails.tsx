@@ -1,6 +1,7 @@
 import type { DatapackField, MapPick } from "@cityview/engine";
 import { categoryColor } from "@cityview/engine";
 import { useEffect, useState } from "react";
+import { FieldRows, Metric } from "./FieldRows";
 import { StreetPhoto } from "./StreetPhoto";
 
 const int = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
@@ -29,7 +30,7 @@ const SOCIAL_NAMES: [RegExp, string][] = [
   [/youtube\.com|youtu\.be/i, "YouTube"],
 ];
 
-function linkLabel(url: string): string {
+export function linkLabel(url: string): string {
   const social = SOCIAL_NAMES.find(([re]) => re.test(url));
   if (social) return social[1];
   return url.replace(/^https?:\/\/(www\.)?/i, "").replace(/\/$/, "");
@@ -140,7 +141,8 @@ export function PickDetails({
       <p className="muted coords">
         {pick.lngLat[1].toFixed(5)}, {pick.lngLat[0].toFixed(5)}
       </p>
-      <StreetPhoto lngLat={pick.lngLat} onOpen={onStreetView} />
+      {/* A foto do registro (a mesma do cartão), não a do ponto exato do clique. */}
+      <StreetPhoto lngLat={pick.dataset?.lngLat ?? pick.lngLat} onOpen={onStreetView} />
       {empty && <p className="muted">Nenhuma camada ligada tem dados aqui.</p>}
       {onAdvanced && (
         <button type="button" className="btn btn-primary btn-block advanced" onClick={() => onAdvanced(pick)}>
@@ -182,13 +184,14 @@ export function PickDetails({
 
       {record && (
         <div className="pick-card">
+          {/* O nome do registro em destaque; a camada de onde ele vem, menor, em cima. */}
+          <span className="pick-layer">{info?.name ?? "Seus dados"}</span>
           <h4>
-            {info?.name ?? "Seus dados"}
             {info?.title && details.fields
-              ? ` · ${details.fields.find(([k]) => k === info.title)?.[1] ?? ""}`
+              ? (details.fields.find(([k]) => k === info.title)?.[1] ?? `#${record.id}`)
               : info?.title && record.properties[info.title]
-                ? ` · ${record.properties[info.title]}`
-                : ` · #${record.id}`}
+                ? String(record.properties[info.title])
+                : `Registro #${record.id}`}
           </h4>
           {record.category !== null && info && (
             <p className="pick-category">
@@ -196,19 +199,12 @@ export function PickDetails({
               {label(record.category)}
             </p>
           )}
-          <dl>
-            {labelled(
-              (details.fields ?? Object.entries(record.properties)).filter(([k]) => k !== info?.title),
+          <FieldRows
+            fields={labelled(
+              (details.fields ?? Object.entries(record.properties)).filter(([k]) => k !== info?.title && k !== info?.colorBy),
               info?.fieldLabels,
-            ).map(({ key, label: name, value }) => (
-              <div key={key}>
-                <dt>{name}</dt>
-                <dd>
-                  <FieldValue value={value} />
-                </dd>
-              </div>
-            ))}
-          </dl>
+            )}
+          />
           {details.loading && <p className="muted source">Carregando todas as colunas…</p>}
         </div>
       )}
@@ -243,14 +239,11 @@ export function PickDetails({
       {pick.catalog.map(({ datapack, properties }, i) => (
         <div key={`${datapack.id}-${i}`} className="pick-card">
           <h4>{datapack.name}</h4>
-          <dl>
+          <div className="metric-grid">
             {datapack.fields.map((f) => (
-              <div key={f.key}>
-                <dt>{f.label}</dt>
-                <dd>{formatField(f, properties[f.key])}</dd>
-              </div>
+              <Metric key={f.key} field={f} value={properties[f.key]} />
             ))}
-          </dl>
+          </div>
           <p className="muted source">Fonte: {datapack.attribution || datapack.source.name}</p>
         </div>
       ))}
