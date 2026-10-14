@@ -1,8 +1,50 @@
 import { useEffect, useState } from "react";
 import { nearestStreetImage, streetImageryEnabled, type StreetImage } from "../streetImagery";
 import { PhotoLightbox } from "./PhotoLightbox";
+import { InfoTip } from "./InfoTip";
+import { Icon } from "./Icon";
 
 const date = new Intl.DateTimeFormat("pt-BR", { month: "short", year: "numeric" });
+const longDate = new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" });
+
+/** "15 m", "1,2 km". */
+export const distanceLabel = (m: number) => (m < 1000 ? `${Math.round(m)} m` : `${new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 }).format(m / 1000)} km`);
+
+/** Crédito da foto (data, autor, fonte, licença), para o balão ⓘ. */
+function PhotoCredit({ img }: { img: StreetImage }) {
+  return (
+    <dl className="photo-credit">
+      {img.capturedAt && (
+        <div>
+          <dt>Tirada em</dt>
+          <dd>{longDate.format(img.capturedAt)}</dd>
+        </div>
+      )}
+      {img.author && (
+        <div>
+          <dt>Autor</dt>
+          <dd>{img.author}</dd>
+        </div>
+      )}
+      <div>
+        <dt>Fonte</dt>
+        <dd>
+          <a href={img.pageUrl} target="_blank" rel="noreferrer">
+            Mapillary
+          </a>
+        </dd>
+      </div>
+      <div>
+        <dt>Licença</dt>
+        <dd>
+          <a href="https://creativecommons.org/licenses/by-sa/4.0/deed.pt-br" target="_blank" rel="noreferrer">
+            CC BY-SA 4.0
+          </a>
+        </dd>
+      </div>
+    </dl>
+  );
+}
 
 /** Foto de rua mais próxima do ponto clicado (Mapillary), com crédito e licença. */
 export function StreetPhoto({
@@ -45,23 +87,21 @@ export function StreetPhoto({
         <button type="button" className="street-photo-open" onClick={() => setZoomed(true)} title="Ampliar a foto">
           <img src={img.thumbUrl} alt="Foto da rua mais próxima" />
           <span className="street-photo-cta">
-            <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
-            </svg>
+            <Icon name="expand" size={16} />
             Ampliar
           </span>
         </button>
+        {/* Distância entre a foto e o ponto: selo sobre a foto. */}
+        <span className="photo-chip photo-distance" title="Distância entre o lugar da foto e o ponto clicado">
+          <Icon name="pin" size={16} />
+          <span className="num">{distanceLabel(img.distanceM)}</span>
+        </span>
+        <span className="photo-credit-tip">
+          <InfoTip label="Sobre a foto" placement="bottom-end" tone="dark">
+            <PhotoCredit img={img} />
+          </InfoTip>
+        </span>
         {zoomed && <PhotoLightbox image={img} onClose={() => setZoomed(false)} onStreetView={onOpen} />}
-        <figcaption>
-          a {Math.round(img.distanceM)} m{img.capturedAt ? ` · ${date.format(img.capturedAt)}` : ""} ·{" "}
-          <a href={img.pageUrl} target="_blank" rel="noreferrer">
-            Mapillary
-          </a>
-          {img.author ? `, ${img.author}` : ""} ·{" "}
-          <a href="https://creativecommons.org/licenses/by-sa/4.0/deed.pt-br" target="_blank" rel="noreferrer">
-            CC BY-SA
-          </a>
-        </figcaption>
       </figure>
     );
   }

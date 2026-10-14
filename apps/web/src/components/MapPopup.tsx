@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 const SUMMARY_KEYS = ["endereco", "address", "endereço", "cidade"];
 import { FieldValue, formatField, labelled, type DatasetInfo } from "./PickDetails";
 import { StreetPhoto } from "./StreetPhoto";
+import { InfoTip } from "./InfoTip";
 import { Icon, type IconName } from "./Icon";
 
 const int = new Intl.NumberFormat("pt-BR");
@@ -133,9 +134,15 @@ export function MapPopup({
         : "Neste ponto";
 
   const [expanded, setExpanded] = useState(false);
-  const summary = record
-    ? SUMMARY_KEYS.map((k) => record.properties[k]).find((v) => v !== undefined && String(v).trim() !== "")
-    : undefined;
+  // Linha de endereço/cidade: o primeiro campo que existir, com o rótulo certo.
+  const summaryKey = record ? SUMMARY_KEYS.find((k) => record.properties[k] !== undefined && String(record.properties[k]).trim() !== "") : undefined;
+  const summary = record && summaryKey ? record.properties[summaryKey] : undefined;
+  const summaryLabel = summaryKey === "cidade" ? "Cidade" : "Endereço";
+  const isUserRecord = Boolean(record && userLayers?.find((l) => l.id === record.datasetId)?.user);
+  /** "Estabelecimentos (Overture Maps)" → nome e fonte separados. */
+  const sourceMatch = info?.name.match(/^(.*?)\s*\((.+)\)$/);
+  const layerName = sourceMatch ? sourceMatch[1]! : (info?.name ?? "");
+  const sourceName = sourceMatch ? sourceMatch[2]! : null;
 
   const fields = record
     ? labelled(
@@ -183,15 +190,38 @@ export function MapPopup({
       {tabs}
       <StreetPhoto lngLat={center} onOpen={onStreetView} variant="hero" />
 
-      <h4>{titleText}</h4>
-      {record && record.category !== null && info && (
-        <p className="pick-category">
-          <i style={{ background: categoryColor(record.category, info.categories) }} />
-          {info.label ? info.label(info.categories[record.category] ?? "") : info.categories[record.category]}
-          {info.name ? <span className="muted"> · {info.name}</span> : null}
+      <h4 className="popup-title">{titleText}</h4>
+      {record && info && (
+        <div className="popup-meta">
+          {record.category !== null && (
+            <span className="popup-category" style={{ ["--cat" as string]: categoryColor(record.category, info.categories) }}>
+              <i aria-hidden="true" />
+              {info.label ? info.label(info.categories[record.category] ?? "") : info.categories[record.category]}
+            </span>
+          )}
+          <span className={`origin-tag ${isUserRecord ? "origin-user" : "origin-public"}`}>{isUserRecord ? "Seu dado" : "Público"}</span>
+          <span className="popup-source">
+            {layerName}
+            {sourceName && <span className="muted"> · {sourceName}</span>}
+          </span>
+        </div>
+      )}
+      {summary !== undefined && (
+        <p className="popup-fact">
+          <span className="popup-fact-icon" aria-hidden="true">
+            <Icon name="pin" size={16} />
+          </span>
+          <span className="popup-fact-text">
+            <span className="popup-fact-label">{summaryLabel}</span>
+            {String(summary)}
+          </span>
+          {sourceName && (
+            <InfoTip label={`De onde vem o ${summaryLabel.toLowerCase()}`} placement="top-end">
+              Informado pela fonte ({sourceName}), como veio. Pode estar incompleto ou desatualizado.
+            </InfoTip>
+          )}
         </p>
       )}
-      {summary !== undefined && <p className="map-popup-summary">{String(summary)}</p>}
       {/* Afastado, numa área muito densa, o ponto representa a região e vem sem as colunas. */}
       {record && Object.keys(record.properties).length === 0 && (
         <p className="map-popup-summary">
