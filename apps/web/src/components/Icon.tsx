@@ -40,6 +40,14 @@ import {
   Upload,
   X,
   type LucideIcon,
+  ArrowDown,
+  ArrowUp,
+  ChartBar,
+  Download,
+  Gauge,
+  Landmark,
+  Table2,
+  Target,
 } from "lucide-react";
 
 /**
@@ -87,6 +95,14 @@ const ICONS = {
   duplicate: Copy,
   hexagon: Hexagon,
   palette: Palette,
+  gauge: Gauge,
+  barChart: ChartBar,
+  table: Table2,
+  target: Target,
+  landmark: Landmark,
+  download: Download,
+  arrowUp: ArrowUp,
+  arrowDown: ArrowDown,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof ICONS;

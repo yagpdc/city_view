@@ -24,6 +24,8 @@ export {
   type DatasetFilter,
   type DatasetMeta,
   type DatasetPick,
+  type ViewportRecord,
+  type ViewportRecords,
   type WhereClause,
 } from "./dataset";
 export { cleanWhere, matchesWhere, whereExpressions, type Where } from "./filter";

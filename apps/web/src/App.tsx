@@ -1,5 +1,5 @@
 import { data } from "./dataUrl";
-import type { BasemapLook, BuildingPaintResult, Camera, DatasetMeta, MapPick, Theme } from "@cityview/engine";
+import type { BasemapLook, BuildingPaintResult, Camera, DatasetMeta, MapPick, Theme, ViewportRecord } from "@cityview/engine";
 import { CATEGORY_COLORS, categoryColor, geodesicDistanceM, normalizeText } from "@cityview/engine";
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { areaAt, parseCoordinates, searchMunicipios } from "./areas";
@@ -8,9 +8,10 @@ import { SearchBox, type SearchResult } from "./components/SearchBox";
 import { CategoryLegend, LayerCard, Panel, PanelCard, Rail, ScaleLegend, type LayerAction, type PanelId } from "./components/Shell";
 import { ViewportSummary, type ViewportWidget } from "./components/WidgetsPanel";
 import { FloatingWidget, type WidgetRect } from "./components/FloatingWidget";
+import { ColumnChartWidget, PlaceWidget, RadiusWidget, VisibleTableWidget, type WidgetLayer, type WidgetSettings } from "./components/MapWidgets";
 import { ValueFilter, type FilterColumn } from "./components/ValueFilter";
 import { placeIcon, placeIconSvgs } from "./placeIcons";
-import { Icon } from "./components/Icon";
+import { Icon, type IconName } from "./components/Icon";
 import { AddRow, DatapackMeta } from "./components/AddRow";
 import { MeasurePanel } from "./components/MeasurePanel";
 import type { DataStyle, DatasetFilter, MeasureMode, MeasureState, Where } from "@cityview/engine";
@@ -81,11 +82,47 @@ const MaqueteView = lazy(() => import("./components/MaqueteView").then((m) => ({
 
 const isNarrowScreen = () => window.matchMedia("(max-width: 767px)").matches;
 
+/** Widgets soltos sobre o mapa (um de cada tipo). */
+type WidgetKind = "summary" | "chart" | "table" | "radius" | "place";
+interface MapWidget {
+  rect: WidgetRect;
+  settings: WidgetSettings;
+  /** Empilhamento: o último aberto ou clicado fica na frente. */
+  z?: number;
+}
+type MapWidgets = Partial<Record<WidgetKind, MapWidget>>;
+
+const WIDGET_KINDS: { kind: WidgetKind; title: string; icon: IconName; text: string; size: [number, number] }[] = [
+  { kind: "summary", title: "Na tela", icon: "gauge", text: "Quantos registros de cada camada estão visíveis agora, por categoria.", size: [300, 360] },
+  { kind: "chart", title: "Gráfico por coluna", icon: "barChart", text: "Escolha uma coluna: os valores mais comuns, ou soma, média e distribuição se for número.", size: [320, 400] },
+  { kind: "table", title: "Tabela dos visíveis", icon: "table", text: "Os registros na tela em linhas: ordene, clique para ver no mapa, baixe em CSV.", size: [480, 380] },
+  { kind: "radius", title: "Raio ao redor", icon: "target", text: "Escolha um ponto e um raio: quanto de cada camada há em volta, e a densidade.", size: [320, 420] },
+  { kind: "place", title: "Indicadores do lugar", icon: "landmark", text: "O município no centro do mapa: população, área, densidade e as suas camadas nele.", size: [300, 380] },
+];
+
+const WIDGETS_KEY = "cityview.widgets";
+/** Versão anterior: só o "Na tela", com a posição direto. */
 const SUMMARY_WIDGET_KEY = "cityview.widget-na-tela";
-/** Posição inicial do widget "Na tela": à direita, ao lado da coluna de botões. */
-function defaultSummaryRect(): WidgetRect {
-  const w = 300;
-  return { x: Math.max(12, window.innerWidth - w - 72), y: 64, w, h: 360 };
+
+/** Posição inicial: à direita, ao lado da coluna de botões; os seguintes em cascata para não ficarem empilhados. */
+function defaultWidgetRect(kind: WidgetKind, open: number): WidgetRect {
+  const [w, h] = WIDGET_KINDS.find((k) => k.kind === kind)!.size;
+  return { x: Math.max(12, window.innerWidth - w - 72 - open * 28), y: 64 + open * 28, w, h };
+}
+
+function loadWidgets(): MapWidgets {
+  try {
+    const raw = localStorage.getItem(WIDGETS_KEY);
+    if (raw !== null) return JSON.parse(raw) as MapWidgets;
+    const old = localStorage.getItem(SUMMARY_WIDGET_KEY);
+    if (old !== null) {
+      const rect = JSON.parse(old) as WidgetRect | null;
+      return rect ? { summary: { rect, settings: {} } } : {};
+    }
+  } catch {
+    return {};
+  }
+  return window.innerWidth >= 1280 ? { summary: { rect: defaultWidgetRect("summary", 0), settings: {} } } : {};
 }
 
 const HIDDEN_KEY = "cityview.hidden-layers";
@@ -169,24 +206,38 @@ export function App() {
   const [hidden, setHidden] = useState<Set<string>>(() => new Set(INITIAL_TAB.hidden));
   const [filters, setFilters] = useState<LayerFilters>(INITIAL_TAB.filters);
   const initialFilters = useRef(filters);
-  /** Widget "Na tela" solto sobre o mapa (posição, tamanho, minimizado); null = fora do mapa. */
-  const [summaryWidget, setSummaryWidget] = useState<WidgetRect | null>(() => {
-    try {
-      const raw = localStorage.getItem(SUMMARY_WIDGET_KEY);
-      return raw === null ? (window.innerWidth >= 1280 ? defaultSummaryRect() : null) : (JSON.parse(raw) as WidgetRect | null);
-    } catch {
-      return null;
-    }
-  });
+  /** Widgets soltos sobre o mapa (posição, tamanho, minimizado e ajustes de cada um). */
+  const [mapWidgets, setMapWidgets] = useState<MapWidgets>(loadWidgets);
   useEffect(() => {
     try {
-      localStorage.setItem(SUMMARY_WIDGET_KEY, JSON.stringify(summaryWidget));
+      localStorage.setItem(WIDGETS_KEY, JSON.stringify(mapWidgets));
     } catch {
       // Modo privado: segue sem lembrar.
     }
-  }, [summaryWidget]);
-  /** Os números só são calculados com o widget aberto (e não minimizado). */
-  const widgetsOpen = summaryWidget !== null && !summaryWidget.minimized;
+  }, [mapWidgets]);
+  /** Raio ao redor: o próximo clique no mapa escolhe o centro (em vez de abrir o cartão). */
+  const [placingRadius, setPlacingRadius] = useState(false);
+  const placingRadiusRef = useRef(false);
+  placingRadiusRef.current = placingRadius;
+  const topZ = (w: MapWidgets) => Math.max(0, ...Object.values(w).map((x) => x?.z ?? 0));
+  const openWidget = (kind: WidgetKind) =>
+    setMapWidgets((w) => (w[kind] ? w : { ...w, [kind]: { rect: defaultWidgetRect(kind, Object.keys(w).length), settings: {}, z: topZ(w) + 1 } }));
+  /** Traz para a frente (sem mexer na ordem do DOM, que soltaria o arrasto em andamento). */
+  const focusWidget = (kind: WidgetKind) =>
+    setMapWidgets((w) => {
+      const top = topZ(w);
+      if (!w[kind] || ((w[kind]!.z ?? 0) === top && Object.values(w).filter((x) => (x?.z ?? 0) === top).length === 1)) return w;
+      // Renumera de 1 em diante para o número não crescer sem fim.
+      const order = (Object.keys(w) as WidgetKind[]).filter((k) => k !== kind).sort((a, b) => (w[a]!.z ?? 0) - (w[b]!.z ?? 0));
+      return Object.fromEntries([...order, kind].map((k, i) => [k, { ...w[k]!, z: i + 1 }])) as MapWidgets;
+    });
+  const closeWidget = (kind: WidgetKind) => {
+    if (kind === "radius") setPlacingRadius(false);
+    setMapWidgets(({ [kind]: _, ...rest }) => rest);
+  };
+  const updateWidget = (kind: WidgetKind, patch: Partial<MapWidget>) => setMapWidgets((w) => (w[kind] ? { ...w, [kind]: { ...w[kind]!, ...patch } } : w));
+  /** Os números do "Na tela" só são calculados com ele aberto (e não minimizado). */
+  const widgetsOpen = Boolean(mapWidgets.summary && !mapWidgets.summary.rect.minimized);
   const [widgets, setWidgets] = useState<ViewportWidget[]>([]);
   const [measuring, setMeasuring] = useState(false);
   /** Maquete holográfica aberta (cobre o mapa). */
@@ -317,7 +368,14 @@ export function App() {
         return;
       }
     })().catch((e: Error) => console.warn("[places]", e.message));
-    const off = map.onMapPick(setPick);
+    const off = map.onMapPick((p) => {
+      if (placingRadiusRef.current) {
+        setPlacingRadius(false);
+        setMapWidgets((w) => (w.radius ? { ...w, radius: { ...w.radius, settings: { ...w.radius.settings, center: p.lngLat } } } : w));
+        return;
+      }
+      setPick(p);
+    });
     return () => {
       cancelled = true;
       off();
@@ -667,6 +725,27 @@ export function App() {
     };
   }, [map, widgetsOpen, active, demoMeta, places, tileMetas, datasetInfos, filters]);
 
+  /** Camadas de pontos ligadas, para os widgets de gráfico, tabela, raio e lugar. */
+  const widgetLayers = useMemo<WidgetLayer[]>(
+    () =>
+      [
+        demoMeta && active.has(DATASET_KEY) ? CLIENT_DATASET.id : null,
+        places && active.has(PLACES_KEY) ? PLACES.id : null,
+        ...Object.keys(tileMetas).filter((id) => active.has(id)),
+      ].flatMap((id) => {
+        const info = id ? datasetInfos[id] : undefined;
+        return id && info ? [{ id, name: info.name, info, filter: filters[id], user: id !== PLACES.id && id !== CLIENT_DATASET.id }] : [];
+      }),
+    [active, demoMeta, places, tileMetas, datasetInfos, filters],
+  );
+
+  /** Linha da tabela: vai até o registro e abre o cartão dele. */
+  const showRecord = (datasetId: string, r: ViewportRecord) => {
+    if (!map) return;
+    map.flyTo({ center: r.lngLat, zoom: Math.max(map.native.getZoom(), 16) });
+    setPick({ lngLat: r.lngLat, dataset: { kind: "record", datasetId, id: r.id, category: r.category, properties: r.properties, lngLat: r.lngLat }, catalog: [], building: null });
+  };
+
   const nearbySource: NearbySource | null =
     places && datasetInfos[PLACES.id] ? { datasetId: PLACES.id, name: "Estabelecimentos", info: datasetInfos[PLACES.id]!, categories: filters[PLACES.id]?.categories ?? null, where: filters[PLACES.id]?.where ?? null } : null;
 
@@ -915,7 +994,7 @@ export function App() {
         if (feature) comparisons.push({ id: layer.manifest.id, label: `${layer.variable} · ${layer.period}`, unit: layer.unit, value: feature.properties.valor });
       }
     }
-    return { name: area.name, kind: area.kind, population: area.population, areaKm2: area.areaKm2, comparisons };
+    return { name: area.name, kind: area.kind, code: area.code, population: area.population, areaKm2: area.areaKm2, comparisons };
   };
 
   const startAdvanced = async (p: MapPick) => {
@@ -1565,28 +1644,29 @@ export function App() {
 
   const widgetsPanel = (
     <Panel title="Widgets" onClose={() => setPanel(null)}>
-      <p className="panel-intro">Janelas soltas sobre o mapa: arraste pelo título, mude o tamanho pelo canto, minimize ou feche.</p>
-      <PanelCard>
-        <div className="widget-option">
-          <span className="widget-option-icon" aria-hidden="true">
-            <Icon name="chart" size={20} />
-          </span>
-          <div>
-            <b>Na tela</b>
-            <span className="muted">Quantos registros de cada camada estão visíveis agora, por categoria. Atualiza ao mover o mapa.</span>
+      <p className="panel-intro">Janelas soltas sobre o mapa, que leem o que está na tela: arraste pelo título, mude o tamanho pelo canto, minimize ou feche.</p>
+      {WIDGET_KINDS.map((k) => (
+        <PanelCard key={k.kind}>
+          <div className="widget-option">
+            <span className="widget-option-icon" aria-hidden="true">
+              <Icon name={k.icon} size={20} />
+            </span>
+            <div>
+              <b>{k.title}</b>
+              <span className="muted">{k.text}</span>
+            </div>
+            {mapWidgets[k.kind] ? (
+              <button type="button" className="btn btn-sm" onClick={() => closeWidget(k.kind)}>
+                Tirar
+              </button>
+            ) : (
+              <button type="button" className="btn btn-primary btn-sm" onClick={() => openWidget(k.kind)}>
+                Pôr no mapa
+              </button>
+            )}
           </div>
-          {summaryWidget ? (
-            <button type="button" className="btn btn-sm" onClick={() => setSummaryWidget(null)}>
-              Tirar
-            </button>
-          ) : (
-            <button type="button" className="btn btn-primary btn-sm" onClick={() => setSummaryWidget(defaultSummaryRect())}>
-              Pôr no mapa
-            </button>
-          )}
-        </div>
-      </PanelCard>
-      <p className="hint left">Mais widgets em breve: gráficos por camada, comparação entre áreas, tabela dos registros visíveis.</p>
+        </PanelCard>
+      ))}
     </Panel>
   );
 
@@ -1607,13 +1687,38 @@ export function App() {
         <Rail panel={panel} onPanel={setPanel} badges={{ layers: [...active].length || undefined, details: pick ? 1 : undefined }} />
         {panel && panels[panel]}
 
-        <main className="map-area">
+        <main className={`map-area ${placingRadius ? "is-placing" : ""}`}>
           <div ref={containerRef} className="map" />
           {styleEditor}
-          {summaryWidget && !maquete && (
-            <FloatingWidget title="Na tela" rect={summaryWidget} onRect={setSummaryWidget} onClose={() => setSummaryWidget(null)}>
-              <ViewportSummary widgets={widgets} />
-            </FloatingWidget>
+          {/* Camada própria: os widgets se empilham entre si sem passar por cima da gaveta e do cartão. */}
+          {map && !maquete && Object.keys(mapWidgets).length > 0 && (
+            <div className="widget-layer">
+              {WIDGET_KINDS.map(({ kind, title, icon }) => {
+                const w = mapWidgets[kind];
+                if (!w) return null;
+                const settingsProps = { settings: w.settings, onSettings: (settings: WidgetSettings) => updateWidget(kind, { settings }) };
+                return (
+                  <FloatingWidget key={kind} title={title} icon={icon} rect={w.rect} z={w.z} onFocus={() => focusWidget(kind)} onRect={(rect) => updateWidget(kind, { rect })} onClose={() => closeWidget(kind)}>
+                    {kind === "summary" && <ViewportSummary widgets={widgets} />}
+                    {kind === "chart" && <ColumnChartWidget map={map} layers={widgetLayers} {...settingsProps} />}
+                    {kind === "table" && <VisibleTableWidget map={map} layers={widgetLayers} {...settingsProps} onRecord={showRecord} />}
+                    {kind === "radius" && <RadiusWidget map={map} layers={widgetLayers} {...settingsProps} placing={placingRadius} onPlacing={setPlacingRadius} />}
+                    {kind === "place" && <PlaceWidget map={map} layers={widgetLayers} placeFacts={placeFacts} />}
+                  </FloatingWidget>
+                );
+              })}
+            </div>
+          )}
+          {/* Indicadores do lugar: marca o centro do mapa, de onde vêm os números. */}
+          {mapWidgets.place && !mapWidgets.place.rect.minimized && !maquete && <span className="map-crosshair" aria-hidden="true" />}
+          {placingRadius && (
+            <div className="toast" role="status">
+              <Icon name="target" size={18} />
+              Clique no mapa para pôr o centro do raio.
+              <button type="button" className="link" onClick={() => setPlacingRadius(false)}>
+                Cancelar
+              </button>
+            </div>
           )}
           {/* Busca e Compartilhar no canto superior direito: as gavetas abrem pela esquerda e não cobrem a busca. */}
           <div className="map-actions">

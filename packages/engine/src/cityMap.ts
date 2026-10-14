@@ -15,7 +15,7 @@ import {
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import { FileSource, PMTiles, Protocol } from "pmtiles";
 import { CatalogLayer, type CatalogPick, type DatapackManifest, type LayerData } from "./catalog";
-import { CATEGORY_COLORS, DatasetLayer, OTHER_COLOR, categoryColor, readDatasetMeta, type AreaSummary, type DatasetFilter, type DatasetPick } from "./dataset";
+import { CATEGORY_COLORS, DatasetLayer, OTHER_COLOR, categoryColor, readDatasetMeta, type AreaSummary, type DatasetFilter, type DatasetMeta, type DatasetPick, type ViewportRecords } from "./dataset";
 import { paintBuildings, type BuildingPaintResult, type BuildingRecord } from "./buildingPaint";
 import { circleArea, type AreaGeometry } from "./geo";
 import type { NearbySummary, SearchHit } from "./nearby";
@@ -745,6 +745,17 @@ export class CityMap {
     return this.datasets.find((d) => d.id === datasetId)?.viewportSummary() ?? null;
   }
 
+  /** Registros de um dataset na área visível, com as colunas (widgets de tabela e gráfico); null se escondido. */
+  viewportRecords(datasetId: string, limit?: number): ViewportRecords | null {
+    if (!this.styleReady) return null;
+    return this.datasets.find((d) => d.id === datasetId)?.viewportRecords(limit) ?? null;
+  }
+
+  /** Colunas que os pontos de um dataset trazem (nome, tipo e, quando há, menor/maior valor). */
+  datasetColumns(datasetId: string): DatasetMeta["columns"] {
+    return this.datasets.find((d) => d.id === datasetId)?.meta.columns ?? [];
+  }
+
   /** Avisa quando o mapa para de mexer (ou carrega dados novos), para recalcular widgets. */
   onViewChange(fn: () => void): () => void {
     let timer = 0;
@@ -930,19 +941,29 @@ export class CityMap {
     m.onChange({ mode: m.mode, points: [...m.points], lengthM: lineLengthM(pts), areaM2: poly.areaM2, perimeterM: poly.perimeterM, done: m.done });
   }
 
-  /** Desenha (ou apaga, com null) o círculo de um raio em metros. */
-  setRadius(radius: { center: [number, number]; radiusM: number } | null): void {
-    if (!radius) return this.removeOverlay("cv-radius");
+  /**
+   * Desenha (ou apaga, com null) o círculo de um raio em metros. `id` separa círculos que convivem (o do cartão
+   * do clique e o do widget "Raio ao redor").
+   */
+  setRadius(radius: { center: [number, number]; radiusM: number } | null, id = "cv-radius"): void {
+    if (!radius) return this.removeOverlay(id);
     const circle = circleArea(radius.center, radius.radiusM / 1000);
+    const data = { type: "Feature", properties: {}, geometry: circle } as GeoJSON.Feature;
+    // Já desenhado: só troca a geometria (mover o centro não pisca).
+    const source = this.map.getSource(id) as GeoJSONSource | undefined;
+    if (source && this.overlays.has(id)) {
+      source.setData(data);
+      return;
+    }
     this.setOverlay({
-      id: "cv-radius",
-      source: { type: "geojson", data: { type: "Feature", properties: {}, geometry: circle } },
+      id,
+      source: { type: "geojson", data },
       layers: [
-        { id: "cv-radius-fill", type: "fill", source: "cv-radius", paint: { "fill-color": "#ff7a00", "fill-opacity": 0.06 } },
+        { id: `${id}-fill`, type: "fill", source: id, paint: { "fill-color": "#ff7a00", "fill-opacity": 0.06 } },
         {
-          id: "cv-radius-line",
+          id: `${id}-line`,
           type: "line",
-          source: "cv-radius",
+          source: id,
           paint: { "line-color": "#ff7a00", "line-width": 1.5, "line-dasharray": [2, 2] },
         },
       ],

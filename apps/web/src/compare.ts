@@ -13,6 +13,8 @@ export interface Comparison {
 export interface PlaceFacts {
   name: string;
   kind: "municipio" | "raio";
+  /** Código IBGE do município (7 dígitos), quando é um. */
+  code?: string;
   population?: number;
   areaKm2: number;
   comparisons: Comparison[];

@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode } from "react";
-import { Icon } from "./Icon";
+import { Icon, type IconName } from "./Icon";
 
 /** Posição e tamanho de um widget sobre o mapa (px, relativo à área do mapa). */
 export interface WidgetRect {
@@ -26,13 +26,19 @@ export function FloatingWidget({
   rect,
   onRect,
   onClose,
+  onFocus,
+  z,
   children,
 }: {
   title: string;
-  icon?: "chart";
+  icon?: IconName;
   rect: WidgetRect;
   onRect: (r: WidgetRect) => void;
   onClose: () => void;
+  /** Clicou no widget: o app o traz para a frente. */
+  onFocus?: () => void;
+  /** Ordem de empilhamento entre os widgets (maior = na frente). */
+  z?: number;
   children: ReactNode;
 }) {
   const ref = useRef<HTMLElement>(null);
@@ -92,7 +98,8 @@ export function FloatingWidget({
       ref={ref}
       className={`floating-widget ${rect.minimized ? "is-min" : ""}`}
       aria-label={title}
-      style={{ left: rect.x, top: rect.y, width: rect.w, height: rect.minimized ? undefined : rect.h }}
+      style={{ left: rect.x, top: rect.y, width: rect.w, height: rect.minimized ? undefined : rect.h, zIndex: z }}
+      onPointerDownCapture={onFocus}
     >
       <header className="floating-widget-head" onPointerDown={(e) => drag(e, "move")} title="Arraste para mover">
         <Icon name={icon} size={16} />

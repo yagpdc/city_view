@@ -8,7 +8,7 @@ import type {
 import type { PMTiles } from "pmtiles";
 import { loadAreaHexes, type HexFeature } from "./areaHexes";
 import type { AreaGeometry, Position } from "./geo";
-import { whereExpressions, type WhereClause } from "./filter";
+import { matchesWhere, whereExpressions, type WhereClause } from "./filter";
 import { ICON_PIXEL_RATIO, rasterizeMarker } from "./icons";
 import { loadNearby, searchPoints, type NearbySummary, type SearchHit } from "./nearby";
 import { regionLabel, type RegionBoundaries } from "./regions";
@@ -50,6 +50,23 @@ export interface DatasetFilter {
   categories?: number[];
   /** Condições por coluna. Só afetam os pontos individuais (zoom alto): os hexágonos não têm as colunas. */
   where?: Record<string, WhereClause>;
+}
+
+/** Um registro desenhado na tela (widgets "Tabela" e "Gráfico por coluna"). */
+export interface ViewportRecord {
+  id: number;
+  category: number | null;
+  properties: Record<string, string | number>;
+  lngLat: [number, number];
+}
+
+export interface ViewportRecords {
+  /** Até o limite pedido, na ordem em que vêm dos tiles. */
+  records: ViewportRecord[];
+  /** Quantos registros com colunas passam no filtro na área visível (pode passar do limite). */
+  total: number;
+  /** Pontos sem as colunas (mapa afastado: tiles cheios guardam só a cor de cada ponto). */
+  thinned: number;
 }
 
 export type DatasetPick =
@@ -525,6 +542,52 @@ export class DatasetLayer {
       if (!unique.has(key)) unique.set(key, { type: "Feature", geometry: { type: "Polygon", coordinates: [ring] }, properties: f.properties as Record<string, number> });
     }
     return { ...this.summarize([...unique.values()]), mode: "hex" };
+  }
+
+  /**
+   * Registros na área visível, com as colunas, respeitando o filtro do cartão. Lidos dos tiles já carregados
+   * (vale para qualquer estilo: bolinhas, regiões, mapa de calor). Afastado, os tiles muito cheios guardam só a
+   * cor de cada ponto: esses entram em `thinned`.
+   */
+  viewportRecords(limit = 5000): ViewportRecords | null {
+    if (!this.visible || !this.map.getSource(this.sourceId)) return null;
+    // Pela tela, não pela caixa de coordenadas: com o mapa inclinado a caixa pega muito além do horizonte.
+    const bounds = this.map.getBounds();
+    const canvas = this.map.getCanvas();
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+    const onScreen = (p: [number, number]) => {
+      if (!bounds.contains(p)) return false;
+      const { x, y } = this.map.project(p);
+      return x >= 0 && y >= 0 && x <= width && y <= height;
+    };
+    const visible = this.activeCategories();
+    const where = this.filter.where;
+    const cat = this.meta.categoryProperty;
+    const seen = new Set<string>();
+    const records: ViewportRecord[] = [];
+    let total = 0;
+    let thinned = 0;
+    for (const f of this.map.querySourceFeatures(this.sourceId, { sourceLayer: "points" })) {
+      if (f.geometry.type !== "Point") continue;
+      const lngLat = f.geometry.coordinates as [number, number];
+      if (!onScreen(lngLat)) continue;
+      // O mesmo ponto vem em mais de um tile (borda): conta uma vez.
+      const key = f.id !== undefined ? String(f.id) : `${lngLat[0]},${lngLat[1]}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const { [cat]: rawCategory, ...properties } = f.properties as Record<string, string | number>;
+      const category = rawCategory === undefined ? null : Number(rawCategory);
+      if (visible && (category === null || !visible.includes(category))) continue;
+      if (Object.keys(properties).length === 0) {
+        thinned++;
+        continue;
+      }
+      if (where && !matchesWhere(properties, where)) continue;
+      total++;
+      if (records.length < limit) records.push({ id: Number(f.id), category, properties, lngLat: [lngLat[0], lngLat[1]] });
+    }
+    return { records, total, thinned };
   }
 
   summarize(features: HexFeature[]): AreaSummary {
