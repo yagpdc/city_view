@@ -24,7 +24,7 @@ import { LIBRARY_SOURCES, LIBRARY_TOTAL } from "./library/load";
 import { layerFromRecipe, recipeOf, restoreMapLayer, type LibraryLayer } from "./library/mapLayer";
 import { CAMERA_PARAM, clearShared, readShared, shareUrl } from "./share";
 import { StreetViewer } from "./components/StreetViewer";
-import { coverageOverlay, nearestStreetImage, streetImageryEnabled } from "./streetImagery";
+import { coverageOverlay, nearestStreetImage, setLocalStreetImages, streetImageryEnabled } from "./streetImagery";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { StyleEditor } from "./components/StyleEditor";
 import { MapTabs } from "./components/MapTabs";
@@ -275,6 +275,19 @@ export function App() {
       window.removeEventListener("keydown", esc);
     };
   }, [contextMenu]);
+  // Fotos de rua: a busca usa primeiro as posições já carregadas nos tiles da camada (sem esperar a API).
+  useEffect(() => {
+    if (!map) return;
+    setLocalStreetImages(([lon, lat]) => {
+      const dLat = 0.0008;
+      const dLon = dLat / Math.max(0.2, Math.cos((lat * Math.PI) / 180));
+      return map
+        .overlayFeatures("mapillary", "image")
+        .filter((f) => Math.abs(f.lngLat[0] - lon) < dLon && Math.abs(f.lngLat[1] - lat) < dLat)
+        .map((f) => ({ id: String(f.properties.id), lngLat: f.lngLat }));
+    });
+    return () => setLocalStreetImages(null);
+  }, [map]);
   // Só no desenvolvimento: o mapa no console (window.__cityMap) para depurar camadas e dados.
   useEffect(() => {
     if (import.meta.env.DEV && map) (window as unknown as { __cityMap?: unknown }).__cityMap = map;

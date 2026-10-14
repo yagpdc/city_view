@@ -174,6 +174,9 @@ export class CityMap {
       this.styleReady = true;
       this.applyState();
     });
+    // Camadas de dados entram depois das de apoio e as cobririam (ex.: regiões preenchidas escondiam as linhas das
+    // fotos de rua); a cada mudança de camadas, as de apoio voltam para cima das áreas dos dados.
+    this.map.on("styledata", () => this.raiseSupportOverlays());
 
     // O container muda de tamanho sem a janela mudar (ex.: sidebar abrindo/fechando).
     this.resizeObserver = new ResizeObserver(() => this.map.resize());
@@ -572,6 +575,17 @@ export class CityMap {
   }
 
   /** Clique com tudo o que está sob o cursor, de todas as camadas. */
+  /**
+   * Feições já carregadas de uma camada externa (ex.: as posições das fotos de rua nos tiles da Mapillary), sem
+   * pedir nada à rede. Vazio se a camada não está ligada.
+   */
+  overlayFeatures(overlayId: string, sourceLayer: string): { properties: Record<string, unknown>; lngLat: [number, number] }[] {
+    if (!this.styleReady || !this.map.getSource(overlayId)) return [];
+    return this.map.querySourceFeatures(overlayId, { sourceLayer }).flatMap((f) =>
+      f.geometry.type === "Point" ? [{ properties: f.properties as Record<string, unknown>, lngLat: f.geometry.coordinates as [number, number] }] : [],
+    );
+  }
+
   /** Botão direito (ou toque longo) no mapa: posição e o ponto na tela, para um menu do app. */
   onContextMenu(handler: (e: { lngLat: [number, number]; point: [number, number] }) => void): () => void {
     const listener = (e: MapMouseEvent) => {
@@ -695,13 +709,30 @@ export class CityMap {
   private attachOverlay(overlay: MapOverlay): void {
     if (this.map.getSource(overlay.id)) return;
     this.map.addSource(overlay.id, overlay.source);
-    // Camadas de apoio (ex.: cobertura de fotos de rua) ficam abaixo dos pontos dos datasets: o dado é o
-    // protagonista. As do próprio motor (`cv-`, ex.: medição) ficam por cima dos dados.
-    const layers = this.map.getStyle().layers;
-    const firstSymbol = layers.find((l) => l.type === "symbol")?.id;
-    const firstData = layers.find((l) => l.id.startsWith("cv-") && !this.overlays.has(l.id.split("-").slice(0, 2).join("-")))?.id;
-    const beforeId = overlay.id.startsWith("cv-") ? firstSymbol : (firstData ?? firstSymbol);
-    for (const layer of overlay.layers) this.map.addLayer(layer, beforeId);
+    // Abaixo dos rótulos; as de apoio (ex.: cobertura de fotos de rua) são reposicionadas em raiseSupportOverlays.
+    const firstSymbol = this.map.getStyle().layers.find((l) => l.type === "symbol")?.id;
+    for (const layer of overlay.layers) this.map.addLayer(layer, firstSymbol);
+    this.raiseSupportOverlays();
+  }
+
+  /**
+   * Camadas de apoio (overlays sem prefixo `cv-`, ex.: cobertura de fotos de rua) ficam acima das áreas preenchidas
+   * dos dados (regiões, hexágonos, círculos em metros) e abaixo do primeiro símbolo — ícones e rótulos dos dados
+   * continuam por cima, e a linha fina não esconde nada.
+   */
+  private raiseSupportOverlays(): void {
+    if (!this.styleReady) return;
+    const support = [...this.overlays.values()]
+      .filter((o) => !o.id.startsWith("cv-"))
+      .flatMap((o) => o.layers.map((l) => l.id))
+      .filter((id) => this.map.getLayer(id));
+    if (support.length === 0) return;
+    const order = this.map.getLayersOrder();
+    const firstSymbol = order.find((id) => this.map.getLayer(id)?.type === "symbol");
+    const end = firstSymbol ? order.indexOf(firstSymbol) : order.length;
+    // Já no lugar (logo antes do primeiro símbolo, na ordem): nada a fazer — evita laço com o styledata do moveLayer.
+    if (order.slice(end - support.length, end).join("|") === support.join("|")) return;
+    for (const id of support) this.map.moveLayer(id, firstSymbol);
   }
 
   /**

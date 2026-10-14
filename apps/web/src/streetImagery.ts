@@ -50,15 +50,68 @@ const cache = new Map<string, Promise<StreetImage | null>>();
  * tenta até 3 vezes e junta o que vier.
  */
 async function searchImages(params: URLSearchParams): Promise<ApiImage[]> {
-  const found = new Map<string, ApiImage>();
-  for (let attempt = 0; attempt < 3; attempt++) {
+  // As tentativas vão juntas (antes, uma depois da outra: em rua com pouca foto eram três esperas seguidas).
+  const attempt = async () => {
     const res = await fetch(`${API}?${params}`, { headers: { Authorization: `OAuth ${TOKEN}` } });
     if (!res.ok) throw new Error(`Mapillary respondeu ${res.status}`);
-    const { data } = (await res.json()) as { data: ApiImage[] };
-    for (const img of data) found.set(img.id, img);
-    if (found.size >= 5) break;
-  }
+    return ((await res.json()) as { data: ApiImage[] }).data;
+  };
+  const results = await Promise.allSettled([attempt(), attempt()]);
+  const ok = results.filter((r): r is PromiseFulfilledResult<ApiImage[]> => r.status === "fulfilled");
+  if (ok.length === 0) throw (results[0] as PromiseRejectedResult).reason;
+  const found = new Map<string, ApiImage>();
+  for (const r of ok) for (const img of r.value) found.set(img.id, img);
   return [...found.values()];
+}
+
+/** Posições de fotos já carregadas no mapa (tiles da camada "Fotos de rua"): id e onde. */
+type LocalImages = (lngLat: [number, number]) => { id: string; lngLat: [number, number] }[];
+let localImages: LocalImages | null = null;
+
+/** O app informa onde ler as fotos já carregadas no mapa (busca instantânea, sem esperar a API). */
+export function setLocalStreetImages(fn: LocalImages | null): void {
+  localImages = fn;
+}
+
+const MAX_DISTANCE_M = 60;
+
+/** Uma foto pelo id (consulta rápida, ao contrário da busca por área). */
+async function imageById(id: string): Promise<ApiImage | null> {
+  const res = await fetch(`https://graph.mapillary.com/${id}?fields=id,thumb_1024_url,thumb_2048_url,captured_at,creator,geometry`, {
+    headers: { Authorization: `OAuth ${TOKEN}` },
+  });
+  if (!res.ok) return null;
+  return (await res.json()) as ApiImage;
+}
+
+function toStreetImage(img: ApiImage, d: number): StreetImage {
+  return {
+    id: img.id,
+    thumbUrl: img.thumb_1024_url!,
+    largeUrl: img.thumb_2048_url ?? img.thumb_1024_url!,
+    capturedAt: img.captured_at ? new Date(img.captured_at) : null,
+    author: img.creator?.username ?? null,
+    distanceM: d,
+    pageUrl: `https://www.mapillary.com/app/?pKey=${img.id}`,
+  };
+}
+
+/**
+ * Foto mais próxima entre as já carregadas no mapa: só pede à API aquela foto (rápido). null = não há posição
+ * carregada por perto (camada desligada ou fora da área) e quem chama usa a busca por área.
+ */
+async function nearestLocal([lon, lat]: [number, number]): Promise<StreetImage | null> {
+  if (!localImages) return null;
+  const best = localImages([lon, lat])
+    .map((c) => ({ c, d: haversineM([lon, lat], c.lngLat) }))
+    .filter((x) => x.d <= MAX_DISTANCE_M)
+    .sort((a, b) => a.d - b.d)
+    .slice(0, 3);
+  for (const { c, d } of best) {
+    const img = await imageById(c.id).catch(() => null);
+    if (img?.thumb_1024_url) return toStreetImage(img, d);
+  }
+  return null;
 }
 
 /** Foto de rua mais próxima (até ~60 m), ou null se não houver cobertura. */
@@ -73,22 +126,18 @@ export function nearestStreetImage([lon, lat]: [number, number]): Promise<Street
       bbox: [lon - dLon, lat - SEARCH_DEG, lon + dLon, lat + SEARCH_DEG].map((v) => v.toFixed(6)).join(","),
       limit: "50",
     });
-    pending = searchImages(params).then((data) => {
-      const best = data
-        .filter((img) => img.thumb_1024_url && img.geometry)
-        .map((img) => ({ img, d: haversineM([lon, lat], img.geometry!.coordinates) }))
-        .sort((a, b) => a.d - b.d)[0];
-      if (!best) return null;
-      return {
-        id: best.img.id,
-        thumbUrl: best.img.thumb_1024_url!,
-        largeUrl: best.img.thumb_2048_url ?? best.img.thumb_1024_url!,
-        capturedAt: best.img.captured_at ? new Date(best.img.captured_at) : null,
-        author: best.img.creator?.username ?? null,
-        distanceM: best.d,
-        pageUrl: `https://www.mapillary.com/app/?pKey=${best.img.id}`,
-      };
-    });
+    // Primeiro nas posições já carregadas no mapa (rápido); sem elas, a busca por área (lenta: 4–6 s na API).
+    pending = nearestLocal([lon, lat]).then(
+      (local) =>
+        local ??
+        searchImages(params).then((data) => {
+          const best = data
+            .filter((img) => img.thumb_1024_url && img.geometry)
+            .map((img) => ({ img, d: haversineM([lon, lat], img.geometry!.coordinates) }))
+            .sort((a, b) => a.d - b.d)[0];
+          return best ? toStreetImage(best.img, best.d) : null;
+        }),
+    );
     // "Sem foto" não fica em cache: a busca da Mapillary oscila e outra tentativa pode achar.
     pending.then((r) => r === null && cache.delete(key), () => {});
     pending.catch(() => cache.delete(key));
