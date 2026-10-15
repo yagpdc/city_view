@@ -1672,14 +1672,6 @@ export function App() {
           Adicionar
         </button>
       }
-      footer={
-        <button type="button" className="panel-footer-row" onClick={() => setPanel("settings")}>
-          <span className="muted">Mapa base</span>
-          <b>
-            {look === "data" ? "Para dados" : "Clássico"} · {theme === "light" ? "Claro" : "Escuro"}
-          </b>
-        </button>
-      }
     >
       {errors.map((e) => (
         <div key={e.text} className="wizard-error panel-alert">
