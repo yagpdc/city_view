@@ -306,12 +306,12 @@ export function VisibleTableWidget({
   const read = useMemo(() => (layer ? map.viewportRecords(layer.id, 5000) : null), [map, layer, tick]); // eslint-disable-line react-hooks/exhaustive-deps
   const columns = useMemo(() => (layer ? columnsOf(map, layer) : []), [map, layer, tick]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /** Título, categoria e as primeiras colunas (a planilha toda vai no CSV). */
+  /** Título, categoria e mais uma coluna: cabe numa janela pequena sem rolar para o lado (a planilha toda vai no CSV). */
   const shown = useMemo(() => {
     if (!layer) return [];
     const title = layer.info.title && columns.some((c) => c.name === layer.info.title) ? [layer.info.title] : [];
     const rest = columns.map((c) => c.name).filter((n) => n !== layer.info.title && n !== layer.info.colorBy);
-    return [...title, ...(layer.info.categories.length > 1 ? [CATEGORY_COLUMN] : []), ...rest].slice(0, 5);
+    return [...title, ...(layer.info.categories.length > 1 ? [CATEGORY_COLUMN] : []), ...rest].slice(0, 3);
   }, [layer, columns]);
 
   const value = (r: ViewportRecord, column: string): string | number | undefined =>
@@ -404,7 +404,7 @@ export function VisibleTableWidget({
                 {rows.map((r, i) => (
                   <tr key={`${r.id}:${i}`} onClick={() => onRecord(layer.id, r)} title="Ver no mapa">
                     {shown.map((c) => (
-                      <td key={c} className={typeof value(r, c) === "number" ? "num" : undefined}>
+                      <td key={c} className={typeof value(r, c) === "number" ? "num" : undefined} title={cellText(value(r, c))}>
                         {c === CATEGORY_COLUMN ? (
                           <span className="widget-cat">
                             <i style={{ background: categoryColor(r.category ?? -1, layer.info.categories) }} />

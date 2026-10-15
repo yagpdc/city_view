@@ -12,6 +12,9 @@ export interface WidgetRect {
 
 const MIN_W = 240;
 const MIN_H = 140;
+/** Widget é janela pequena: não passa disso nem redimensionando (o que não couber rola na vertical). */
+const MAX_W = 460;
+const MAX_H = 560;
 const HEAD_H = 44;
 /** Largura da coluna de botões redondos à direita (o widget não para em cima dela). */
 const RAIL_SPACE = 60;
@@ -52,8 +55,8 @@ export function FloatingWidget({
     const b = bounds();
     // A faixa da direita fica livre para a coluna de botões redondos.
     const right = RAIL_SPACE;
-    const w = Math.min(Math.max(MIN_W, r.w), b.w - 16 - right);
-    const h = Math.min(Math.max(MIN_H, r.h), b.h - 16);
+    const w = Math.min(Math.max(MIN_W, Math.min(MAX_W, r.w)), b.w - 16 - right);
+    const h = Math.min(Math.max(MIN_H, Math.min(MAX_H, r.h)), b.h - 16);
     const shownH = r.minimized ? HEAD_H : h;
     return { ...r, w, h, x: Math.min(Math.max(8, r.x), b.w - w - 8 - right), y: Math.min(Math.max(8, r.y), b.h - shownH - 8) };
   };

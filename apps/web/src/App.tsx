@@ -95,7 +95,7 @@ type MapWidgets = Partial<Record<WidgetKind, MapWidget>>;
 const WIDGET_KINDS: { kind: WidgetKind; title: string; icon: IconName; text: string; size: [number, number] }[] = [
   { kind: "summary", title: "Na tela", icon: "gauge", text: "Quantos registros de cada camada estão visíveis agora, por categoria.", size: [300, 360] },
   { kind: "chart", title: "Gráfico por coluna", icon: "barChart", text: "Escolha uma coluna: os valores mais comuns, ou soma, média e distribuição se for número.", size: [320, 400] },
-  { kind: "table", title: "Tabela dos visíveis", icon: "table", text: "Os registros na tela em linhas: ordene, clique para ver no mapa, baixe em CSV.", size: [480, 380] },
+  { kind: "table", title: "Tabela dos visíveis", icon: "table", text: "Os registros na tela em linhas: ordene, clique para ver no mapa, baixe em CSV.", size: [360, 380] },
   { kind: "radius", title: "Raio ao redor", icon: "target", text: "Escolha um ponto e um raio: quanto de cada camada há em volta, e a densidade.", size: [320, 420] },
   { kind: "place", title: "Indicadores do lugar", icon: "landmark", text: "O município no centro do mapa: população, área, densidade e as suas camadas nele.", size: [300, 380] },
 ];
@@ -1431,6 +1431,10 @@ export function App() {
     // A camada precisa estar visível para ver a prévia.
     setActive((prev) => new Set(prev).add(datasetKey(id)));
   }
+  // O editor é extensão da gaveta de Camadas: fechou (ou trocou) a gaveta, fecha o editor sem salvar.
+  useEffect(() => {
+    if (panel !== "layers") setStyleEditing(null);
+  }, [panel]);
   const editingMeta = styleEditing ? datasetMeta(styleEditing.id) : undefined;
   const styleEditor = styleEditing && editingMeta && (
     <StyleEditor
@@ -1696,10 +1700,11 @@ export function App() {
       <div className="workspace">
         <Rail panel={panel} onPanel={setPanel} badges={{ layers: [...active].length || undefined, details: pick ? 1 : undefined }} />
         {panel && panels[panel]}
+        {/* Gaveta que abre outra: a segunda (editor de estilo) fica ao lado da primeira. */}
+        {panel === "layers" && styleEditor}
 
         <main className={`map-area ${placingRadius ? "is-placing" : ""}`}>
           <div ref={containerRef} className="map" />
-          {styleEditor}
           {/* Camada própria: os widgets se empilham entre si sem passar por cima da gaveta e do cartão. */}
           {map && !maquete && Object.keys(mapWidgets).length > 0 && (
             <div className="widget-layer">
