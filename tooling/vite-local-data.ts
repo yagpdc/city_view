@@ -20,7 +20,7 @@ export function localData(): Plugin {
     });
   };
   return {
-    name: "cityview-local-data",
+    name: "pinny-local-data",
     configureServer: mount,
     configurePreviewServer: mount as Plugin["configurePreviewServer"],
   };

@@ -3,7 +3,7 @@
  * câmera, prédios acesos, tema e estilo do mapa base). O motor, a biblioteca e os dados (públicos e importados) são os mesmos para
  * todas; uma aba nova só começa sem nada ligado. Tudo fica neste navegador (localStorage).
  */
-import type { BasemapLook, Camera, DataStyle, DatasetFilter, Theme } from "@cityview/engine";
+import type { BasemapLook, Camera, DataStyle, DatasetFilter, Theme } from "@pinny/engine";
 
 export interface MapTab {
   id: string;
@@ -39,7 +39,7 @@ export interface TabsState {
   current: string;
 }
 
-const TABS_KEY = "cityview.map-tabs";
+const TABS_KEY = "pinny.map-tabs";
 
 const newId = () => `t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 

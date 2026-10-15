@@ -1,4 +1,4 @@
-import type { DatapackManifest } from "@cityview/engine";
+import type { DatapackManifest } from "@pinny/engine";
 import { dataUrl } from "../catalog";
 import type { SavedLibraryLayer } from "../storage/datasets";
 import { ADAPTERS } from "./adapters";

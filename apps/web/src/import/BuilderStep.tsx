@@ -3,7 +3,7 @@
  * escolhida à direita; a receita (passos aplicados, removíveis) e a prévia já transformada embaixo.
  * Nada altera o arquivo original — cada ação vira um passo da receita (docs/IMPORT.md).
  */
-import { describeStep, type ColumnProfile, type ColumnType, type RecipeStep } from "@cityview/importer";
+import { describeStep, type ColumnProfile, type ColumnType, type RecipeStep } from "@pinny/importer";
 import { useEffect, useState, type ReactNode } from "react";
 import { Icon } from "../components/Icon";
 import type { OpenedFile } from "./protocol";

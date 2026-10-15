@@ -1,5 +1,5 @@
-import type { DatapackManifest } from "@cityview/engine";
-import { CATEGORY_COLORS } from "@cityview/engine";
+import type { DatapackManifest } from "@pinny/engine";
+import { CATEGORY_COLORS } from "@pinny/engine";
 import {
   applyCoordinateFix,
   BRAZIL_UTM_ZONES,
@@ -12,7 +12,7 @@ import {
   type ImportMapping,
   type ImportSummary,
   type RecipeStep,
-} from "@cityview/importer";
+} from "@pinny/importer";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BuilderStep, type ColumnChoice } from "./BuilderStep";
 import { TableTools } from "./TableTools";
@@ -383,7 +383,7 @@ export function ImportWizard({ file, restore, serverAvailable, onCancel, onImpor
       refresh: `Importado em ${new Date().toLocaleString("pt-BR")}`,
       render: {
         type: "points",
-        color: "#6b7485", // --cv-data-other
+        color: "#6b7485", // --pn-data-other
         ...(colorBy && cats.length
           ? {
               colorBy: {

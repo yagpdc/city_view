@@ -23,7 +23,7 @@ from typing import Callable
 
 ROOT = Path(__file__).resolve().parent
 OUT_DIR = ROOT.parent / "data" / "out" / "datapacks"
-USER_AGENT = "city_view-datapacks/0.1"
+USER_AGENT = "pinny-datapacks/0.1"
 
 # Retângulo do Brasil (filtro grosso para fontes continentais).
 BRAZIL_BBOX = (-74.0, -34.0, -34.5, 5.5)

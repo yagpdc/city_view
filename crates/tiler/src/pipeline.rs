@@ -1,6 +1,6 @@
 //! Pipeline genérico: tabela → agregação H3 por zoom + pontos individuais → PMTiles.
 //!
-//! Contrato de saída (metadados `cityview` versão 2, consumido pelo @cityview/engine):
+//! Contrato de saída (metadados `pinny` versão 2, consumido pelo @pinny/engine):
 //! - layer `hex`, zooms 0..=HEX_MAX_ZOOM: polígonos H3 com `n` (total), `a` (área km²) e
 //!   `c0`..`cN` (contagem por categoria de cor; omitida quando zero)
 //! - layer `points`, zooms POINTS_MIN_ZOOM..=POINTS_ZOOM (overzoom acima): id da feição = id da linha (1..);
@@ -590,12 +590,12 @@ fn build_tiles(
         "name": opts.name,
         "format": "pbf",
         "type": "overlay",
-        "generator": "cityview-tiler",
+        "generator": "pinny-tiler",
         "vector_layers": [
             { "id": "hex", "fields": hex_fields, "minzoom": 0, "maxzoom": HEX_MAX_ZOOM },
             { "id": "points", "fields": point_fields, "minzoom": POINTS_MIN_ZOOM, "maxzoom": POINTS_ZOOM },
         ],
-        "cityview": {
+        "pinny": {
             "version": 2,
             "records": t.len(),
             "hexMaxZoom": HEX_MAX_ZOOM,

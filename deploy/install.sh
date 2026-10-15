@@ -14,7 +14,7 @@
 set -euo pipefail
 
 REPO_URL="https://github.com/yagpdc/city_view.git"
-ROOT=/opt/cityview
+ROOT=/opt/pinny
 SITE=""
 MAPILLARY=""
 ADMIN_USER="admin"
@@ -53,9 +53,9 @@ fi
 corepack enable
 
 say "Usuário e pastas"
-id cityview >/dev/null 2>&1 || useradd --system --create-home --home-dir "$ROOT/home" --shell /usr/sbin/nologin cityview
+id pinny >/dev/null 2>&1 || useradd --system --create-home --home-dir "$ROOT/home" --shell /usr/sbin/nologin pinny
 mkdir -p "$ROOT"/{src,web,demo,bin,data,workspace/datasets}
-chown -R cityview:cityview "$ROOT/src" "$ROOT/home" "$ROOT/workspace" "$ROOT/bin" "$ROOT/web" "$ROOT/demo"
+chown -R pinny:pinny "$ROOT/src" "$ROOT/home" "$ROOT/workspace" "$ROOT/bin" "$ROOT/web" "$ROOT/demo"
 # Dados públicos (tiles) chegam por scp com o usuário de login (ex.: ubuntu); o Caddy só lê.
 LOGIN_USER="${SUDO_USER:-ubuntu}"
 chown "$LOGIN_USER":"$LOGIN_USER" "$ROOT/data"
@@ -64,18 +64,18 @@ chmod 755 "$ROOT" "$ROOT/data" "$ROOT/web" "$ROOT/demo"
 echo "$WITH_API" > "$ROOT/with-api"
 if [[ $WITH_API == 1 && ! -x "$ROOT/home/.cargo/bin/cargo" ]]; then
   say "Rust (para compilar o servidor)"
-  sudo -u cityview -H bash -c 'curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal'
+  sudo -u pinny -H bash -c 'curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal'
 fi
 
 say "Código"
 if [[ -d "$ROOT/src/.git" ]]; then
-  sudo -u cityview -H git -C "$ROOT/src" pull --ff-only
+  sudo -u pinny -H git -C "$ROOT/src" pull --ff-only
 else
-  sudo -u cityview -H git clone --depth 1 "$REPO_URL" "$ROOT/src"
+  sudo -u pinny -H git clone --depth 1 "$REPO_URL" "$ROOT/src"
 fi
 if [[ -n "$MAPILLARY" ]]; then
   echo "VITE_MAPILLARY_TOKEN=$MAPILLARY" > "$ROOT/src/apps/web/.env.production.local"
-  chown cityview:cityview "$ROOT/src/apps/web/.env.production.local"
+  chown pinny:pinny "$ROOT/src/apps/web/.env.production.local"
 fi
 
 say "Firewall interno (a imagem da Oracle bloqueia 80/443)"
@@ -92,7 +92,7 @@ fi
 
 if [[ $WITH_API == 1 ]]; then
   say "Serviço da API"
-  install -m 644 "$ROOT/src/deploy/cityview-api.service" /etc/systemd/system/cityview-api.service
+  install -m 644 "$ROOT/src/deploy/pinny-api.service" /etc/systemd/system/pinny-api.service
   systemctl daemon-reload
 fi
 

@@ -13,7 +13,7 @@ Princípios:
   receita e camadas ficam no armazenamento do navegador (IndexedDB/OPFS) e somem se ele limpar os dados do
   site, usar janela anônima ou trocar de computador. Isso aparece **com clareza** na importação, no painel de
   camadas ("neste navegador") e antes de qualquer ação que apague. Saída: **Baixar cópia** do projeto
-  (arquivo `.cityview` com dados + receitas + mapa) e **Abrir cópia** para restaurar — ou levar a outro computador.
+  (arquivo `.pinny` com dados + receitas + mapa) e **Abrir cópia** para restaurar — ou levar a outro computador.
 - **Planilha incompatível não é beco sem saída.** Se faltar algo (localização, colunas, formato), o assistente
   diz o que falta em português, mostra onde, e oferece como resolver ali mesmo: escolher outra coluna, criar
   uma coluna nova, corrigir valores, ou **juntar com outra planilha** que tenha o que falta.

@@ -2,7 +2,7 @@
  * Links compartilháveis: o estado vai no hash, ao lado da câmera do MapLibre (`#map=z/lat/lon…`).
  * Nada passa por servidor; camadas da biblioteca vão como "receita" e são buscadas de novo na fonte.
  */
-import type { BasemapLook, DataStyle, DatasetFilter, Theme } from "@cityview/engine";
+import type { BasemapLook, DataStyle, DatasetFilter, Theme } from "@pinny/engine";
 import type { ItemChoice } from "./library/types";
 import type { TabWidgets } from "./mapTabs";
 

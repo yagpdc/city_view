@@ -2,20 +2,24 @@
  * Fotos das anotações (alfinete com foto, imagem sobreposta) guardadas só neste navegador (IndexedDB), como os
  * arquivos importados (ADR 0002). Reduzidas antes de guardar para não pesar; não vão no link compartilhado.
  */
+import { storageMigrated } from "../storage/migrateBrand";
 
-const DB_NAME = "cityview-annotation-photos";
+const DB_NAME = "pinny-annotation-photos";
 const STORE = "photos";
 /** Lado maior da foto guardada (px): nítida no cartão e sobre o mapa, sem pesar. */
 const MAX_SIDE = 1600;
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 function db(): Promise<IDBDatabase> {
-  dbPromise ??= new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 1);
-    req.onupgradeneeded = () => req.result.createObjectStore(STORE);
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
+  dbPromise ??= storageMigrated.then(
+    () =>
+      new Promise<IDBDatabase>((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, 1);
+        req.onupgradeneeded = () => req.result.createObjectStore(STORE);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      }),
+  );
   return dbPromise;
 }
 

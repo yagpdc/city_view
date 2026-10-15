@@ -1,6 +1,6 @@
 //! Servidor local da City View: recebe arquivos, processa com o motor (tiler) e serve os tiles.
 //!
-//! Uso: cityview-api [--port 8787] [--data data/workspace/datasets]
+//! Uso: pinny-api [--port 8787] [--data data/workspace/datasets]
 
 mod store;
 

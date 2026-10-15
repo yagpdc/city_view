@@ -1,5 +1,5 @@
 //! Descrição de como importar um dataset (o "mapeamento" escolhido no wizard).
-//! Espelha `ImportMapping` de `@cityview/importer` + opções de leitura.
+//! Espelha `ImportMapping` de `@pinny/importer` + opções de leitura.
 
 use serde::{Deserialize, Serialize};
 

@@ -1,4 +1,4 @@
-import type { MaqueteData, MaqueteSelection } from "@cityview/engine";
+import type { MaqueteData, MaqueteSelection } from "@pinny/engine";
 import { useState } from "react";
 import { Icon } from "./Icon";
 import { FieldValue, labelled, type DatasetInfo } from "./PickDetails";

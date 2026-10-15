@@ -1,5 +1,5 @@
 {
-  "name": "@cityview/sdk",
+  "name": "@pinny/sdk",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@cityview/engine": "workspace:*"
+    "@pinny/engine": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^7.0.2"

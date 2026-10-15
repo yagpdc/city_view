@@ -2,9 +2,9 @@
  * Arquivo do usuário → PMTiles, no próprio navegador (motor em Rust compilado para WebAssembly).
  * Roda dentro do worker de importação; nada sai do computador (docs/adr/0002).
  */
-import type { ImportMapping, PointFeature } from "@cityview/importer";
-import init, { TileJob, last_panic } from "@cityview/tiler-wasm";
-import wasmUrl from "@cityview/tiler-wasm/wasm?url";
+import type { ImportMapping, PointFeature } from "@pinny/importer";
+import init, { TileJob, last_panic } from "@pinny/tiler-wasm";
+import wasmUrl from "@pinny/tiler-wasm/wasm?url";
 import type { Columns } from "./stream";
 
 export interface TileReport {

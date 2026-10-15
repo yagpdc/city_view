@@ -2,10 +2,10 @@
  * Pintar ruas e prédios: acha o que está sob o clique no mapa base e devolve a anotação pronta. Prédio = a forma
  * dele (com a altura, para pintar a extrusão 3D); rua = todos os trechos com o mesmo nome visíveis na tela.
  */
-import type { CityMap } from "@cityview/engine";
+import type { PinnyMap } from "@pinny/engine";
 import type { AnnotationFeature } from "./model";
 
-type NativeMap = CityMap["native"];
+type NativeMap = PinnyMap["native"];
 
 /** Camadas de prédios que dá para pintar (mapa base e os do cliente). */
 const BUILDING_LAYERS = ["buildings-3d", "client-buildings"];

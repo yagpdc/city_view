@@ -172,7 +172,7 @@ export function LayerCard({
   return (
     <article className={`layer-card ${visible ? "" : "is-hidden"}`}>
       <div className="layer-card-head">
-        <span className="layer-badge" style={{ background: `color-mix(in srgb, ${tone} 16%, var(--cv-float))`, color: tone }}>
+        <span className="layer-badge" style={{ background: `color-mix(in srgb, ${tone} 16%, var(--pn-float))`, color: tone }}>
           {badge}
         </span>
         <span className="layer-card-text">

@@ -1,4 +1,4 @@
-import { formatArea, formatDistance, type MeasureMode, type MeasureState } from "@cityview/engine";
+import { formatArea, formatDistance, type MeasureMode, type MeasureState } from "@pinny/engine";
 import { Icon } from "./Icon";
 
 /** Resultado da medição, flutuando no rodapé do mapa enquanto a ferramenta está ligada. */

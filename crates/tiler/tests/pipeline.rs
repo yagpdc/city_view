@@ -27,7 +27,7 @@ fn spec() -> ImportSpec {
 
 #[test]
 fn csv_latin1_to_tiles_and_row_index() {
-    let dir = std::env::temp_dir().join(format!("cityview-test-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("pinny-test-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
 

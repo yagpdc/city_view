@@ -45,7 +45,7 @@ export interface Camera {
   bearing: number;
 }
 
-export interface CityMapOptions extends StyleOptions {
+export interface PinnyMapOptions extends StyleOptions {
   container: HTMLElement;
   camera?: Partial<Camera>;
   /** Exagero vertical do relevo (1 = real). */
@@ -63,7 +63,7 @@ export interface CityMapOptions extends StyleOptions {
   navigation?: boolean;
 }
 
-export type CityMapEvent = "load" | "move" | "idle";
+export type PinnyMapEvent = "load" | "move" | "idle";
 
 /** Tudo o que está sob um clique: o dado do cliente (se houver) e as camadas de catálogo. */
 export interface MapPick {
@@ -87,10 +87,10 @@ function initMapLibre(): Protocol {
 }
 
 /**
- * Fachada do mapa. O resto da aplicação fala com o CityMap, nunca com o MapLibre direto,
+ * Fachada do mapa. O resto da aplicação fala com o PinnyMap, nunca com o MapLibre direto,
  * para podermos evoluir (ou trocar) o motor de renderização sem reescrever a UI.
  */
-export class CityMap {
+export class PinnyMap {
   private readonly map: MapLibreMap;
   private styleOptions: StyleOptions;
   private terrainEnabled = true;
@@ -134,7 +134,7 @@ export class CityMap {
   private readonly repaintOnTiles = (e: { sourceId?: string; isSourceLoaded?: boolean; tile?: unknown }) => {
     const paint = this.buildingPaint;
     if (!paint || !e.tile || !e.isSourceLoaded) return;
-    if (e.sourceId === `cv-${paint.datasetId}` || e.sourceId === BUILDINGS_SOURCE || e.sourceId === BASEMAP_SOURCE) {
+    if (e.sourceId === `pn-${paint.datasetId}` || e.sourceId === BUILDINGS_SOURCE || e.sourceId === BASEMAP_SOURCE) {
       this.scheduleBuildingPaint();
     }
   };
@@ -149,7 +149,7 @@ export class CityMap {
     regionLevels,
     navigation = true,
     ...styleOptions
-  }: CityMapOptions) {
+  }: PinnyMapOptions) {
     initMapLibre();
     this.regionBoundaries = regionLevels?.length ? new RegionBoundaries(regionLevels) : null;
     this.styleOptions = styleOptions;
@@ -198,13 +198,13 @@ export class CityMap {
     };
   }
 
-  on(event: CityMapEvent, handler: () => void): () => void {
+  on(event: PinnyMapEvent, handler: () => void): () => void {
     this.map.on(event, handler);
     return () => this.map.off(event, handler);
   }
 
   /**
-   * Carrega um dataset gerado pelo cityview-tiler (PMTiles) e o desenha no mapa.
+   * Carrega um dataset gerado pelo pinny-tiler (PMTiles) e o desenha no mapa.
    * Resolve depois de ler os metadados; os tiles chegam sob demanda.
    */
   /**
@@ -475,8 +475,8 @@ export class CityMap {
       return;
     }
     const result = paintBuildings(this.map, {
-      pointsSource: `cv-${dataset.id}`,
-      pointsLayer: `cv-${dataset.id}-points`,
+      pointsSource: `pn-${dataset.id}`,
+      pointsLayer: `pn-${dataset.id}-points`,
       categoryProperty: dataset.meta.categoryProperty,
       buildingsSource,
       buildingsLayer: BUILDINGS_3D_LAYER,
@@ -622,7 +622,7 @@ export class CityMap {
   private attachCatalog(layer: CatalogLayer): void {
     const layers = this.map.getStyle().layers;
     const firstSymbol = layers.find((l) => l.type === "symbol")?.id;
-    const firstDataset = layers.find((l) => l.id.startsWith("cv-"))?.id;
+    const firstDataset = layers.find((l) => l.id.startsWith("pn-"))?.id;
     layer.attach(layer.manifest.geometry === "polygon" ? (firstDataset ?? firstSymbol) : firstSymbol);
   }
 
@@ -731,21 +731,21 @@ export class CityMap {
     const layers = this.map.getStyle().layers;
     const firstSymbol = layers.find((l) => l.type === "symbol")?.id;
     // "under": abaixo dos dados (ex.: imagem sobreposta), acima do mapa base.
-    const firstData = layers.find((l) => l.id.startsWith("cv-") && ![...this.overlays.values()].some((o) => o.layers.some((x) => x.id === l.id)))?.id;
+    const firstData = layers.find((l) => l.id.startsWith("pn-") && ![...this.overlays.values()].some((o) => o.layers.some((x) => x.id === l.id)))?.id;
     const beforeId = overlay.top ? undefined : overlay.under ? (firstData ?? firstSymbol) : firstSymbol;
     for (const layer of overlay.layers) this.map.addLayer(layer, beforeId);
     this.raiseSupportOverlays();
   }
 
   /**
-   * Camadas de apoio (overlays sem prefixo `cv-`, ex.: cobertura de fotos de rua) ficam acima das áreas preenchidas
+   * Camadas de apoio (overlays sem prefixo `pn-`, ex.: cobertura de fotos de rua) ficam acima das áreas preenchidas
    * dos dados (regiões, hexágonos, círculos em metros) e abaixo do primeiro símbolo — ícones e rótulos dos dados
    * continuam por cima, e a linha fina não esconde nada.
    */
   private raiseSupportOverlays(): void {
     if (!this.styleReady) return;
     const support = [...this.overlays.values()]
-      .filter((o) => !o.id.startsWith("cv-"))
+      .filter((o) => !o.id.startsWith("pn-"))
       .flatMap((o) => o.layers.map((l) => l.id))
       .filter((id) => this.map.getLayer(id));
     if (support.length === 0) return;
@@ -926,7 +926,7 @@ export class CityMap {
     if (!this.measure) return;
     this.measure.cleanup();
     this.measure = null;
-    this.removeOverlay("cv-measure");
+    this.removeOverlay("pn-measure");
     this.map.doubleClickZoom.enable();
     this.map.getCanvas().style.cursor = "";
   }
@@ -950,19 +950,19 @@ export class CityMap {
     }
     for (const p of m.points) features.push({ type: "Feature", properties: { kind: "vertex" }, geometry: { type: "Point", coordinates: p } });
     const data = { type: "FeatureCollection", features } as GeoJSON.FeatureCollection;
-    const source = this.map.getSource("cv-measure") as GeoJSONSource | undefined;
-    if (source && this.overlays.has("cv-measure")) source.setData(data);
+    const source = this.map.getSource("pn-measure") as GeoJSONSource | undefined;
+    if (source && this.overlays.has("pn-measure")) source.setData(data);
     else {
       this.setOverlay({
-        id: "cv-measure",
+        id: "pn-measure",
         source: { type: "geojson", data },
         layers: [
-          { id: "cv-measure-fill", type: "fill", source: "cv-measure", filter: ["==", ["get", "kind"], "fill"], paint: { "fill-color": "#6068ee", "fill-opacity": 0.14 } },
-          { id: "cv-measure-line", type: "line", source: "cv-measure", filter: ["==", ["get", "kind"], "line"], layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#4a50d6", "line-width": 2.5 } },
+          { id: "pn-measure-fill", type: "fill", source: "pn-measure", filter: ["==", ["get", "kind"], "fill"], paint: { "fill-color": "#6068ee", "fill-opacity": 0.14 } },
+          { id: "pn-measure-line", type: "line", source: "pn-measure", filter: ["==", ["get", "kind"], "line"], layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#4a50d6", "line-width": 2.5 } },
           {
-            id: "cv-measure-vertex",
+            id: "pn-measure-vertex",
             type: "circle",
-            source: "cv-measure",
+            source: "pn-measure",
             filter: ["==", ["get", "kind"], "vertex"],
             paint: { "circle-radius": 5, "circle-color": "#ffffff", "circle-stroke-color": "#4a50d6", "circle-stroke-width": 2.5 },
           },
@@ -977,7 +977,7 @@ export class CityMap {
    * Desenha (ou apaga, com null) o círculo de um raio em metros. `id` separa círculos que convivem (o do cartão
    * do clique e o do widget "Raio ao redor").
    */
-  setRadius(radius: { center: [number, number]; radiusM: number } | null, id = "cv-radius"): void {
+  setRadius(radius: { center: [number, number]; radiusM: number } | null, id = "pn-radius"): void {
     if (!radius) return this.removeOverlay(id);
     const circle = circleArea(radius.center, radius.radiusM / 1000);
     const data = { type: "Feature", properties: {}, geometry: circle } as GeoJSON.Feature;
@@ -1011,7 +1011,7 @@ export class CityMap {
     this.popupClose = () => onClose?.();
     if (!this.popup) {
       // Largura pelo CSS do conteúdo (o cartão do app); o MapLibre não limita.
-      this.popup = new Popup({ closeButton: true, closeOnClick: false, maxWidth: "none", offset: 12, className: "cv-popup" });
+      this.popup = new Popup({ closeButton: true, closeOnClick: false, maxWidth: "none", offset: 12, className: "pn-popup" });
     }
     this.popup.setLngLat(lngLat).setDOMContent(content);
     if (!this.popup.isOpen()) this.popup.addTo(this.map);
@@ -1057,8 +1057,8 @@ export class CityMap {
     }
     if (!this.locationMarker) {
       const el = document.createElement("div");
-      el.className = "cv-location-marker";
-      el.innerHTML = '<span class="cv-location-cone"></span><span class="cv-location-dot"></span>';
+      el.className = "pn-location-marker";
+      el.innerHTML = '<span class="pn-location-cone"></span><span class="pn-location-dot"></span>';
       this.locationMarker = new Marker({ element: el, rotationAlignment: "map", pitchAlignment: "map" });
       this.locationMarker.setLngLat(location.lngLat).addTo(this.map);
     }

@@ -3,17 +3,17 @@ Description=City View API (ingestão e tiles dos datasets enviados)
 After=network.target
 
 [Service]
-User=cityview
-Group=cityview
-WorkingDirectory=/opt/cityview
-ExecStart=/opt/cityview/bin/cityview-api --port 8787 --data /opt/cityview/workspace/datasets
+User=pinny
+Group=pinny
+WorkingDirectory=/opt/pinny
+ExecStart=/opt/pinny/bin/pinny-api --port 8787 --data /opt/pinny/workspace/datasets
 Restart=on-failure
 RestartSec=3
 # Endurecimento: só escreve na pasta de datasets.
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/opt/cityview/workspace
+ReadWritePaths=/opt/pinny/workspace
 PrivateTmp=true
 
 [Install]

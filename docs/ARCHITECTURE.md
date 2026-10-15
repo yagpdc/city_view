@@ -13,8 +13,8 @@ Decisões podem ser revistas via ADR em `docs/adr/`.
                                         └─ gera vector tiles → PMTiles
                                                │
  produto do cliente                            ▼
-   @cityview/sdk  ◀──── tiles (HTTP Range) ── armazenamento de tiles
-     └─ @cityview/engine (MapLibre)    ◀──── API de detalhes/filtros (fase 2+)
+   @pinny/sdk  ◀──── tiles (HTTP Range) ── armazenamento de tiles
+     └─ @pinny/engine (MapLibre)    ◀──── API de detalhes/filtros (fase 2+)
 ```
 
 ## Como 30M de pontos chegam a 60 fps
@@ -37,7 +37,7 @@ Decisões podem ser revistas via ADR em `docs/adr/`.
 | `services/api` | Servidor local (axum): upload em streaming, fila de processamento, tiles com Range, detalhes da linha pelo índice |
 | `crates/synth` | Gerador de datasets sintéticos para testes e benchmarks |
 | `packages/engine` | Fachada interna sobre MapLibre (mapa base, relevo, câmera) |
-| `packages/sdk` | API pública que o cliente instala (`CityView.map`, filtros, eventos) |
+| `packages/sdk` | API pública que o cliente instala (`Pinny.map`, filtros, eventos) |
 | `apps/web` | Plataforma / painel (por enquanto, visualizador) |
 | `apps/embed-demo` | Simula o site de uma empresa cliente usando o SDK |
 | `datapacks/` | Catálogo: um manifesto por camada (fonte, licença, render, campos) + `build.py` que baixa e prepara |

@@ -8,11 +8,11 @@ export type AgentKind = "pinny" | "hexa" | "bolha" | "quadra" | "lume";
 export type AgentMood = "neutral" | "thinking" | "happy" | "alert";
 
 export const AGENTS: Record<AgentKind, { name: string; role: string; fill: string }> = {
-  pinny: { name: "Pinny", role: "Explorador: acha lugares e registros", fill: "var(--cv-lilac-fill)" },
-  hexa: { name: "Hexa", role: "Analista: conta, compara e ranqueia", fill: "var(--cv-mint-fill)" },
-  bolha: { name: "Bolha", role: "Arrumadeira: limpa e junta planilhas", fill: "var(--cv-peach-fill)" },
-  quadra: { name: "Quadra", role: "Cartógrafa: monta o mapa e o estilo", fill: "var(--cv-sky-fill)" },
-  lume: { name: "Lume", role: "Vigia: avisa quando algo muda", fill: "var(--cv-lemon-fill)" },
+  pinny: { name: "Pinny", role: "Explorador: acha lugares e registros", fill: "var(--pn-lilac-fill)" },
+  hexa: { name: "Hexa", role: "Analista: conta, compara e ranqueia", fill: "var(--pn-mint-fill)" },
+  bolha: { name: "Bolha", role: "Arrumadeira: limpa e junta planilhas", fill: "var(--pn-peach-fill)" },
+  quadra: { name: "Quadra", role: "Cartógrafa: monta o mapa e o estilo", fill: "var(--pn-sky-fill)" },
+  lume: { name: "Lume", role: "Vigia: avisa quando algo muda", fill: "var(--pn-lemon-fill)" },
 };
 
 const INK = "#1d1e24";
@@ -76,8 +76,8 @@ export function AgentFace({ kind, mood = "neutral", size = 48, label }: { kind: 
       )}
       {kind === "quadra" && (
         <>
-          <line x1="64" y1="24" x2="64" y2="6" stroke="var(--cv-sky-ink)" strokeWidth="3" strokeLinecap="round" />
-          <path d="M64 6L78 11L64 16Z" fill="var(--cv-pink-fill)" stroke="var(--cv-pink-fill)" strokeWidth="3" strokeLinejoin="round" />
+          <line x1="64" y1="24" x2="64" y2="6" stroke="var(--pn-sky-ink)" strokeWidth="3" strokeLinecap="round" />
+          <path d="M64 6L78 11L64 16Z" fill="var(--pn-pink-fill)" stroke="var(--pn-pink-fill)" strokeWidth="3" strokeLinejoin="round" />
           <rect x="14" y="22" width="68" height="64" rx="22" fill={fill} />
           <Eyes mood={mood} cy={52} />
         </>

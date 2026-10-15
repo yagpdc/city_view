@@ -1,5 +1,5 @@
-import { formatArea, type CityMap, type MaqueteData, type MaqueteSelection } from "@cityview/engine";
-import { MaqueteScene } from "@cityview/engine/maquete";
+import { formatArea, type PinnyMap, type MaqueteData, type MaqueteSelection } from "@pinny/engine";
+import { MaqueteScene } from "@pinny/engine/maquete";
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "./Icon";
 import { MaqueteDetails } from "./MaqueteDetails";
@@ -29,7 +29,7 @@ export function MaqueteView({
   onShare,
   onClose,
 }: {
-  map: CityMap;
+  map: PinnyMap;
   center: [number, number];
   title?: string;
   datasetIds: string[];

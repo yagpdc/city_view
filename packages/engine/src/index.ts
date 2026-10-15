@@ -13,7 +13,7 @@ export {
 export { geodesicDistanceM } from "./geo";
 export { normalizeText } from "./nearby";
 export type { NearbyPoint, NearbySummary, SearchHit } from "./nearby";
-export { CityMap, type Camera, type CityMapEvent, type CityMapOptions, type MapOverlay, type MapPick, type MeasureMode, type MeasureState } from "./cityMap";
+export { PinnyMap, type Camera, type PinnyMapEvent, type PinnyMapOptions, type MapOverlay, type MapPick, type MeasureMode, type MeasureState } from "./pinnyMap";
 export { formatArea, formatDistance, lineLengthM, polygonMeasure } from "./measure";
 export {
   CATEGORY_COLORS,
@@ -29,7 +29,7 @@ export {
   type WhereClause,
 } from "./dataset";
 export { cleanWhere, matchesWhere, whereExpressions, type Where } from "./filter";
-// A cena da maquete (three.js) fica em "@cityview/engine/maquete", para carregar só quando abrir.
+// A cena da maquete (three.js) fica em "@pinny/engine/maquete", para carregar só quando abrir.
 export type { MaquetePalette, MaqueteSelection, MaqueteView } from "./maquete/scene";
 export type { MaqueteData } from "./maquete/extract";
 export { pickZoom, type HexFeature } from "./areaHexes";

@@ -36,8 +36,8 @@ Outros comandos: `pnpm typecheck`, `pnpm test`, `pnpm build`, `cargo test`.
 
 ```
 apps/web/          app React (Vite)
-packages/engine/   API interna do mapa (CityMap) sobre MapLibre + PMTiles
-packages/sdk/      SDK público que o cliente instala (CityView.map)
+packages/engine/   API interna do mapa (PinnyMap) sobre MapLibre + PMTiles
+packages/sdk/      SDK público que o cliente instala (Pinny.map)
 apps/embed-demo/   site de "empresa cliente" usando o SDK
 crates/tiler/      motor de dados: CSV/Parquet + mapeamento → H3 + pontos → PMTiles (Rust)
 services/api/      servidor local: recebe arquivos, roda o motor, serve tiles e detalhes (Rust/axum)

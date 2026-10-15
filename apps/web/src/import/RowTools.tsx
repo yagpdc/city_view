@@ -2,7 +2,7 @@
  * Ferramentas sobre as linhas (docs/IMPORT.md · Passos da receita): filtrar, regras e tags (coluna nova por
  * condições, a primeira regra que bate vence) e coluna calculada. Cada uma vira um passo da receita.
  */
-import type { ColumnType, Condition, RecipeStep } from "@cityview/importer";
+import type { ColumnType, Condition, RecipeStep } from "@pinny/importer";
 import { useState } from "react";
 import { Icon } from "../components/Icon";
 

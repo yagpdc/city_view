@@ -107,7 +107,7 @@ export function MapTabs({
             onDragStart={(e) => {
               setDragging(t.id);
               e.dataTransfer.effectAllowed = "move";
-              e.dataTransfer.setData("text/x-cityview-tab", t.id);
+              e.dataTransfer.setData("text/x-pinny-tab", t.id);
             }}
             onDragEnd={() => setDragging(null)}
             onDragOver={(e) => {

@@ -26,7 +26,7 @@ já conversar com essa linguagem. Prancha aprovada: https://claude.ai/artifact/T
    empacotadas (`@fontsource`), sem depender do Google Fonts.
 5. **Mapa base "Para dados" claro na paleta:** chão creme, ruas brancas, água e verde em pastel bem leve
    (`BRAND_DATA_LIGHT` em `packages/engine/src/style.ts`).
-6. **Movimento na medida:** gavetas e widgets abrem com um quique leve (`--cv-spring`), desligado com
+6. **Movimento na medida:** gavetas e widgets abrem com um quique leve (`--pn-spring`), desligado com
    `prefers-reduced-motion`.
 
 ## Revisão (2026-10-15)
@@ -39,8 +39,8 @@ erro) só para mensagens.
 
 ## Consequências
 
-- Tokens mantêm os nomes (`--cv-*`); `--cv-action` passou a ser a tinta e `--cv-accent` o lilás de destaque.
-  Novos: `--cv-{lilac,mint,peach,sky,lemon,pink}-{bg,fill,ink}`, `--world-*`, `--cv-font-display`.
+- Tokens mantêm os nomes (`--pn-*`); `--pn-action` passou a ser a tinta e `--pn-accent` o lilás de destaque.
+  Novos: `--pn-{lilac,mint,peach,sky,lemon,pink}-{bg,fill,ink}`, `--world-*`, `--pn-font-display`.
 - O tema escuro ganhou mundos escuros equivalentes, mas foi pouco revisado: ajustar quando voltar a ele.
 - Próximo: personagens nos carregamentos e no primeiro uso; ilustrações de maquete (three.js) nos vazios;
   revisar a paleta de categorias para conversar com a marca sem perder o contraste ≥ 3:1.

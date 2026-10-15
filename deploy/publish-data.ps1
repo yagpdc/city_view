@@ -16,7 +16,7 @@ param(
 )
 $ErrorActionPreference = "Stop"
 $Out = Join-Path $PSScriptRoot "..\data\out" | Resolve-Path
-$Remote = "/opt/cityview/data"
+$Remote = "/opt/pinny/data"
 $Target = "$User@$Ip"
 $Ssh = @("-i", $Key, "-o", "StrictHostKeyChecking=accept-new")
 
@@ -50,9 +50,9 @@ foreach ($name in $Parts.Keys) {
 if ($Workspace) {
   $Ws = Join-Path $PSScriptRoot "..\data\workspace\datasets" | Resolve-Path
   Write-Host "Enviando datasets do servidor local..." -ForegroundColor Cyan
-  & ssh @Ssh $Target "mkdir -p ~/cityview-upload"
-  & scp @Ssh -r -q "$Ws\*" "${Target}:~/cityview-upload/"
-  & ssh @Ssh $Target "sudo cp -r ~/cityview-upload/. /opt/cityview/workspace/datasets/ && sudo chown -R cityview:cityview /opt/cityview/workspace && rm -rf ~/cityview-upload && sudo systemctl restart cityview-api"
+  & ssh @Ssh $Target "mkdir -p ~/pinny-upload"
+  & scp @Ssh -r -q "$Ws\*" "${Target}:~/pinny-upload/"
+  & ssh @Ssh $Target "sudo cp -r ~/pinny-upload/. /opt/pinny/workspace/datasets/ && sudo chown -R pinny:pinny /opt/pinny/workspace && rm -rf ~/pinny-upload && sudo systemctl restart pinny-api"
 }
 
 & ssh @Ssh $Target "chmod -R a+rX $Remote"

@@ -17,4 +17,4 @@ Regras:
 - Tile alvo: < 500 KB descomprimido. Se passar, ajuste resolução/atributos em vez de descartar dados silenciosamente.
 - Pontos no tile levam só id e atributos usados em filtro/estilo; o resto vai para a API de detalhes.
 - Todo formato binário (MVT, PMTiles) tem teste de ida e volta ou é validado com ferramenta externa (`pmtiles verify`/`show`).
-- O contrato de saída (nomes de layers, propriedades, metadados) é consumido pelo `@cityview/sdk`; mudou o contrato, atualize os dois juntos.
+- O contrato de saída (nomes de layers, propriedades, metadados) é consumido pelo `@pinny/sdk`; mudou o contrato, atualize os dois juntos.

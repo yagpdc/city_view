@@ -17,7 +17,7 @@ A gente cuida de todo o motor: ingestão, indexação, tiles, consultas analíti
 
 1. **Escala é o diferencial.** 30M+ de registros navegando a 60 fps numa GPU integrada.
 2. **Nunca mandar dado bruto ao navegador.** Agregado em zoom baixo, pontos só da área visível em zoom alto, detalhes sob demanda.
-3. **Não reinventar o render cedo.** MapLibre por baixo, escondido atrás da nossa API (`@cityview/engine` → `@cityview/sdk`).
+3. **Não reinventar o render cedo.** MapLibre por baixo, escondido atrás da nossa API (`@pinny/engine` → `@pinny/sdk`).
 4. **Motor de dados em Rust.** Ingestão e geração de tiles são o coração do produto.
 5. **DX de integração.** O cliente precisa de 3 linhas para ter um mapa funcionando.
 6. **Sem dados próprios, com caminhos para dados.** Não produzimos nem vendemos datasets. Oferecemos um **catálogo de fontes** (públicas/externas) que o usuário baixa e aplica no mapa dele; a partir daí o dado é do usuário. Dados sintéticos existem só para teste e benchmark.
@@ -27,7 +27,7 @@ A gente cuida de todo o motor: ingestão, indexação, tiles, consultas analíti
 
 ## Fase 0 — Fundação ✅ (out/2026)
 
-- [x] Monorepo pnpm, app web (Vite + React + TS), `@cityview/engine` sobre MapLibre
+- [x] Monorepo pnpm, app web (Vite + React + TS), `@pinny/engine` sobre MapLibre
 - [x] Mapa base vetorial e relevo de São Paulo em PMTiles locais; prédios 3D
 - [x] Layout padrão (topbar + sidebar recolhível + mapa)
 - [x] Glyphs e sprites servidos localmente (`pnpm assets`; sem eles, redireciona ao CDN do Protomaps)
@@ -38,7 +38,7 @@ A gente cuida de todo o motor: ingestão, indexação, tiles, consultas analíti
 - [x] Gerador de dados sintéticos (`crates/synth`): 30M de empresas em 6,7 s
 - [x] `crates/tiler` (Rust): Parquet → agregação H3 por zoom + pontos individuais no z14 → PMTiles
   - 30M → 463 MB em 40 s, pico de 1,8 GB de RAM, maior tile 124 KB (gzip); validado com `pmtiles verify`
-- [x] `@cityview/sdk`: `CityView.map({ container, dataset })`, `filter()`, eventos `click`/`ready`/`idle`
+- [x] `@pinny/sdk`: `Pinny.map({ container, dataset })`, `filter()`, eventos `click`/`ready`/`idle`
 - [x] `apps/embed-demo`: site de "empresa cliente" com filtros, clique e painel de métricas
 - [x] Mapa base do Brasil até z12 (756 MB) para dar contexto aos dados
 - [ ] Benchmark com janela visível (fps no tour de câmera) — medido até agora só com o navegador em segundo plano

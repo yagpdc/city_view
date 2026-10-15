@@ -1,4 +1,4 @@
-import CityView, { type Filter, type Item } from "@cityview/sdk";
+import Pinny, { type Filter, type Item } from "@pinny/sdk";
 import "./style.css";
 
 // O cliente conhece o significado dos próprios dados; o SDK só vê índices.
@@ -22,9 +22,9 @@ const ms = (v: number) => `${fmt.format(Math.round(v))} ms`;
 
 // ---------- O que o cliente escreve ----------
 const t0 = performance.now();
-const map = CityView.map({ container: "#mapa", dataset: "/data/empresas/tiles.pmtiles" });
+const map = Pinny.map({ container: "#mapa", dataset: "/data/empresas/tiles.pmtiles" });
 // ---------------------------------------------
-if (import.meta.env.DEV) Object.assign(window, { cityview: map });
+if (import.meta.env.DEV) Object.assign(window, { pinny: map });
 
 const info = await map.ready;
 $("m-ready").textContent = ms(performance.now() - t0);

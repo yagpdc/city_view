@@ -14,7 +14,7 @@ import { countPointsInArea, loadNearby, searchPoints, type NearbySummary, type S
 import { regionLabel, type RegionBoundaries } from "./regions";
 import { DEFAULT_DATA_STYLE, PALETTES, classColors, metersPerPixelAtZoom0, type DataStyle } from "./dataStyle";
 
-/** Metadados gravados pelo cityview-tiler (`cityview` no JSON do PMTiles, versão 2). */
+/** Metadados gravados pelo pinny-tiler (`pinny` no JSON do PMTiles, versão 2). */
 export interface DatasetMeta {
   version: number;
   records: number;
@@ -129,10 +129,11 @@ export function categoryColor(index: number, labels: string[]): string {
 }
 
 export async function readDatasetMeta(pmtiles: PMTiles): Promise<DatasetMeta> {
-  const metadata = (await pmtiles.getMetadata()) as { cityview?: DatasetMeta } | undefined;
-  const meta = metadata?.cityview;
+  // Arquivos gerados antes da troca de nome (City View → Pinny, 2026-10-15) gravaram a chave `cityview`.
+  const metadata = (await pmtiles.getMetadata()) as { pinny?: DatasetMeta; cityview?: DatasetMeta } | undefined;
+  const meta = metadata?.pinny ?? metadata?.cityview;
   if (!meta || meta.version !== 2) {
-    throw new Error("PMTiles sem metadados `cityview` v2: gere o arquivo com o cityview-tiler atual.");
+    throw new Error("PMTiles sem metadados `pinny` v2: gere o arquivo com o pinny-tiler atual.");
   }
   return meta;
 }
@@ -148,7 +149,7 @@ export class DatasetLayer {
   private regionView = false;
   /** Estilo do editor (forma, cor, tamanho…). Hexágonos e regiões também são formas. */
   private dataStyle: DataStyle = DEFAULT_DATA_STYLE;
-  /** Malhas compartilhadas (definidas pelo CityMap antes de anexar). */
+  /** Malhas compartilhadas (definidas pelo PinnyMap antes de anexar). */
   regionBoundaries: RegionBoundaries | null = null;
   /** Pedido de montagem em andamento (descarta respostas antigas). */
   private regionBuild = 0;
@@ -156,7 +157,7 @@ export class DatasetLayer {
   private readonly hexLayerId: string;
   private readonly pointsLayerId: string;
   private readonly labelsLayerId: string;
-  /** Tema do mapa base, para a cor dos rótulos (definido pelo CityMap antes de anexar). */
+  /** Tema do mapa base, para a cor dos rótulos (definido pelo PinnyMap antes de anexar). */
   labelTheme: "light" | "dark" = "light";
 
   constructor(
@@ -168,11 +169,11 @@ export class DatasetLayer {
     /** Crédito exibido no mapa (obrigatório para dados de terceiros, ex.: Overture). */
     private readonly attribution?: string,
   ) {
-    this.sourceId = `cv-${id}`;
-    this.hexLayerId = `cv-${id}-hex`;
-    this.pointsLayerId = `cv-${id}-points`;
-    this.labelsLayerId = `cv-${id}-labels`;
-    this.iconsLayerId = `cv-${id}-icons`;
+    this.sourceId = `pn-${id}`;
+    this.hexLayerId = `pn-${id}-hex`;
+    this.pointsLayerId = `pn-${id}-points`;
+    this.labelsLayerId = `pn-${id}-labels`;
+    this.iconsLayerId = `pn-${id}-icons`;
   }
 
   private readonly iconsLayerId: string;
@@ -278,7 +279,7 @@ export class DatasetLayer {
   }
 
   private regionIds(level: string) {
-    const base = `cv-${this.id}-reg-${level}`;
+    const base = `pn-${this.id}-reg-${level}`;
     return { source: base, labels: `${base}-pts`, fill: `${base}-fill`, line: `${base}-line`, label: `${base}-label` };
   }
 
@@ -729,7 +730,7 @@ export class DatasetLayer {
     const p = feature.properties as Record<string, string | number>;
     const at = this.map.unproject(point);
     const lngLat: [number, number] = [at.lng, at.lat];
-    if (feature.layer.id.startsWith(`cv-${this.id}-reg-`)) {
+    if (feature.layer.id.startsWith(`pn-${this.id}-reg-`)) {
       const byCategory = JSON.parse(String(p.by ?? "[]")) as number[];
       return { kind: "aggregate", datasetId: this.id, count: Number(p.n), byCategory, areaKm2: Number(p.a), lngLat, name: String(p.name) };
     }
@@ -966,7 +967,7 @@ export class DatasetLayer {
   }
 
   private squareImage(): string {
-    const name = "cv-square-sdf";
+    const name = "pn-square-sdf";
     if (!this.map.hasImage(name)) {
       const n = 64;
       const data = new Uint8ClampedArray(n * n * 4).fill(255);

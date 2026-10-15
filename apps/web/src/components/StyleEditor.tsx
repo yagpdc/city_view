@@ -10,7 +10,7 @@ import {
   type DataShape,
   type DataStyle,
   type PaletteName,
-} from "@cityview/engine";
+} from "@pinny/engine";
 import { useRef, useState } from "react";
 import { Icon } from "./Icon";
 
@@ -214,7 +214,7 @@ export function StyleEditor({
   const numericNames = numericColumns.map((c) => c.name);
 
   const download = () => {
-    const blob = new Blob([JSON.stringify({ cityview: "estilo", version: 1, style }, null, 2)], { type: "application/json" });
+    const blob = new Blob([JSON.stringify({ pinny: "estilo", version: 1, style }, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = `${title.replace(/[^\p{L}\p{N}_-]+/gu, "_")}.estilo.json`;

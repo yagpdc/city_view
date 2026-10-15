@@ -1,4 +1,4 @@
-import { categoryColor, matchesWhere, type CityMap, type MapPick, type NearbySummary, type Where } from "@cityview/engine";
+import { categoryColor, matchesWhere, type PinnyMap, type MapPick, type NearbySummary, type Where } from "@pinny/engine";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { FieldRows, Metric, humanize } from "./FieldRows";
 import { labelled, type DatasetInfo } from "./PickDetails";
@@ -91,7 +91,7 @@ export function MapPopup({
   onAdvanced,
   userLayers,
 }: {
-  map: CityMap;
+  map: PinnyMap;
   pick: MapPick;
   datasets: Record<string, DatasetInfo>;
   nearbySource: NearbySource | null;
@@ -315,7 +315,7 @@ function AreaSummary({
   userLayers = [],
   compact,
 }: {
-  map: CityMap;
+  map: PinnyMap;
   picks: MapPick["catalog"];
   userLayers?: UserLayer[];
   compact?: boolean;
@@ -411,7 +411,7 @@ function Nearby({
   center,
   exclude,
 }: {
-  map: CityMap;
+  map: PinnyMap;
   source: NearbySource;
   center: [number, number];
   exclude: number | null;

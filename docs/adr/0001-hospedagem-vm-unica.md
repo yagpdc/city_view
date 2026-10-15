@@ -15,7 +15,7 @@ Uma VM Linux (Oracle Cloud Always Free, ARM Ampere A1, 2 OCPU / 12 GB, 200 GB de
 
 - **Caddy** na frente: HTTPS automático (Let's Encrypt), site/demo/tiles do disco, `/api` por proxy.
   Sem domínio, `<ip>.sslip.io` dá HTTPS de graça.
-- **cityview-api** como serviço systemd, só escrevendo em `/opt/cityview/workspace`.
+- **pinny-api** como serviço systemd, só escrevendo em `/opt/pinny/workspace`.
 - Escrita na API (enviar, renomear, apagar) protegida por senha no Caddy; leitura pública.
 - Código compilado na própria VM (`deploy/update.sh`: git pull, pnpm build, cargo build). Dados enviados
   do PC por `deploy/publish-data.ps1` (não estão no git).

@@ -1,13 +1,13 @@
 /**
- * @cityview/sdk — o mapa do Pinny para embutir no seu produto.
+ * @pinny/sdk — o mapa do Pinny para embutir no seu produto.
  *
  * ```ts
- * import CityView from "@cityview/sdk";
- * const map = CityView.map({ container: "#mapa", dataset: "https://.../empresas.pmtiles" });
+ * import Pinny from "@pinny/sdk";
+ * const map = Pinny.map({ container: "#mapa", dataset: "https://.../empresas.pmtiles" });
  * map.on("click", (item) => console.log(item));
  * ```
  */
-import { CityMap, categoryColor, type DatasetFilter, type DatasetLayer, type DatasetPick } from "@cityview/engine";
+import { PinnyMap, categoryColor, type DatasetFilter, type DatasetLayer, type DatasetPick } from "@pinny/engine";
 
 export type Theme = "light" | "dark";
 
@@ -49,7 +49,7 @@ type Events = {
   idle: () => void;
 };
 
-export interface CityViewMap {
+export interface PinnyMapHandle {
   /** Resolve quando o dataset está carregado e desenhado pela primeira vez. */
   readonly ready: Promise<DatasetInfo>;
   /** Aplica um filtro. Resolve quando o mapa terminou de redesenhar. */
@@ -66,14 +66,14 @@ const BRAZIL: { center: [number, number]; zoom: number } = { center: [-52, -14.5
 function resolveContainer(container: HTMLElement | string): HTMLElement {
   if (typeof container !== "string") return container;
   const el = document.querySelector<HTMLElement>(container);
-  if (!el) throw new Error(`CityView: container não encontrado: ${container}`);
+  if (!el) throw new Error(`Pinny: container não encontrado: ${container}`);
   return el;
 }
 
 const absolute = (url: string) => new URL(url, location.href).href;
 
-export function map(options: MapOptions): CityViewMap {
-  const engine = new CityMap({
+export function map(options: MapOptions): PinnyMapHandle {
+  const engine = new PinnyMap({
     container: resolveContainer(options.container),
     basemapUrl: absolute(options.basemap ?? DEFAULT_BASEMAP),
     theme: options.theme ?? "light",
@@ -115,7 +115,7 @@ export function map(options: MapOptions): CityViewMap {
         case "idle":
           return engine.on("idle", handler as Events["idle"]);
         default:
-          throw new Error(`CityView: evento desconhecido: ${String(event)}`);
+          throw new Error(`Pinny: evento desconhecido: ${String(event)}`);
       }
     },
     flyTo(target) {
@@ -130,5 +130,5 @@ export function map(options: MapOptions): CityViewMap {
   };
 }
 
-const CityView = { map };
-export default CityView;
+const Pinny = { map };
+export default Pinny;

@@ -20,7 +20,7 @@ export const MAQUETE_VIEWS: MaqueteView[] = [
   { id: "east", label: "Fachada leste" },
 ];
 
-/** Cores da maquete, tiradas do mapa base (`CityMap.maquetePalette`). */
+/** Cores da maquete, tiradas do mapa base (`PinnyMap.maquetePalette`). */
 export interface MaquetePalette {
   ground: string;
   grid: string;

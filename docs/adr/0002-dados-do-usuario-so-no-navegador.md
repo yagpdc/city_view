@@ -33,7 +33,7 @@ projeto noutra máquina, o app pede para reabrir aquele arquivo e reaplica a con
 - Armazenamento e custo do servidor crescem com o número de usuários e projetos, não com o volume de dados.
 - **Motor no navegador (feito em 2026-10-12)**: o mesmo tiler em Rust compilado para WebAssembly
   (`crates/tiler-wasm` → `packages/tiler-wasm`, `pnpm wasm`) roda no worker de importação e gera o PMTiles em
-  memória (hexágonos + pontos), guardado no IndexedDB e aberto no mapa como dataset (`CityMap.addDataset(id, blob)`).
+  memória (hexágonos + pontos), guardado no IndexedDB e aberto no mapa como dataset (`PinnyMap.addDataset(id, blob)`).
   500 mil linhas: ~13 s, 18 MB (o GeoJSON equivalente tinha 74 MB). Ainda falta: ler o arquivo direto em colunas
   (hoje as linhas viram objetos antes, o que limita a ~2 milhões).
 - Colaboração em equipe sobre o mesmo dado do usuário exige que cada pessoa tenha o arquivo — fora do Enterprise.

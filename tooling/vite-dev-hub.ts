@@ -11,7 +11,7 @@ const API_HEALTH = "http://127.0.0.1:8787/api/health";
  * - a plataforma (este servidor);
  * - a demo do SDK em /demo/ (segundo Vite em modo middleware, no mesmo processo);
  * - o servidor local em Rust (/api), iniciado aqui se ainda não estiver de pé.
- * `CITYVIEW_NO_API=1` desliga o início automático da API.
+ * `PINNY_NO_API=1` desliga o início automático da API.
  */
 export function devHub(): Plugin {
   let demo: ViteDevServer | undefined;
@@ -25,7 +25,7 @@ export function devHub(): Plugin {
   };
 
   return {
-    name: "cityview-dev-hub",
+    name: "pinny-dev-hub",
     apply: "serve",
     async configureServer(server) {
       const log = (msg: string) => server.config.logger.info(msg, { timestamp: true });
@@ -49,11 +49,11 @@ export function devHub(): Plugin {
         next();
       });
 
-      if (process.env.CITYVIEW_NO_API) return;
+      if (process.env.PINNY_NO_API) return;
       const running = await fetch(API_HEALTH).then((r) => r.ok, () => false);
       if (running) return log("[api] servidor local já está rodando em :8787");
-      log("[api] iniciando o servidor local (cargo run --release -p cityview-api)…");
-      api = spawn("cargo", ["run", "--release", "-p", "cityview-api"], { cwd: REPO, stdio: ["ignore", "pipe", "pipe"] });
+      log("[api] iniciando o servidor local (cargo run --release -p pinny-api)…");
+      api = spawn("cargo", ["run", "--release", "-p", "pinny-api"], { cwd: REPO, stdio: ["ignore", "pipe", "pipe"] });
       const relay = (chunk: Buffer) => {
         for (const line of chunk.toString().split(/\r?\n/)) if (line.trim()) log(`[api] ${line}`);
       };

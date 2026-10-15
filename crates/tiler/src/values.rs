@@ -1,5 +1,5 @@
 //! Conversão de texto em número/data nos formatos brasileiro e internacional.
-//! Mesmas regras de `@cityview/importer` (packages/importer/src/values.ts), com as
+//! Mesmas regras de `@pinny/importer` (packages/importer/src/values.ts), com as
 //! expressões regulares de lá escritas à mão.
 
 use crate::spec::NumberLocale;

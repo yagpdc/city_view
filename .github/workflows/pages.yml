@@ -28,9 +28,9 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Build
-        run: pnpm --filter @cityview/web build
+        run: pnpm --filter @pinny/web build
         env:
-          CITYVIEW_BASE: /city_view/
+          PINNY_BASE: /city_view/
           VITE_DATA_URL: https://pub-edd6ace9283449c1a62ccaeae01d3350.r2.dev
           # Opcional: token de CLIENTE do Mapillary (fotos de rua), em Settings > Secrets > Actions.
           VITE_MAPILLARY_TOKEN: ${{ secrets.VITE_MAPILLARY_TOKEN }}

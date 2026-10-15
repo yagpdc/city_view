@@ -1,4 +1,4 @@
-import { categoryColor, formatArea, formatDistance, lineLengthM, polygonMeasure, type AreaSummary, type CityMap } from "@cityview/engine";
+import { categoryColor, formatArea, formatDistance, lineLengthM, polygonMeasure, type AreaSummary, type PinnyMap } from "@pinny/engine";
 import { useEffect, useRef, useState } from "react";
 import { AGENTS, AgentFace } from "../components/Agents";
 import { Icon } from "../components/Icon";
@@ -97,7 +97,7 @@ export function AnnotationCard({
   onDelete,
   onClose,
 }: {
-  map: CityMap;
+  map: PinnyMap;
   feature: AnnotationFeature;
   layers: CountLayer[];
   onUpdate: (props: Record<string, string | undefined>) => void;

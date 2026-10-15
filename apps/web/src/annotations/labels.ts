@@ -2,17 +2,17 @@
  * Textos das anotações (ferramenta Texto, título do alfinete, rótulo de área e de linha), desenhados por uma
  * camada do app acima de tudo. O editor (Terra Draw) cuida das formas; aqui é só o que se lê.
  */
-import type { MapOverlay } from "@cityview/engine";
+import type { MapOverlay } from "@pinny/engine";
 import type { AnnotationFeature } from "./model";
 
-export const LABELS_OVERLAY = "cv-annot";
+export const LABELS_OVERLAY = "pn-annot";
 /** Camada invisível sobre os alfinetes, para abrir a nota com um clique quando não se está desenhando. */
-export const PIN_HIT_LAYER = "cv-annot-pin-hit";
+export const PIN_HIT_LAYER = "pn-annot-pin-hit";
 /** Prefixo das miniaturas de foto registradas no mapa (`map.addImage`). */
 export const PHOTO_ICON_PREFIX = "annot-photo-";
 /** Ruas e prédios pintados (abaixo dos rótulos do mapa base). */
-export const PAINT_OVERLAY = "cv-annot-paint";
-export const PAINT_HIT_LAYERS = ["cv-annot-paint-road", "cv-annot-paint-building"];
+export const PAINT_OVERLAY = "pn-annot-paint";
+export const PAINT_HIT_LAYERS = ["pn-annot-paint-road", "pn-annot-paint-building"];
 
 const FONT = ["Noto Sans Medium"];
 const HALO = { "text-halo-color": "#ffffff", "text-halo-width": 2.2, "text-halo-blur": 0.4 };
@@ -54,7 +54,7 @@ export function labelsOverlay(features: AnnotationFeature[]): MapOverlay & { sou
         paint: { "circle-radius": 13, "circle-opacity": 0 },
       },
       {
-        id: "cv-annot-line-label",
+        id: "pn-annot-line-label",
         type: "symbol",
         source: LABELS_OVERLAY,
         filter: is("line") as never,
@@ -62,7 +62,7 @@ export function labelsOverlay(features: AnnotationFeature[]): MapOverlay & { sou
         paint: { "text-color": ["get", "color"], ...HALO },
       },
       {
-        id: "cv-annot-area-label",
+        id: "pn-annot-area-label",
         type: "symbol",
         source: LABELS_OVERLAY,
         filter: is("area") as never,
@@ -71,7 +71,7 @@ export function labelsOverlay(features: AnnotationFeature[]): MapOverlay & { sou
       },
       {
         // Alfinete com foto: a miniatura redonda acima do ponto (a imagem é registrada sob demanda: photoMarker).
-        id: "cv-annot-pin-photo",
+        id: "pn-annot-pin-photo",
         type: "symbol",
         source: LABELS_OVERLAY,
         filter: ["all", is("pin"), ["has", "photo"]] as never,
@@ -85,7 +85,7 @@ export function labelsOverlay(features: AnnotationFeature[]): MapOverlay & { sou
         },
       },
       {
-        id: "cv-annot-pin-label",
+        id: "pn-annot-pin-label",
         type: "symbol",
         source: LABELS_OVERLAY,
         filter: is("pin") as never,
@@ -93,7 +93,7 @@ export function labelsOverlay(features: AnnotationFeature[]): MapOverlay & { sou
         paint: { "text-color": "#1d1e24", ...HALO },
       },
       {
-        id: "cv-annot-text",
+        id: "pn-annot-text",
         type: "symbol",
         source: LABELS_OVERLAY,
         filter: is("text") as never,
@@ -124,7 +124,7 @@ export function paintOverlay(features: AnnotationFeature[], selectedId: string |
     source: { type: "geojson", data: { type: "FeatureCollection", features: out } },
     layers: [
       {
-        id: "cv-annot-paint-road-casing",
+        id: "pn-annot-paint-road-casing",
         type: "line",
         source: PAINT_OVERLAY,
         filter: isRoad as never,
@@ -132,7 +132,7 @@ export function paintOverlay(features: AnnotationFeature[], selectedId: string |
         paint: { "line-color": "#ffffff", "line-width": ["interpolate", ["linear"], ["zoom"], 12, 6, 16, ["case", selected, 16, 13], 19, 26] as never },
       },
       {
-        id: "cv-annot-paint-road",
+        id: "pn-annot-paint-road",
         type: "line",
         source: PAINT_OVERLAY,
         filter: isRoad as never,
@@ -140,7 +140,7 @@ export function paintOverlay(features: AnnotationFeature[], selectedId: string |
         paint: { "line-color": ["get", "color"] as never, "line-opacity": 0.92, "line-width": ["interpolate", ["linear"], ["zoom"], 12, 3, 16, ["case", selected, 11, 8], 19, 18] as never },
       },
       {
-        id: "cv-annot-paint-building",
+        id: "pn-annot-paint-building",
         type: "fill-extrusion",
         source: PAINT_OVERLAY,
         filter: isBuilding as never,

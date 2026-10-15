@@ -2,7 +2,7 @@
  * Juntar com outra planilha e acrescentar linhas (docs/IMPORT.md · Juntar com outra planilha).
  * A outra planilha é lida no worker, só na memória deste navegador; cada operação vira um passo da receita.
  */
-import type { JoinStats, RecipeStep } from "@cityview/importer";
+import type { JoinStats, RecipeStep } from "@pinny/importer";
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "../components/Icon";
 import { ACCEPTED_EXTENSIONS, type SourceInfo } from "./protocol";

@@ -19,7 +19,7 @@ Uma cena própria em **three.js** (`packages/engine/src/maquete/`), separada do 
 - `scene.ts` monta o disco (chão desenhado em canvas), prédios com arestas marcadas (um mesh só),
   alfinetes dos dados, marcador do ponto e as vistas ortográficas (planta, fachada sul e leste) no mesmo
   canvas, com scissor.
-- **Cores do mapa, não um "modo" à parte**: `CityMap.maquetePalette()` dá as cores do mapa base no tema e
+- **Cores do mapa, não um "modo" à parte**: `PinnyMap.maquetePalette()` dá as cores do mapa base no tema e
   estilo atuais (Protomaps + prédios 3D do mapa); fundo transparente, com o mapa esmaecido atrás.
   (Uma primeira versão "holograma", escura e brilhante, foi descartada: mudava demais o app.)
 - `MaqueteView` (web) cobre a área do mapa; exporta PNG.
@@ -32,9 +32,9 @@ Uma cena própria em **three.js** (`packages/engine/src/maquete/`), separada do 
 
 ## Consequências
 
-- three.js (~560 KB, ~145 KB gzip) fica num pedaço separado: `@cityview/engine/maquete` + `React.lazy`,
+- three.js (~560 KB, ~145 KB gzip) fica num pedaço separado: `@pinny/engine/maquete` + `React.lazy`,
   baixado só quando a maquete abre.
 - Cobertura = a do mapa base detalhado (hoje Grande SP). Fora dela, a maquete usa o mapa base (ruas e
   água) e avisa que não há prédios.
-- A maquete antiga (mapa inclinado com máscara, `DioramaPanel`, `CityMap.enterDiorama`) foi removida.
+- A maquete antiga (mapa inclinado com máscara, `DioramaPanel`, `PinnyMap.enterDiorama`) foi removida.
   As comparações por município (`apps/web/src/compare.ts`) ficaram guardadas para voltar na maquete nova.

@@ -1,5 +1,6 @@
-import type { DatapackManifest } from "@cityview/engine";
-import type { CoordinateFix, RecipeStep } from "@cityview/importer";
+import { storageMigrated } from "./migrateBrand";
+import type { DatapackManifest } from "@pinny/engine";
+import type { CoordinateFix, RecipeStep } from "@pinny/importer";
 import type { ColumnChoice } from "../import/BuilderStep";
 import type { Delimiter, Encoding } from "../import/protocol";
 
@@ -47,7 +48,7 @@ export interface StoredDataset {
   updatedAt?: number;
 }
 
-const DB_NAME = "cityview";
+const DB_NAME = "pinny";
 const DB_VERSION = 2;
 const STORE = "datasets";
 const LIBRARY_STORE = "library-layers";
@@ -55,7 +56,7 @@ const LIBRARY_STORE = "library-layers";
 let dbPromise: Promise<IDBDatabase> | null = null;
 
 function openDb(): Promise<IDBDatabase> {
-  dbPromise ??= new Promise((resolve, reject) => {
+  dbPromise ??= storageMigrated.then(() => new Promise<IDBDatabase>((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = () => {
       const db = req.result;
@@ -67,7 +68,7 @@ function openDb(): Promise<IDBDatabase> {
       dbPromise = null;
       reject(req.error ?? new Error("Não foi possível abrir o armazenamento local."));
     };
-  });
+  }));
   return dbPromise;
 }
 
@@ -153,9 +154,9 @@ export async function storageUsage(): Promise<StorageUsage | null> {
 
 // ---------- Camadas ligadas (preferência leve, por navegador) ----------
 
-const ACTIVE_KEY = "cityview.active-layers";
+const ACTIVE_KEY = "pinny.active-layers";
 
-const DEFAULTS_KEY = "cityview.default-layers";
+const DEFAULTS_KEY = "pinny.default-layers";
 
 /**
  * Camadas ligadas da última visita. `defaults` entram uma vez por navegador (inclusive para quem já

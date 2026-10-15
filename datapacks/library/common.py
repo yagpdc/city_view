@@ -27,7 +27,7 @@ LIBRARY = Path(__file__).resolve().parent
 CACHE = LIBRARY.parent.parent / "data" / "cache" / "library"
 SCHEMA = 1
 GZIP_MAGIC = bytes([0x1F, 0x8B])
-USER_AGENT = "city_view-library/0.1 (+https://github.com/yagpdc/city_view)"
+USER_AGENT = "pinny-library/0.1 (+https://github.com/yagpdc/city_view)"
 # Teto de consultas simultâneas por fonte quando o host não pede intervalo.
 POLITE_WORKERS = 4
 # Pausa mínima entre consultas ao mesmo host quando ele não declara Crawl-delay.

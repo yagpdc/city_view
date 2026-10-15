@@ -1,4 +1,4 @@
-import { areaBounds, circleArea, pointInArea, type AreaGeometry, type Bounds } from "@cityview/engine";
+import { areaBounds, circleArea, pointInArea, type AreaGeometry, type Bounds } from "@pinny/engine";
 import { dataUrl } from "./catalog";
 
 /** Uma área da maquete: município (com dados do IBGE) ou raio em volta do clique. */

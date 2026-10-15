@@ -1,6 +1,6 @@
 import { data } from "./dataUrl";
-import type { BasemapLook, BuildingPaintResult, Camera, DatasetMeta, MapPick, Theme, ViewportRecord } from "@cityview/engine";
-import { CATEGORY_COLORS, categoryColor, geodesicDistanceM, normalizeText } from "@cityview/engine";
+import type { BasemapLook, BuildingPaintResult, Camera, DatasetMeta, MapPick, Theme, ViewportRecord } from "@pinny/engine";
+import { CATEGORY_COLORS, categoryColor, geodesicDistanceM, normalizeText } from "@pinny/engine";
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { areaAt, parseCoordinates, searchMunicipios } from "./areas";
 import type { Comparison, PlaceFacts } from "./compare";
@@ -23,8 +23,8 @@ import { placeIcon, placeIconSvgs } from "./placeIcons";
 import { Icon, type IconName } from "./components/Icon";
 import { AddRow, DatapackMeta } from "./components/AddRow";
 import { MeasurePanel } from "./components/MeasurePanel";
-import type { DataStyle, DatasetFilter, MeasureMode, MeasureState, Where } from "@cityview/engine";
-import { DEFAULT_DATA_STYLE, normalizeDataStyle } from "@cityview/engine";
+import type { DataStyle, DatasetFilter, MeasureMode, MeasureState, Where } from "@pinny/engine";
+import { DEFAULT_DATA_STYLE, normalizeDataStyle } from "@pinny/engine";
 import { DATAPACKS, dataUrl } from "./catalog";
 import { PickDetails, type DatasetInfo } from "./components/PickDetails";
 import { MapPopup, type NearbySource } from "./components/MapPopup";
@@ -47,7 +47,7 @@ import { serverApi, type ImportSpec, type ServerDataset } from "./server/api";
 import { useServerDatasets } from "./server/useServerDatasets";
 import { deleteLibraryLayer, listLibraryLayers, loadActiveLayers, saveLibraryLayer } from "./storage/datasets";
 import { useUserDatasets, type UserDataset } from "./storage/useUserDatasets";
-import { useCityMap } from "./useCityMap";
+import { usePinnyMap } from "./usePinnyMap";
 
 const CLIENT_DATASET = { id: "empresas", name: "Exemplo: 30 milhões de registros", url: data("empresas/tiles.pmtiles") };
 const DATASET_KEY = `dataset:${CLIENT_DATASET.id}`;
@@ -114,9 +114,9 @@ const WIDGET_KINDS: { kind: WidgetKind; title: string; icon: IconName; text: str
 ];
 
 /** Antes das abas guardarem os widgets: um conjunto só, para todas (vira o da aba aberta na primeira vez). */
-const WIDGETS_KEY = "cityview.widgets";
+const WIDGETS_KEY = "pinny.widgets";
 /** Versão anterior: só o "Na tela", com a posição direto. */
-const SUMMARY_WIDGET_KEY = "cityview.widget-na-tela";
+const SUMMARY_WIDGET_KEY = "pinny.widget-na-tela";
 
 /** Posição inicial: à direita, ao lado da coluna de botões; os seguintes em cascata para não ficarem empilhados. */
 function defaultWidgetRect(kind: WidgetKind, open: number): WidgetRect {
@@ -139,7 +139,7 @@ function loadWidgets(): MapWidgets {
   return window.innerWidth >= 1280 ? { summary: { rect: defaultWidgetRect("summary", 0), settings: {} } } : {};
 }
 
-const HIDDEN_KEY = "cityview.hidden-layers";
+const HIDDEN_KEY = "pinny.hidden-layers";
 function loadHiddenLayers(): Set<string> {
   try {
     return new Set(JSON.parse(localStorage.getItem(HIDDEN_KEY) ?? "[]") as string[]);
@@ -147,7 +147,7 @@ function loadHiddenLayers(): Set<string> {
     return new Set();
   }
 }
-const FILTERS_KEY = "cityview.category-filters";
+const FILTERS_KEY = "pinny.category-filters";
 /** Filtro por camada (id da camada no mapa → categorias visíveis e condições por coluna). */
 type LayerFilters = Record<string, DatasetFilter>;
 function loadFilters(): LayerFilters {
@@ -321,7 +321,7 @@ export function App() {
   /** Datasets enviados nesta sessão: ao ficarem prontos, a câmera vai até eles. */
   const focusWhenReady = useRef(new Set<string>());
 
-  const { containerRef, map } = useCityMap({
+  const { containerRef, map } = usePinnyMap({
     basemapUrl: data("brasil.pmtiles"),
     // Locais com `pnpm assets`; sem eles o servidor de dev redireciona para o Protomaps.
     assetsUrl: data("assets"),
@@ -375,9 +375,9 @@ export function App() {
     });
     return () => setLocalStreetImages(null);
   }, [map]);
-  // Só no desenvolvimento: o mapa no console (window.__cityMap) para depurar camadas e dados.
+  // Só no desenvolvimento: o mapa no console (window.__pinnyMap) para depurar camadas e dados.
   useEffect(() => {
-    if (import.meta.env.DEV && map) (window as unknown as { __cityMap?: unknown }).__cityMap = map;
+    if (import.meta.env.DEV && map) (window as unknown as { __pinnyMap?: unknown }).__pinnyMap = map;
   }, [map]);
 
   // Dataset de demonstração e clique: uma vez por mapa.
@@ -668,7 +668,7 @@ export function App() {
     const wanted = annotationsHidden ? [] : annotations.filter(isImage);
     const keep = new Set<string>();
     for (const f of wanted) {
-      const id = `cv-annot-img-${f.id}`;
+      const id = `pn-annot-img-${f.id}`;
       const ring = f.geometry.type === "Polygon" ? f.geometry.coordinates[0] : undefined;
       if (!ring || ring.length < 4 || !f.properties.photo) continue;
       keep.add(id);

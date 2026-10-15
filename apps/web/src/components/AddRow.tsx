@@ -1,4 +1,4 @@
-import type { DatapackManifest } from "@cityview/engine";
+import type { DatapackManifest } from "@pinny/engine";
 import { useEffect, useState, type ReactNode } from "react";
 import { fetchStatus, relativeTime, type DatapackStatus } from "../catalog";
 import { Icon } from "./Icon";

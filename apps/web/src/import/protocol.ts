@@ -1,4 +1,4 @@
-import type { ColumnInfo, ColumnProfile, ImportMapping, ImportSummary, JoinStats, JunkFinding, LocationGuess, RecipeStep, Row } from "@cityview/importer";
+import type { ColumnInfo, ColumnProfile, ImportMapping, ImportSummary, JoinStats, JunkFinding, LocationGuess, RecipeStep, Row } from "@pinny/importer";
 
 /** Limite do processamento no navegador; acima disso o arquivo precisa do motor local (Rust). */
 export const MAX_BROWSER_ROWS = 2_000_000;

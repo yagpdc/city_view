@@ -24,7 +24,7 @@ import {
   type RecipeContext,
   type RecipeStep,
   type Row,
-} from "@cityview/importer";
+} from "@pinny/importer";
 import Papa from "papaparse";
 import { parquetMetadataAsync, parquetReadObjects, type AsyncBuffer } from "hyparquet";
 import { compressors } from "hyparquet-compressors";

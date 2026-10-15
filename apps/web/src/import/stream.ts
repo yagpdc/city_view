@@ -14,7 +14,7 @@ import {
   type RecipeContext,
   type RecipeStep,
   type Row,
-} from "@cityview/importer";
+} from "@pinny/importer";
 import Papa from "papaparse";
 import type { Delimiter, Encoding } from "./protocol";
 

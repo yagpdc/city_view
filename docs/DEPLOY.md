@@ -9,8 +9,8 @@ desenhada e entra aqui quando existir. Hospedagem: [ADR 0001](adr/0001-hospedage
 navegador ──HTTPS──▶ Caddy (:443, certificado automático)
                       ├─ /            site (apps/web/dist)
                       ├─ /demo/       demo do SDK
-                      ├─ /data/*      tiles e dados públicos (/opt/cityview/data, com Range)
-                      └─ /api/*       404 (só com --with-api: cityview-api, uso interno)
+                      ├─ /data/*      tiles e dados públicos (/opt/pinny/data, com Range)
+                      └─ /api/*       404 (só com --with-api: pinny-api, uso interno)
 ```
 
 ## Máquina
@@ -51,20 +51,20 @@ uma parte; `-Workspace` (só com `--with-api`) inclui os datasets processados no
 Depois de um `git push`:
 
 ```
-ssh -i ~/.ssh/oracle_cityview ubuntu@SEU_IP sudo bash /opt/cityview/src/deploy/update.sh
+ssh -i ~/.ssh/oracle_cityview ubuntu@SEU_IP sudo bash /opt/pinny/src/deploy/update.sh
 ```
 
 ## Onde fica cada coisa na VM
 
 | Caminho | O quê |
 |---|---|
-| `/opt/cityview/src` | clone do repositório (compila aqui) |
-| `/opt/cityview/web`, `/demo` | site e demo gerados |
-| `/opt/cityview/data` | tiles públicos (enviados por `publish-data.ps1`) |
-| `/opt/cityview/workspace/datasets` | datasets enviados ao servidor (API) |
+| `/opt/pinny/src` | clone do repositório (compila aqui) |
+| `/opt/pinny/web`, `/demo` | site e demo gerados |
+| `/opt/pinny/data` | tiles públicos (enviados por `publish-data.ps1`) |
+| `/opt/pinny/workspace/datasets` | datasets enviados ao servidor (API) |
 | `/etc/caddy/Caddyfile` | gerado de `deploy/Caddyfile` |
 
-Logs: `journalctl -u cityview-api -f` · `journalctl -u caddy -f`.
+Logs: `journalctl -u pinny-api -f` · `journalctl -u caddy -f`.
 
 ## Oracle, do zero
 

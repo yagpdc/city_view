@@ -1,4 +1,4 @@
-import type { DatapackField } from "@cityview/engine";
+import type { DatapackField } from "@pinny/engine";
 import { Fragment } from "react";
 import { Icon, type IconName } from "./Icon";
 import { formatField, linkLabel } from "./PickDetails";

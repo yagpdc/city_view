@@ -1,5 +1,5 @@
 {
-  "name": "@cityview/web",
+  "name": "@pinny/web",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -11,9 +11,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@cityview/engine": "workspace:*",
-    "@cityview/importer": "workspace:*",
-    "@cityview/tiler-wasm": "workspace:*",
+    "@pinny/engine": "workspace:*",
+    "@pinny/importer": "workspace:*",
+    "@pinny/tiler-wasm": "workspace:*",
     "@fontsource-variable/bricolage-grotesque": "5.3.0",
     "@fontsource-variable/dm-sans": "5.3.0",
     "@fontsource-variable/figtree": "5.3.0",

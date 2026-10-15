@@ -5,7 +5,7 @@
  * Chave: token de cliente gratuito em VITE_MAPILLARY_TOKEN (apps/web/.env.local, fora do git).
  */
 
-import type { MapOverlay } from "@cityview/engine";
+import type { MapOverlay } from "@pinny/engine";
 
 const TOKEN = import.meta.env.VITE_MAPILLARY_TOKEN as string | undefined;
 const API = "https://graph.mapillary.com/images";

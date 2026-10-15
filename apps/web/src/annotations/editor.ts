@@ -2,7 +2,7 @@
  * Editor de anotações sobre o mapa (Terra Draw, MIT). Desenha, seleciona e edita; quem guarda o estado é o app
  * (`onChange` devolve todas as anotações). Textos e rótulos são desenhados por uma camada do próprio app.
  */
-import type { CityMap } from "@cityview/engine";
+import type { PinnyMap } from "@pinny/engine";
 import {
   TerraDraw,
   TerraDrawCircleMode,
@@ -18,7 +18,7 @@ import {
 import { TerraDrawMapLibreGLAdapter } from "terra-draw-maplibre-gl-adapter";
 import { DRAG_TOOLS, IMAGE_MODE, TOOL_MODE, cleanAnnotations, isPainted, type AnnotationFeature, type AnnotationTool } from "./model";
 
-type NativeMap = CityMap["native"];
+type NativeMap = PinnyMap["native"];
 
 const FALLBACK = "#8b7cf6" as HexColor;
 const colorOf = (f: GeoJSONStoreFeatures) => ((f.properties.color as HexColor | undefined) ?? FALLBACK);
@@ -176,7 +176,7 @@ export class AnnotationEditor {
     const area = { fillColor: colorOf, fillOpacity: 0.16, outlineColor: colorOf, outlineWidth: 2.5 };
     const editable = { feature: { draggable: true, coordinates: { draggable: true, midpoints: true, deletable: true } } };
     const draw = new TerraDraw({
-      adapter: new TerraDrawMapLibreGLAdapter({ map: this.map, coordinatePrecision: 7, prefixId: "cv-annot-draw" }),
+      adapter: new TerraDrawMapLibreGLAdapter({ map: this.map, coordinatePrecision: 7, prefixId: "pn-annot-draw" }),
       modes: [
         new TerraDrawSelectMode({
           flags: {

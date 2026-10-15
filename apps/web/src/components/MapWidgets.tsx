@@ -1,4 +1,4 @@
-import { categoryColor, matchesWhere, type CityMap, type DatasetFilter, type NearbySummary, type ViewportRecord, type WhereClause } from "@cityview/engine";
+import { categoryColor, matchesWhere, type PinnyMap, type DatasetFilter, type NearbySummary, type ViewportRecord, type WhereClause } from "@pinny/engine";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { areaAt, regionDirectory, type RegionInfo } from "../areas";
 import { ratio, type PlaceFacts } from "../compare";
@@ -51,7 +51,7 @@ const CATEGORY_COLUMN = "__category";
 const TABLE_ROWS = 200;
 
 /** Recalcula quando o mapa para de mexer ou termina de carregar (inclusive depois de trocar um filtro). */
-function useViewTick(map: CityMap): number {
+function useViewTick(map: PinnyMap): number {
   const [tick, setTick] = useState(0);
   useEffect(() => {
     let live = true;
@@ -71,7 +71,7 @@ const categoryLabel = (layer: WidgetLayer, c: number | null) => {
   if (raw === undefined) return "Sem categoria";
   return layer.info.label ? layer.info.label(raw) : raw;
 };
-const columnsOf = (map: CityMap, layer: WidgetLayer) => map.datasetColumns(layer.id).filter((c) => !c.name.startsWith("_"));
+const columnsOf = (map: PinnyMap, layer: WidgetLayer) => map.datasetColumns(layer.id).filter((c) => !c.name.startsWith("_"));
 
 /** Camada escolhida (ou a primeira, se a escolhida saiu do mapa). */
 function useLayer(layers: WidgetLayer[], settings: WidgetSettings): WidgetLayer | undefined {
@@ -170,7 +170,7 @@ export function ColumnChartWidget({
   onSettings,
   onFilter,
 }: {
-  map: CityMap;
+  map: PinnyMap;
   layers: WidgetLayer[];
   settings: WidgetSettings;
   onSettings: (s: WidgetSettings) => void;
@@ -217,7 +217,7 @@ export function ColumnChartWidget({
       .slice(0, 8)
       .map(([label, n], i) => ({ label: label ? humanize(label) : "(vazio)", n, color: categoryColor(i, sorted.map((x) => x[0])), value: label || undefined }));
     const rest = sorted.slice(8).reduce((sum, [, n]) => sum + n, 0);
-    if (rest > 0) top.push({ label: `Outros (${int.format(sorted.length - 8)} valores)`, n: rest, color: "var(--cv-text-muted)" });
+    if (rest > 0) top.push({ label: `Outros (${int.format(sorted.length - 8)} valores)`, n: rest, color: "var(--pn-text-muted)" });
     return { kind: "bars" as const, bars: top, total: read.total, thinned: read.thinned };
   }, [map, layer, column, columns, tick, filterKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -430,7 +430,7 @@ export function VisibleTableWidget({
   onSettings,
   onRecord,
 }: {
-  map: CityMap;
+  map: PinnyMap;
   layers: WidgetLayer[];
   settings: WidgetSettings;
   onSettings: (s: WidgetSettings) => void;
@@ -576,7 +576,7 @@ export function RadiusWidget({
   placing,
   onPlacing,
 }: {
-  map: CityMap;
+  map: PinnyMap;
   layers: WidgetLayer[];
   settings: WidgetSettings;
   onSettings: (s: WidgetSettings) => void;
@@ -598,9 +598,9 @@ export function RadiusWidget({
 
   useEffect(() => {
     if (!center) return;
-    map.setRadius({ center, radiusM }, "cv-radius-widget");
+    map.setRadius({ center, radiusM }, "pn-radius-widget");
   }, [map, center, radiusM]);
-  useEffect(() => () => map.setRadius(null, "cv-radius-widget"), [map]);
+  useEffect(() => () => map.setRadius(null, "pn-radius-widget"), [map]);
 
   const layerKey = layers.map((l) => l.id).join("|");
   useEffect(() => {
@@ -687,7 +687,7 @@ export function PlaceWidget({
   layers,
   placeFacts,
 }: {
-  map: CityMap;
+  map: PinnyMap;
   layers: WidgetLayer[];
   placeFacts: (center: [number, number]) => Promise<PlaceFacts>;
 }) {
@@ -810,7 +810,7 @@ export function RankingWidget({
   onSettings,
   onFly,
 }: {
-  map: CityMap;
+  map: PinnyMap;
   layers: WidgetLayer[];
   settings: WidgetSettings;
   onSettings: (s: WidgetSettings) => void;
@@ -929,7 +929,7 @@ export function OpportunityWidget({
   onSettings,
   onFly,
 }: {
-  map: CityMap;
+  map: PinnyMap;
   layers: WidgetLayer[];
   variables: PublicVariable[];
   settings: WidgetSettings;
@@ -1070,7 +1070,7 @@ export function KpiWidget({
   settings,
   onSettings,
 }: {
-  map: CityMap;
+  map: PinnyMap;
   layers: WidgetLayer[];
   settings: WidgetSettings;
   onSettings: (s: WidgetSettings) => void;

@@ -1,7 +1,7 @@
 /*
  * Tokens do design system Pinny (fonte: docs/DESIGN.md, ADR 0005).
  * Marca: arredondada, pastel, minimalista; tinta escura nos botões; cada área do app com o seu "mundo" de cor.
- * Componentes usam só --cv-*; o tema escuro troca os valores em .theme-dark.
+ * Componentes usam só --pn-*; o tema escuro troca os valores em .theme-dark.
  */
 @import "@fontsource-variable/figtree/index.css";
 @import "@fontsource-variable/bricolage-grotesque/index.css";
@@ -10,201 +10,201 @@
 
 :root {
   /* Ação: botão principal em tinta (nada de "botão azul"); destaque suave em lilás, a cor da marca */
-  --cv-action: #1d1e24;
-  --cv-action-hover: #34353d;
-  --cv-action-press: #000000;
-  --cv-on-action: #ffffff;
-  --cv-action-subtle: #e9e4ff;
-  --cv-action-subtle-hover: #ddd6ff;
-  --cv-action-subtle-text: #4b3fb5;
-  --cv-link: #4b3fb5;
-  --cv-focus: #8b7cf6;
-  --cv-focus-ring: #d4ccff;
-  --cv-selected: #8b7cf6;
+  --pn-action: #1d1e24;
+  --pn-action-hover: #34353d;
+  --pn-action-press: #000000;
+  --pn-on-action: #ffffff;
+  --pn-action-subtle: #e9e4ff;
+  --pn-action-subtle-hover: #ddd6ff;
+  --pn-action-subtle-text: #4b3fb5;
+  --pn-link: #4b3fb5;
+  --pn-focus: #8b7cf6;
+  --pn-focus-ring: #d4ccff;
+  --pn-selected: #8b7cf6;
   /* Destaque (barras, progresso, borda do que está escolhido): lilás da marca, não a tinta do botão */
-  --cv-accent: #8b7cf6;
+  --pn-accent: #8b7cf6;
 
   /* Neutros quentes e superfícies */
-  --cv-bg: #ffffff;
-  --cv-surface: #f6f5f1;
-  --cv-surface-press: #eeece6;
-  --cv-float: #ffffff;
-  --cv-field: #fbfaf8;
-  --cv-border: #e9e6df;
-  --cv-border-strong: #d6d2c8;
-  --cv-control-border: #a8a49b;
-  --cv-text: #1d1e24;
-  --cv-text-muted: #6b6a72;
-  --cv-text-placeholder: #8a8891;
-  --cv-disabled-bg: #eeece6;
-  --cv-disabled-text: #a8a49b;
-  --cv-track: #d6d2c8;
+  --pn-bg: #ffffff;
+  --pn-surface: #f6f5f1;
+  --pn-surface-press: #eeece6;
+  --pn-float: #ffffff;
+  --pn-field: #fbfaf8;
+  --pn-border: #e9e6df;
+  --pn-border-strong: #d6d2c8;
+  --pn-control-border: #a8a49b;
+  --pn-text: #1d1e24;
+  --pn-text-muted: #6b6a72;
+  --pn-text-placeholder: #8a8891;
+  --pn-disabled-bg: #eeece6;
+  --pn-disabled-text: #a8a49b;
+  --pn-track: #d6d2c8;
 
   /* Estados (nas cores dos mundos) */
-  --cv-success: #1f7a52;
-  --cv-success-bg: #ddf4e8;
-  --cv-warning: #a4501e;
-  --cv-warning-bg: #ffe7d6;
-  --cv-danger: #b42318;
-  --cv-danger-hover: #912018;
-  --cv-danger-bg: #fde7e7;
-  --cv-info: #2463a8;
-  --cv-info-bg: #ddeeff;
+  --pn-success: #1f7a52;
+  --pn-success-bg: #ddf4e8;
+  --pn-warning: #a4501e;
+  --pn-warning-bg: #ffe7d6;
+  --pn-danger: #b42318;
+  --pn-danger-hover: #912018;
+  --pn-danger-bg: #fde7e7;
+  --pn-info: #2463a8;
+  --pn-info-bg: #ddeeff;
 
   /* Dica (tooltip) e máscara */
-  --cv-tip-bg: #1d1e24;
-  --cv-tip-text: #ffffff;
-  --cv-scrim: rgba(29, 30, 36, 0.4);
+  --pn-tip-bg: #1d1e24;
+  --pn-tip-text: #ffffff;
+  --pn-scrim: rgba(29, 30, 36, 0.4);
 
   /* Mapa base (referência; o estilo do mapa vem do Protomaps) */
-  --cv-map-ground: #f2f0ea;
-  --cv-map-point-ring: #ffffff;
+  --pn-map-ground: #f2f0ea;
+  --pn-map-point-ring: #ffffff;
 
   /*
    * Paleta da plataforma: neutros quentes + o lilás da marca (lilac-*). As outras cores são dos personagens
    * (components/Agents.tsx) e não pintam a interface. Nunca no mapa: lá a cor é dos dados.
    */
-  --cv-lilac-bg: #e9e4ff;
-  --cv-lilac-fill: #b9aeff;
-  --cv-lilac-ink: #4b3fb5;
-  --cv-mint-bg: #ddf4e8;
-  --cv-mint-fill: #9be0be;
-  --cv-mint-ink: #1f7a52;
-  --cv-peach-bg: #ffe7d6;
-  --cv-peach-fill: #ffc09a;
-  --cv-peach-ink: #a4501e;
-  --cv-sky-bg: #ddeeff;
-  --cv-sky-fill: #a8d1ff;
-  --cv-sky-ink: #2463a8;
-  --cv-lemon-bg: #fff4c7;
-  --cv-lemon-fill: #ffe07a;
-  --cv-lemon-ink: #7a5d00;
-  --cv-pink-bg: #ffe3ee;
-  --cv-pink-fill: #ffb3cf;
-  --cv-pink-ink: #a8336a;
+  --pn-lilac-bg: #e9e4ff;
+  --pn-lilac-fill: #b9aeff;
+  --pn-lilac-ink: #4b3fb5;
+  --pn-mint-bg: #ddf4e8;
+  --pn-mint-fill: #9be0be;
+  --pn-mint-ink: #1f7a52;
+  --pn-peach-bg: #ffe7d6;
+  --pn-peach-fill: #ffc09a;
+  --pn-peach-ink: #a4501e;
+  --pn-sky-bg: #ddeeff;
+  --pn-sky-fill: #a8d1ff;
+  --pn-sky-ink: #2463a8;
+  --pn-lemon-bg: #fff4c7;
+  --pn-lemon-fill: #ffe07a;
+  --pn-lemon-ink: #7a5d00;
+  --pn-pink-bg: #ffe3ee;
+  --pn-pink-fill: #ffb3cf;
+  --pn-pink-ink: #a8336a;
 
   /* Mundo atual (a gaveta ou o widget define com .world-*) */
-  --world-bg: var(--cv-surface);
-  --world-fill: var(--cv-border-strong);
-  --world-ink: var(--cv-text);
+  --world-bg: var(--pn-surface);
+  --world-fill: var(--pn-border-strong);
+  --world-ink: var(--pn-text);
 
   /* Tipografia: títulos com caráter, interface legível, números em mono */
-  --cv-font-display: "Bricolage Grotesque Variable", "Bricolage Grotesque", "Figtree Variable", system-ui, sans-serif;
-  --cv-font-sans: "Figtree Variable", "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --cv-font-mono: "DM Mono", ui-monospace, "SF Mono", Consolas, monospace;
+  --pn-font-display: "Bricolage Grotesque Variable", "Bricolage Grotesque", "Figtree Variable", system-ui, sans-serif;
+  --pn-font-sans: "Figtree Variable", "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --pn-font-mono: "DM Mono", ui-monospace, "SF Mono", Consolas, monospace;
 
   /* Espaço (base 4 px) */
-  --cv-space-1: 4px;
-  --cv-space-2: 8px;
-  --cv-space-3: 12px;
-  --cv-space-4: 16px;
-  --cv-space-5: 20px;
-  --cv-space-6: 24px;
-  --cv-space-8: 32px;
-  --cv-space-10: 40px;
+  --pn-space-1: 4px;
+  --pn-space-2: 8px;
+  --pn-space-3: 12px;
+  --pn-space-4: 16px;
+  --pn-space-5: 20px;
+  --pn-space-6: 24px;
+  --pn-space-8: 32px;
+  --pn-space-10: 40px;
 
   /* Cantos */
   /* Cantos generosos: nada quadrado */
-  --cv-radius-xs: 6px;
-  --cv-radius-sm: 10px;
-  --cv-radius-md: 14px;
-  --cv-radius-lg: 20px;
-  --cv-radius-xl: 26px;
-  --cv-radius-full: 999px;
+  --pn-radius-xs: 6px;
+  --pn-radius-sm: 10px;
+  --pn-radius-md: 14px;
+  --pn-radius-lg: 20px;
+  --pn-radius-xl: 26px;
+  --pn-radius-full: 999px;
 
   /* Elevação */
-  --cv-shadow-1: 0 1px 3px rgba(29, 30, 36, 0.08);
-  --cv-shadow-2: 0 4px 12px rgba(29, 30, 36, 0.1);
-  --cv-shadow-3: 0 16px 40px rgba(29, 30, 36, 0.13);
-  --cv-shadow-4: 0 24px 64px rgba(29, 30, 36, 0.22);
+  --pn-shadow-1: 0 1px 3px rgba(29, 30, 36, 0.08);
+  --pn-shadow-2: 0 4px 12px rgba(29, 30, 36, 0.1);
+  --pn-shadow-3: 0 16px 40px rgba(29, 30, 36, 0.13);
+  --pn-shadow-4: 0 24px 64px rgba(29, 30, 36, 0.22);
 
   /* Tamanhos */
-  --cv-control-h: 44px;
-  --cv-control-h-sm: 36px;
-  --cv-ease: cubic-bezier(0.2, 0, 0, 1);
+  --pn-control-h: 44px;
+  --pn-control-h-sm: 36px;
+  --pn-ease: cubic-bezier(0.2, 0, 0, 1);
   /* Mola leve para abrir gavetas e widgets (o "quique" na medida) */
-  --cv-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --pn-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
 
   /* Nomes antigos (migração): apontam para os tokens novos */
-  --bg: var(--cv-bg);
-  --bg-subtle: var(--cv-surface);
-  --fg: var(--cv-text);
-  --fg-muted: var(--cv-text-muted);
-  --border: var(--cv-border);
-  --accent: var(--cv-action);
-  --focus: var(--cv-focus-ring);
-  --radius: var(--cv-radius-md);
-  --ease: var(--cv-ease);
+  --bg: var(--pn-bg);
+  --bg-subtle: var(--pn-surface);
+  --fg: var(--pn-text);
+  --fg-muted: var(--pn-text-muted);
+  --border: var(--pn-border);
+  --accent: var(--pn-action);
+  --focus: var(--pn-focus-ring);
+  --radius: var(--pn-radius-md);
+  --ease: var(--pn-ease);
 }
 
 .theme-dark {
-  --cv-action: #f3f1ec;
-  --cv-action-hover: #ffffff;
-  --cv-action-press: #d6d2c8;
-  --cv-on-action: #15161b;
-  --cv-action-subtle: #24203f;
-  --cv-action-subtle-hover: #2e2950;
-  --cv-action-subtle-text: #cfc7ff;
-  --cv-link: #b9aeff;
-  --cv-focus: #b9aeff;
-  --cv-focus-ring: #2e2950;
-  --cv-selected: #8b7cf6;
-  --cv-accent: #b9aeff;
+  --pn-action: #f3f1ec;
+  --pn-action-hover: #ffffff;
+  --pn-action-press: #d6d2c8;
+  --pn-on-action: #15161b;
+  --pn-action-subtle: #24203f;
+  --pn-action-subtle-hover: #2e2950;
+  --pn-action-subtle-text: #cfc7ff;
+  --pn-link: #b9aeff;
+  --pn-focus: #b9aeff;
+  --pn-focus-ring: #2e2950;
+  --pn-selected: #8b7cf6;
+  --pn-accent: #b9aeff;
 
-  --cv-bg: #0b0f17;
-  --cv-surface: #151a24;
-  --cv-surface-press: #222936;
-  --cv-float: #1b2130;
-  --cv-field: #10141c;
-  --cv-border: #2a3240;
-  --cv-border-strong: #3a4352;
-  --cv-control-border: #6b7485;
-  --cv-text: #eceef2;
-  --cv-text-muted: #9aa3b2;
-  --cv-text-placeholder: #7d8698;
-  --cv-disabled-bg: #1b2130;
-  --cv-disabled-text: #5f6878;
-  --cv-track: #3a4352;
+  --pn-bg: #0b0f17;
+  --pn-surface: #151a24;
+  --pn-surface-press: #222936;
+  --pn-float: #1b2130;
+  --pn-field: #10141c;
+  --pn-border: #2a3240;
+  --pn-border-strong: #3a4352;
+  --pn-control-border: #6b7485;
+  --pn-text: #eceef2;
+  --pn-text-muted: #9aa3b2;
+  --pn-text-placeholder: #7d8698;
+  --pn-disabled-bg: #1b2130;
+  --pn-disabled-text: #5f6878;
+  --pn-track: #3a4352;
 
-  --cv-success: #4ade80;
-  --cv-success-bg: #0f2418;
-  --cv-warning: #fbbf24;
-  --cv-warning-bg: #2a1f08;
-  --cv-danger: #f87171;
-  --cv-danger-hover: #fca5a5;
-  --cv-danger-bg: #2b1010;
-  --cv-info: #7aa2ff;
-  --cv-info-bg: #0f1a33;
+  --pn-success: #4ade80;
+  --pn-success-bg: #0f2418;
+  --pn-warning: #fbbf24;
+  --pn-warning-bg: #2a1f08;
+  --pn-danger: #f87171;
+  --pn-danger-hover: #fca5a5;
+  --pn-danger-bg: #2b1010;
+  --pn-info: #7aa2ff;
+  --pn-info-bg: #0f1a33;
 
-  --cv-tip-bg: #eceef2;
-  --cv-tip-text: #0b0f17;
-  --cv-scrim: rgba(0, 0, 0, 0.6);
+  --pn-tip-bg: #eceef2;
+  --pn-tip-text: #0b0f17;
+  --pn-scrim: rgba(0, 0, 0, 0.6);
 
-  --cv-map-ground: #10141c;
-  --cv-map-point-ring: #10141c;
+  --pn-map-ground: #10141c;
+  --pn-map-point-ring: #10141c;
 
-  --cv-lilac-bg: #24203f;
-  --cv-lilac-fill: #8b7cf6;
-  --cv-lilac-ink: #cfc7ff;
-  --cv-mint-bg: #15302a;
-  --cv-mint-fill: #4fbf8c;
-  --cv-mint-ink: #a8ebc9;
-  --cv-peach-bg: #35241a;
-  --cv-peach-fill: #f0915a;
-  --cv-peach-ink: #ffcfb0;
-  --cv-sky-bg: #172a40;
-  --cv-sky-fill: #5aa9f0;
-  --cv-sky-ink: #b8dcff;
-  --cv-lemon-bg: #332c12;
-  --cv-lemon-fill: #e2b714;
-  --cv-lemon-ink: #ffe9a0;
-  --cv-pink-bg: #3a1c2a;
-  --cv-pink-fill: #e86b9c;
-  --cv-pink-ink: #ffc2da;
+  --pn-lilac-bg: #24203f;
+  --pn-lilac-fill: #8b7cf6;
+  --pn-lilac-ink: #cfc7ff;
+  --pn-mint-bg: #15302a;
+  --pn-mint-fill: #4fbf8c;
+  --pn-mint-ink: #a8ebc9;
+  --pn-peach-bg: #35241a;
+  --pn-peach-fill: #f0915a;
+  --pn-peach-ink: #ffcfb0;
+  --pn-sky-bg: #172a40;
+  --pn-sky-fill: #5aa9f0;
+  --pn-sky-ink: #b8dcff;
+  --pn-lemon-bg: #332c12;
+  --pn-lemon-fill: #e2b714;
+  --pn-lemon-ink: #ffe9a0;
+  --pn-pink-bg: #3a1c2a;
+  --pn-pink-fill: #e86b9c;
+  --pn-pink-ink: #ffc2da;
 
   /* No escuro, o que flutua se separa por borda, não por sombra */
-  --cv-shadow-1: 0 0 0 1px #2a3240;
-  --cv-shadow-2: 0 0 0 1px #2a3240;
-  --cv-shadow-3: 0 0 0 1px #2a3240, 0 12px 32px rgba(0, 0, 0, 0.5);
-  --cv-shadow-4: 0 0 0 1px #2a3240, 0 24px 64px rgba(0, 0, 0, 0.6);
+  --pn-shadow-1: 0 0 0 1px #2a3240;
+  --pn-shadow-2: 0 0 0 1px #2a3240;
+  --pn-shadow-3: 0 0 0 1px #2a3240, 0 12px 32px rgba(0, 0, 0, 0.5);
+  --pn-shadow-4: 0 0 0 1px #2a3240, 0 24px 64px rgba(0, 0, 0, 0.6);
 }

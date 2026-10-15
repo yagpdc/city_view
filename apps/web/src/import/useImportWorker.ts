@@ -1,4 +1,4 @@
-import type { ColumnProfile, ImportMapping, JoinStats, RecipeStep } from "@cityview/importer";
+import type { ColumnProfile, ImportMapping, JoinStats, RecipeStep } from "@pinny/importer";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { BuildSummary, Delimiter, Encoding, OpenOptions, OpenedFile, SourceInfo, WorkerRequest, WorkerResponse } from "./protocol";
 import type { TileReport } from "./tiles";

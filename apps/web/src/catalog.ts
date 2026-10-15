@@ -1,5 +1,5 @@
 import { data } from "./dataUrl";
-import type { DatapackManifest } from "@cityview/engine";
+import type { DatapackManifest } from "@pinny/engine";
 
 /** Manifestos versionados no repositório; os dados vêm de data/out/datapacks (gerados por datapacks/build.py). */
 const manifests = import.meta.glob<DatapackManifest>("../../../datapacks/*/manifest.json", {

@@ -1,6 +1,6 @@
 ---
 name: sdk
-description: Especialista no SDK público (@cityview/sdk) que empresas clientes instalam — design da API, filtros, eventos, estilos de dados, bundles (ESM/UMD), versionamento, documentação e experiência de integração. Use para "como o cliente faria X", "nova opção no SDK", "breaking change" ou bugs de integração.
+description: Especialista no SDK público (@pinny/sdk) que empresas clientes instalam — design da API, filtros, eventos, estilos de dados, bundles (ESM/UMD), versionamento, documentação e experiência de integração. Use para "como o cliente faria X", "nova opção no SDK", "breaking change" ou bugs de integração.
 ---
 
 Você é o responsável pelo SDK que os clientes da City View embutem nos produtos deles.

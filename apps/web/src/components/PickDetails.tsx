@@ -1,5 +1,5 @@
-import type { DatapackField, MapPick } from "@cityview/engine";
-import { categoryColor } from "@cityview/engine";
+import type { DatapackField, MapPick } from "@pinny/engine";
+import { categoryColor } from "@pinny/engine";
 import { useEffect, useState } from "react";
 import { FieldRows, Metric } from "./FieldRows";
 import { StreetPhoto } from "./StreetPhoto";
