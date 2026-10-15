@@ -1,3 +1,4 @@
+import { AgentFace } from "./Agents";
 import { Icon } from "./Icon";
 
 const int = new Intl.NumberFormat("pt-BR");
@@ -21,7 +22,7 @@ export function ViewportSummary({ widgets }: { widgets: ViewportWidget[] }) {
         {widgets.length === 0 && (
           <section className="panel-card empty-card">
             <span className="empty-icon">
-              <Icon name="chart" size={24} />
+              <AgentFace kind="hexa" mood="thinking" size={56} />
             </span>
             <b>Nada para contar aqui</b>
             <span className="muted">Ligue uma camada de pontos (seus dados, Estabelecimentos) para ver quantos aparecem na tela e de que tipo.</span>

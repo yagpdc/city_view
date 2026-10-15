@@ -56,14 +56,82 @@ const FLAVOR: Record<BasemapLook, Record<Theme, string>> = {
   classic: { light: "light", dark: "dark" },
 };
 
-const BUILDING_COLORS: Record<Theme, string> = { light: "#d9d6d0", dark: "#2c2f36" };
+/**
+ * "Para dados" no claro, na paleta da marca (docs/DESIGN.md · ADR 0005): chão creme, ruas brancas, água e verde
+ * em pastel bem leve. Discreto de propósito: quem tem cor no mapa são os dados.
+ */
+const BRAND_DATA_LIGHT: Record<string, string> = {
+  background: "#f4f2ec",
+  earth: "#f4f2ec",
+  park_a: "#e3efdc",
+  park_b: "#e3efdc",
+  wood_a: "#e6f0df",
+  wood_b: "#e6f0df",
+  scrub_a: "#ecf1e4",
+  scrub_b: "#ecf1e4",
+  hospital: "#f6ece9",
+  school: "#f3eee2",
+  industrial: "#eeebe4",
+  pedestrian: "#f7f5f0",
+  zoo: "#e9f0df",
+  sand: "#f4eedd",
+  beach: "#f6efdc",
+  aerodrome: "#efece6",
+  military: "#efece6",
+  glacier: "#f7f8fa",
+  water: "#d6e8f4",
+  pier: "#ebe7df",
+  buildings: "#e9e5dc",
+  other: "#ffffff",
+  minor_service: "#ffffff",
+  minor_a: "#ffffff",
+  minor_b: "#ffffff",
+  link: "#ffffff",
+  major: "#ffffff",
+  highway: "#ffffff",
+  bridges_other: "#ffffff",
+  bridges_minor: "#ffffff",
+  bridges_link: "#ffffff",
+  bridges_major: "#ffffff",
+  bridges_highway: "#ffffff",
+  minor_service_casing: "#e9e5dc",
+  minor_casing: "#e9e5dc",
+  link_casing: "#e4e0d6",
+  major_casing_early: "#e4e0d6",
+  major_casing_late: "#e4e0d6",
+  highway_casing_early: "#ddd8cd",
+  highway_casing_late: "#ddd8cd",
+  railway: "#d9d4ca",
+  boundaries: "#b9b4aa",
+  roads_label_minor: "#a29e95",
+  roads_label_minor_halo: "#f4f2ec",
+  roads_label_major: "#8f8b82",
+  roads_label_major_halo: "#f4f2ec",
+  ocean_label: "#8fb3cc",
+  subplace_label: "#8a867d",
+  subplace_label_halo: "#f4f2ec",
+  city_label: "#55524b",
+  city_label_halo: "#f4f2ec",
+  state_label: "#aca79d",
+  state_label_halo: "#f4f2ec",
+  country_label: "#a7a296",
+  address_label: "#a29e95",
+  address_label_halo: "#f4f2ec",
+};
+
+function flavorFor(look: BasemapLook, theme: Theme) {
+  const base = namedFlavor(FLAVOR[look][theme]);
+  return look === "data" && theme === "light" ? { ...base, ...BRAND_DATA_LIGHT } : base;
+}
+
+const BUILDING_COLORS: Record<Theme, string> = { light: "#e2ded5", dark: "#2c2f36" };
 
 /** Céu, horizonte e atmosfera do globo, por tema. */
 const SKY: Record<Theme, Record<string, unknown>> = {
   light: {
     "sky-color": "#bcd4ec",
-    "horizon-color": "#eef2f6",
-    "fog-color": "#f4f5f7",
+    "horizon-color": "#f1efe9",
+    "fog-color": "#f4f2ec",
     "sky-horizon-blend": 0.6,
     "horizon-fog-blend": 0.7,
     "fog-ground-blend": 0.35,
@@ -125,7 +193,7 @@ export function buildStyle({
   lang = "pt",
   assetsUrl = PUBLIC_ASSETS_URL,
 }: StyleOptions): StyleSpecification {
-  const baseLayers = layers(BASEMAP_SOURCE, namedFlavor(FLAVOR[look][theme]), { lang }) as LayerSpecification[];
+  const baseLayers = layers(BASEMAP_SOURCE, flavorFor(look, theme), { lang }) as LayerSpecification[];
 
   // Prédios 2D viram extrusão 3D, inserida antes dos rótulos.
   const result = baseLayers.filter((l) => l.id !== "buildings");
@@ -175,7 +243,7 @@ export function maquetePalette(theme: Theme, look: BasemapLook) {
   const dark = theme === "dark";
   const shared = dark
     ? { grid: "rgba(255,255,255,0.05)", building: BUILDING_COLORS.dark, buildingEdge: "#4a4f59", footprint: "rgba(255,255,255,0.05)", slabSide: "#22252b", slabBottom: "#101114", ring: "#3d434e", accent: "#7f86f7", viewBackground: "#151a24" }
-    : { grid: "rgba(21,26,36,0.05)", building: BUILDING_COLORS.light, buildingEdge: "#a9a59d", footprint: "rgba(21,26,36,0.06)", slabSide: "#e7e5e1", slabBottom: "#d5d3cf", ring: "#b9bec8", accent: "#4a50d6", viewBackground: "#f5f6f8" };
+    : { grid: "rgba(21,26,36,0.05)", building: BUILDING_COLORS.light, buildingEdge: "#a9a59d", footprint: "rgba(21,26,36,0.06)", slabSide: "#e7e5e1", slabBottom: "#d5d3cf", ring: "#d6d2c8", accent: "#8b7cf6", viewBackground: "#f6f5f1" };
   const ground =
     look === "classic"
       ? dark
@@ -183,6 +251,6 @@ export function maquetePalette(theme: Theme, look: BasemapLook) {
         : { ground: "#e2dfda", park: "#cfddd5", water: "#80deea", road: "#ffffff", roadCasing: "#d0ccc5", path: "#ebebeb" }
       : dark
         ? { ground: "#141414", park: "#181d1a", water: "#333333", road: "#2e2e2e", roadCasing: "#1c1c1c", path: "#262626" }
-        : { ground: "#ffffff", park: "#f1f5ee", water: "#dcdcdc", road: "#ebebeb", roadCasing: "#dadada", path: "#e4e4e4" };
+        : { ground: "#f4f2ec", park: "#e3efdc", water: "#d6e8f4", road: "#ffffff", roadCasing: "#e4e0d6", path: "#ece8e0" };
   return { ...shared, ...ground, dark };
 }

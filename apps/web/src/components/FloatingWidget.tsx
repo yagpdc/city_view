@@ -31,6 +31,7 @@ export function FloatingWidget({
   onClose,
   onFocus,
   z,
+  world = "peach",
   children,
 }: {
   title: string;
@@ -42,6 +43,8 @@ export function FloatingWidget({
   onFocus?: () => void;
   /** Ordem de empilhamento entre os widgets (maior = na frente). */
   z?: number;
+  /** Mundo de cor da moldura (docs/DESIGN.md): análise é pêssego; agentes, limão. */
+  world?: "lilac" | "mint" | "peach" | "sky" | "lemon" | "pink";
   children: ReactNode;
 }) {
   const ref = useRef<HTMLElement>(null);
@@ -99,7 +102,7 @@ export function FloatingWidget({
   return (
     <section
       ref={ref}
-      className={`floating-widget ${rect.minimized ? "is-min" : ""}`}
+      className={`floating-widget world-${world} ${rect.minimized ? "is-min" : ""}`}
       aria-label={title}
       style={{ left: rect.x, top: rect.y, width: rect.w, height: rect.minimized ? undefined : rect.h, zIndex: z }}
       onPointerDownCapture={onFocus}

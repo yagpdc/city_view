@@ -2,12 +2,33 @@
 
 Biblioteca visual completa (pranchetas, estados, claro/escuro): https://claude.ai/artifact/NdEzL6qSo6r4uS2jUewFPH
 
-Personalidade: **técnica + imersiva** — interface limpa e neutra; a cor é dos dados; o 3D é o espetáculo. Público geral. Tema claro por padrão.
+## Identidade (2026-10-15, ADR 0005)
+
+Prancha aprovada: https://claude.ai/artifact/TmPnN6hJEeiYaaFp4MdFCN. **Arredondada, pastel, minimalista** — e sério nos dados.
+
+- **Base:** chão `#F6F5F1`, superfície `#FFFFFF`, borda `#E9E6DF`, texto suave `#6B6A72`, tinta `#1D1E24` (texto e botão principal, em pílula). Destaque `--cv-accent` lilás `#8B7CF6`.
+- **Mundos de cor** (fundo · personagem · tinta), um por área, nas gavetas, no botão redondo ativo e no que se abre a partir delas (`.world-*` define `--world-bg/fill/ink`):
+
+| Mundo | Área | Fundo | Personagem | Tinta |
+|---|---|---|---|---|
+| Lilás | Camadas, marca | `#E9E4FF` | `#B9AEFF` | `#4B3FB5` |
+| Menta | Adicionar, biblioteca | `#DDF4E8` | `#9BE0BE` | `#1F7A52` |
+| Pêssego | Widgets, análise | `#FFE7D6` | `#FFC09A` | `#A4501E` |
+| Céu | Detalhes, lugar | `#DDEEFF` | `#A8D1FF` | `#2463A8` |
+| Limão | Agentes, IA | `#FFF4C7` | `#FFE07A` | `#7A5D00` |
+| Rosa | Ajustes, compartilhar | `#FFE3EE` | `#FFB3CF` | `#A8336A` |
+
+- **Nunca no mapa:** a cor do mapa é dos dados (paleta de categorias abaixo).
+- **Personagens** (`components/Agents.tsx`, `AgentFace`): Pino (alfinete, explorador), Hexa (hexágono, analista), Bolha (arrumadeira), Quadra (cartógrafa), Lume (vigia); humores neutro, pensando, feliz, alerta. Rosto só em agentes, vazios, carregamentos e na marca.
+- **Tipografia:** títulos em Bricolage Grotesque 700 (`--cv-font-display`), interface Figtree, números DM Mono.
+- **Forma:** cantos 6/10/14/20/26 e pílula; nada quadrado. Gaveta = fundo do mundo + cartões brancos. Widget = moldura no mundo + miolo branco.
+- **Movimento:** abrir gaveta e widget com quique leve (`--cv-spring`, 260–280 ms); nada com `prefers-reduced-motion`.
+
+As tabelas abaixo são da versão anterior (índigo, DM Sans) e valem para o que não foi listado aqui; os valores atuais estão em `apps/web/src/tokens.css`.
 
 Regras gerais:
 
 - Componente nunca usa hex solto: sempre um token `--cv-*`. O tema escuro troca só os valores.
-- Uma cor de marca (índigo), usada com parcimônia: ação principal, link, seleção, foco.
 - Cores de estado (sucesso/atenção/erro) nunca pintam dados no mapa.
 - Sombra só no que flutua sobre o mapa; dentro de painéis, borda.
 

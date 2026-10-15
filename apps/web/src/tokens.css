@@ -1,63 +1,96 @@
 /*
- * Tokens do design system City View (fonte: docs/DESIGN.md).
+ * Tokens do design system City View (fonte: docs/DESIGN.md, ADR 0005).
+ * Marca: arredondada, pastel, minimalista; tinta escura nos botões; cada área do app com o seu "mundo" de cor.
  * Componentes usam só --cv-*; o tema escuro troca os valores em .theme-dark.
  */
-@import "@fontsource-variable/dm-sans/index.css";
+@import "@fontsource-variable/figtree/index.css";
+@import "@fontsource-variable/bricolage-grotesque/index.css";
 @import "@fontsource/dm-mono/400.css";
 @import "@fontsource/dm-mono/500.css";
 
 :root {
-  /* Ação (marca: índigo suave) */
-  --cv-action: #4a50d6;
-  --cv-action-hover: #3c3fb0;
-  --cv-action-press: #33358d;
+  /* Ação: botão principal em tinta (nada de "botão azul"); destaque suave em lilás, a cor da marca */
+  --cv-action: #1d1e24;
+  --cv-action-hover: #34353d;
+  --cv-action-press: #000000;
   --cv-on-action: #ffffff;
-  --cv-action-subtle: #eef0ff;
-  --cv-action-subtle-hover: #e0e3ff;
-  --cv-action-subtle-text: #3c3fb0;
-  --cv-link: #3c3fb0;
-  --cv-focus: #7f86f7;
-  --cv-focus-ring: #c6cbff;
-  --cv-selected: #6068ee;
+  --cv-action-subtle: #e9e4ff;
+  --cv-action-subtle-hover: #ddd6ff;
+  --cv-action-subtle-text: #4b3fb5;
+  --cv-link: #4b3fb5;
+  --cv-focus: #8b7cf6;
+  --cv-focus-ring: #d4ccff;
+  --cv-selected: #8b7cf6;
+  /* Destaque (barras, progresso, borda do que está escolhido): lilás da marca, não a tinta do botão */
+  --cv-accent: #8b7cf6;
 
-  /* Neutros e superfícies */
+  /* Neutros quentes e superfícies */
   --cv-bg: #ffffff;
-  --cv-surface: #f5f6f8;
-  --cv-surface-press: #eceef2;
+  --cv-surface: #f6f5f1;
+  --cv-surface-press: #eeece6;
   --cv-float: #ffffff;
-  --cv-field: #fbfbfc;
-  --cv-border: #dde1e7;
-  --cv-border-strong: #c4cbd5;
-  --cv-control-border: #9aa3b2;
-  --cv-text: #151a24;
-  --cv-text-muted: #5f6878;
-  --cv-text-placeholder: #6b7485;
-  --cv-disabled-bg: #eceef2;
-  --cv-disabled-text: #9aa3b2;
-  --cv-track: #c4cbd5;
+  --cv-field: #fbfaf8;
+  --cv-border: #e9e6df;
+  --cv-border-strong: #d6d2c8;
+  --cv-control-border: #a8a49b;
+  --cv-text: #1d1e24;
+  --cv-text-muted: #6b6a72;
+  --cv-text-placeholder: #8a8891;
+  --cv-disabled-bg: #eeece6;
+  --cv-disabled-text: #a8a49b;
+  --cv-track: #d6d2c8;
 
-  /* Estados */
-  --cv-success: #15803d;
-  --cv-success-bg: #ecfdf3;
-  --cv-warning: #b45309;
-  --cv-warning-bg: #fffbeb;
-  --cv-danger: #b91c1c;
-  --cv-danger-hover: #991b1b;
-  --cv-danger-bg: #fef2f2;
-  --cv-info: #1d4ed8;
-  --cv-info-bg: #eff4ff;
+  /* Estados (nas cores dos mundos) */
+  --cv-success: #1f7a52;
+  --cv-success-bg: #ddf4e8;
+  --cv-warning: #a4501e;
+  --cv-warning-bg: #ffe7d6;
+  --cv-danger: #b42318;
+  --cv-danger-hover: #912018;
+  --cv-danger-bg: #fde7e7;
+  --cv-info: #2463a8;
+  --cv-info-bg: #ddeeff;
 
   /* Dica (tooltip) e máscara */
-  --cv-tip-bg: #151a24;
+  --cv-tip-bg: #1d1e24;
   --cv-tip-text: #ffffff;
-  --cv-scrim: rgba(10, 14, 22, 0.45);
+  --cv-scrim: rgba(29, 30, 36, 0.4);
 
   /* Mapa base (referência; o estilo do mapa vem do Protomaps) */
-  --cv-map-ground: #f5f6f8;
+  --cv-map-ground: #f2f0ea;
   --cv-map-point-ring: #ffffff;
 
-  /* Tipografia */
-  --cv-font-sans: "DM Sans Variable", "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  /*
+   * Mundos de cor: cada área do app tem o seu (fundo, personagem/destaque, tinta para texto).
+   * Nunca no mapa: lá a cor é dos dados.
+   */
+  --cv-lilac-bg: #e9e4ff;
+  --cv-lilac-fill: #b9aeff;
+  --cv-lilac-ink: #4b3fb5;
+  --cv-mint-bg: #ddf4e8;
+  --cv-mint-fill: #9be0be;
+  --cv-mint-ink: #1f7a52;
+  --cv-peach-bg: #ffe7d6;
+  --cv-peach-fill: #ffc09a;
+  --cv-peach-ink: #a4501e;
+  --cv-sky-bg: #ddeeff;
+  --cv-sky-fill: #a8d1ff;
+  --cv-sky-ink: #2463a8;
+  --cv-lemon-bg: #fff4c7;
+  --cv-lemon-fill: #ffe07a;
+  --cv-lemon-ink: #7a5d00;
+  --cv-pink-bg: #ffe3ee;
+  --cv-pink-fill: #ffb3cf;
+  --cv-pink-ink: #a8336a;
+
+  /* Mundo atual (a gaveta ou o widget define com .world-*) */
+  --world-bg: var(--cv-surface);
+  --world-fill: var(--cv-border-strong);
+  --world-ink: var(--cv-text);
+
+  /* Tipografia: títulos com caráter, interface legível, números em mono */
+  --cv-font-display: "Bricolage Grotesque Variable", "Bricolage Grotesque", "Figtree Variable", system-ui, sans-serif;
+  --cv-font-sans: "Figtree Variable", "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
   --cv-font-mono: "DM Mono", ui-monospace, "SF Mono", Consolas, monospace;
 
   /* Espaço (base 4 px) */
@@ -71,23 +104,26 @@
   --cv-space-10: 40px;
 
   /* Cantos */
-  --cv-radius-xs: 4px;
-  --cv-radius-sm: 6px;
-  --cv-radius-md: 10px;
-  --cv-radius-lg: 12px;
-  --cv-radius-xl: 16px;
+  /* Cantos generosos: nada quadrado */
+  --cv-radius-xs: 6px;
+  --cv-radius-sm: 10px;
+  --cv-radius-md: 14px;
+  --cv-radius-lg: 20px;
+  --cv-radius-xl: 26px;
   --cv-radius-full: 999px;
 
   /* Elevação */
-  --cv-shadow-1: 0 1px 2px rgba(21, 26, 36, 0.06);
-  --cv-shadow-2: 0 4px 12px rgba(21, 26, 36, 0.1);
-  --cv-shadow-3: 0 12px 32px rgba(21, 26, 36, 0.18);
-  --cv-shadow-4: 0 24px 64px rgba(21, 26, 36, 0.28);
+  --cv-shadow-1: 0 1px 3px rgba(29, 30, 36, 0.08);
+  --cv-shadow-2: 0 4px 12px rgba(29, 30, 36, 0.1);
+  --cv-shadow-3: 0 16px 40px rgba(29, 30, 36, 0.13);
+  --cv-shadow-4: 0 24px 64px rgba(29, 30, 36, 0.22);
 
   /* Tamanhos */
   --cv-control-h: 44px;
   --cv-control-h-sm: 36px;
   --cv-ease: cubic-bezier(0.2, 0, 0, 1);
+  /* Mola leve para abrir gavetas e widgets (o "quique" na medida) */
+  --cv-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
 
   /* Nomes antigos (migração): apontam para os tokens novos */
   --bg: var(--cv-bg);
@@ -102,17 +138,18 @@
 }
 
 .theme-dark {
-  --cv-action: #7f86f7;
-  --cv-action-hover: #a3a9fd;
-  --cv-action-press: #c6cbff;
-  --cv-on-action: #0b0f17;
-  --cv-action-subtle: #1c1f45;
-  --cv-action-subtle-hover: #262a5c;
-  --cv-action-subtle-text: #c6cbff;
-  --cv-link: #a3a9fd;
-  --cv-focus: #a3a9fd;
-  --cv-focus-ring: #262a5c;
-  --cv-selected: #7f86f7;
+  --cv-action: #f3f1ec;
+  --cv-action-hover: #ffffff;
+  --cv-action-press: #d6d2c8;
+  --cv-on-action: #15161b;
+  --cv-action-subtle: #24203f;
+  --cv-action-subtle-hover: #2e2950;
+  --cv-action-subtle-text: #cfc7ff;
+  --cv-link: #b9aeff;
+  --cv-focus: #b9aeff;
+  --cv-focus-ring: #2e2950;
+  --cv-selected: #8b7cf6;
+  --cv-accent: #b9aeff;
 
   --cv-bg: #0b0f17;
   --cv-surface: #151a24;
@@ -145,6 +182,25 @@
 
   --cv-map-ground: #10141c;
   --cv-map-point-ring: #10141c;
+
+  --cv-lilac-bg: #24203f;
+  --cv-lilac-fill: #8b7cf6;
+  --cv-lilac-ink: #cfc7ff;
+  --cv-mint-bg: #15302a;
+  --cv-mint-fill: #4fbf8c;
+  --cv-mint-ink: #a8ebc9;
+  --cv-peach-bg: #35241a;
+  --cv-peach-fill: #f0915a;
+  --cv-peach-ink: #ffcfb0;
+  --cv-sky-bg: #172a40;
+  --cv-sky-fill: #5aa9f0;
+  --cv-sky-ink: #b8dcff;
+  --cv-lemon-bg: #332c12;
+  --cv-lemon-fill: #e2b714;
+  --cv-lemon-ink: #ffe9a0;
+  --cv-pink-bg: #3a1c2a;
+  --cv-pink-fill: #e86b9c;
+  --cv-pink-ink: #ffc2da;
 
   /* No escuro, o que flutua se separa por borda, não por sombra */
   --cv-shadow-1: 0 0 0 1px #2a3240;

@@ -4,6 +4,15 @@ import { Icon, type IconName } from "./Icon";
 /** Painéis do trilho à esquerda: uma tarefa por vez (docs/DESIGN.md · Estrutura). */
 export type PanelId = "layers" | "add" | "details" | "settings" | "widgets";
 
+/** Mundo de cor de cada área (gaveta, botão redondo ativo e o que se abre a partir dela). */
+export const PANEL_WORLD: Record<PanelId, "lilac" | "mint" | "peach" | "sky" | "pink"> = {
+  layers: "lilac",
+  add: "mint",
+  details: "sky",
+  widgets: "peach",
+  settings: "pink",
+};
+
 const RAIL: { id: PanelId; label: string; icon: IconName }[] = [
   { id: "layers", label: "Camadas", icon: "layers" },
   { id: "add", label: "Adicionar", icon: "addCircle" },
@@ -21,7 +30,7 @@ export function Rail({ panel, onPanel, badges }: { panel: PanelId | null; onPane
           <button
             key={r.id}
             type="button"
-            className={`rail-item ${on ? "is-active" : ""}`}
+            className={`rail-item world-${PANEL_WORLD[r.id]} ${on ? "is-active" : ""}`}
             aria-pressed={on}
             aria-controls="panel"
             aria-label={r.label}

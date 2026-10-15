@@ -5,7 +5,8 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type
 import { areaAt, parseCoordinates, searchMunicipios } from "./areas";
 import type { Comparison, PlaceFacts } from "./compare";
 import { SearchBox, type SearchResult } from "./components/SearchBox";
-import { CategoryLegend, LayerCard, Panel, PanelCard, Rail, ScaleLegend, type LayerAction, type PanelId } from "./components/Shell";
+import { CategoryLegend, LayerCard, Panel, PanelCard, PANEL_WORLD, Rail, ScaleLegend, type LayerAction, type PanelId } from "./components/Shell";
+import { AgentFace } from "./components/Agents";
 import { ViewportSummary, type ViewportWidget } from "./components/WidgetsPanel";
 import { FloatingWidget, type WidgetRect } from "./components/FloatingWidget";
 import { ColumnChartWidget, KpiWidget, NoteWidget, OpportunityWidget, PlaceWidget, RadiusWidget, RankingWidget, VisibleTableWidget, type PublicVariable, type WidgetLayer, type WidgetSettings } from "./components/MapWidgets";
@@ -1524,7 +1525,7 @@ export function App() {
         <PanelCard>
           <div className="empty-card">
             <span className="empty-icon">
-              <Icon name="layers" size={24} />
+              <AgentFace kind="bolha" mood="happy" size={72} />
             </span>
             <b>Nenhuma camada no mapa</b>
             <span className="muted">Importe seus registros ou escolha dados do catálogo e da biblioteca.</span>
@@ -1719,7 +1720,7 @@ export function App() {
 
       <div className="app-strip">
         <span className="brand">
-          <span className="brand-mark" aria-hidden="true" />
+          <AgentFace kind="pino" size={26} />
           City View
         </span>
         <MapTabs tabs={tabs} current={currentTab} onSelect={(id) => switchTab(id)} onNew={newTab} onClose={closeTab} onRename={renameTab} onMove={moveTab} onDuplicate={duplicateTab} onCloseOthers={closeOtherTabs} />
@@ -1727,9 +1728,13 @@ export function App() {
 
       <div className="workspace">
         <Rail panel={panel} onPanel={setPanel} badges={{ layers: [...active].length || undefined, details: pick ? 1 : undefined }} />
-        {panel && panels[panel]}
+        {panel && (
+          <div className={`world-scope world-${PANEL_WORLD[panel]}`}>
+            {panels[panel]}
         {/* Gaveta que abre outra: a segunda (editor de estilo) fica ao lado da primeira. */}
-        {panel === "layers" && styleEditor}
+            {panel === "layers" && styleEditor}
+          </div>
+        )}
 
         <main className={`map-area ${placingRadius ? "is-placing" : ""}`}>
           <div ref={containerRef} className="map" />
