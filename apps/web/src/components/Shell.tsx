@@ -24,12 +24,39 @@ const RAIL: { id: PanelId; label: string; icon: IconName }[] = [
   { id: "settings", label: "Ajustes", icon: "sliders" },
 ];
 
-export function Rail({ panel, onPanel, badges }: { panel: PanelId | null; onPanel: (id: PanelId | null) => void; badges?: Partial<Record<PanelId, number>> }) {
+/** Botão redondo que não abre gaveta (ex.: Anotar abre a barra de ferramentas sobre o mapa). */
+export interface RailExtra {
+  key: string;
+  label: string;
+  icon: IconName;
+  active: boolean;
+  onClick: () => void;
+}
+
+export function Rail({
+  panel,
+  onPanel,
+  badges,
+  extras = [],
+}: {
+  panel: PanelId | null;
+  onPanel: (id: PanelId | null) => void;
+  badges?: Partial<Record<PanelId, number>>;
+  extras?: RailExtra[];
+}) {
+  const extraButtons = extras.map((x) => (
+    <button key={x.key} type="button" className={`rail-item world-lilac ${x.active ? "is-active" : ""}`} aria-pressed={x.active} aria-label={x.label} title={x.label} onClick={x.onClick}>
+      <span className="rail-icon">
+        <Icon name={x.icon} />
+      </span>
+      <span className="rail-label">{x.label}</span>
+    </button>
+  ));
   return (
     <nav className="rail" aria-label="Ferramentas">
-      {RAIL.map((r) => {
+      {RAIL.flatMap((r) => {
         const on = panel === r.id;
-        return (
+        const item = (
           <button
             key={r.id}
             type="button"
@@ -47,6 +74,8 @@ export function Rail({ panel, onPanel, badges }: { panel: PanelId | null; onPane
             <span className="rail-label">{r.label}</span>
           </button>
         );
+        // Os extras vêm logo depois de "Adicionar".
+        return r.id === "add" ? [item, ...extraButtons] : [item];
       })}
     </nav>
   );

@@ -10,7 +10,7 @@ import { loadAreaHexes, type HexFeature } from "./areaHexes";
 import type { AreaGeometry, Position } from "./geo";
 import { matchesWhere, whereExpressions, type WhereClause } from "./filter";
 import { ICON_PIXEL_RATIO, rasterizeMarker } from "./icons";
-import { loadNearby, searchPoints, type NearbySummary, type SearchHit } from "./nearby";
+import { countPointsInArea, loadNearby, searchPoints, type NearbySummary, type SearchHit } from "./nearby";
 import { regionLabel, type RegionBoundaries } from "./regions";
 import { DEFAULT_DATA_STYLE, PALETTES, classColors, metersPerPixelAtZoom0, type DataStyle } from "./dataStyle";
 
@@ -588,6 +588,24 @@ export class DatasetLayer {
       if (records.length < limit) records.push({ id: Number(f.id), category, properties, lngLat: [lngLat[0], lngLat[1]] });
     }
     return { records, total, thinned };
+  }
+
+  /**
+   * O que há dentro de uma área desenhada: ponto a ponto quando ela cabe em poucos tiles do zoom dos pontos
+   * (exato, com o filtro do cartão inteiro); senão, a soma dos hexágonos cujo centro cai nela.
+   */
+  async areaSummary(area: AreaGeometry): Promise<AreaSummary> {
+    const exact = await countPointsInArea(this.pmtiles, {
+      area,
+      zoom: this.meta.pointsZoom,
+      categoryProperty: this.meta.categoryProperty,
+      categories: this.meta.categories.length,
+      allowed: this.activeCategories(),
+      where: this.filter.where,
+    });
+    if (exact) return { ...exact, cells: exact.count };
+    const { features } = await this.loadAreaHexes(area);
+    return this.summarize(features);
   }
 
   summarize(features: HexFeature[]): AreaSummary {

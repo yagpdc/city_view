@@ -26,6 +26,9 @@ export interface MapTab {
   look?: BasemapLook;
   /** Widgets soltos sobre o mapa (tipo → posição e ajustes). Abas salvas antes disso: sem. */
   widgets?: TabWidgets;
+  /** Anotações (desenhos, textos, alfinetes) em GeoJSON, e se estão escondidas. */
+  annotations?: GeoJSON.Feature[];
+  annotationsHidden?: boolean;
 }
 
 /** Widgets de uma aba: tipo → posição, tamanho, ajustes e empilhamento (o app conhece os tipos). */

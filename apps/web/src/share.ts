@@ -29,6 +29,8 @@ export interface SharedState {
   st?: Record<string, DataStyle>;
   /** Widgets abertos (tipo → posição e ajustes), para quem abrir ver o mesmo painel. */
   w?: TabWidgets;
+  /** Anotações (GeoJSON) da aba. */
+  a?: GeoJSON.Feature[];
 }
 
 /** Parâmetro do hash usado pela câmera (MapLibre `hash: "map"`). */

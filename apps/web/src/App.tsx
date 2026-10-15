@@ -7,6 +7,11 @@ import type { Comparison, PlaceFacts } from "./compare";
 import { SearchBox, type SearchResult } from "./components/SearchBox";
 import { CategoryLegend, LayerCard, Panel, PanelCard, PANEL_WORLD, Rail, ScaleLegend, type LayerAction, type PanelId } from "./components/Shell";
 import { AgentFace } from "./components/Agents";
+import { AnnotationCard } from "./annotations/AnnotationCard";
+import { AnnotationEditor } from "./annotations/editor";
+import { AnnotationToolbar } from "./annotations/AnnotationToolbar";
+import { PIN_HIT_LAYER, labelsOverlay } from "./annotations/labels";
+import { TOOLS, agentOf, cleanAnnotations, kindLabel, type AnnotationFeature, type AnnotationTool } from "./annotations/model";
 import { ViewportSummary, type ViewportWidget } from "./components/WidgetsPanel";
 import { FloatingWidget, type WidgetRect } from "./components/FloatingWidget";
 import { ColumnChartWidget, KpiWidget, NoteWidget, OpportunityWidget, PlaceWidget, RadiusWidget, RankingWidget, VisibleTableWidget, type PublicVariable, type WidgetLayer, type WidgetSettings } from "./components/MapWidgets";
@@ -168,6 +173,7 @@ const INITIAL_TABS = (() => {
   const shared = createTab(state.tabs, {
     title: SHARED.n || "Link compartilhado",
     widgets: SHARED.w ?? {},
+    annotations: SHARED.a ?? [],
     active: SHARED.layers,
     filters: SHARED.f ?? {},
     ...(SHARED.st && { styles: Object.fromEntries(Object.entries(SHARED.st).map(([id, s]) => [id, normalizeDataStyle(s)])) }),
@@ -222,6 +228,22 @@ export function App() {
   /** Widgets soltos sobre o mapa (posição, tamanho, minimizado e ajustes de cada um). */
   // Cada aba tem os seus widgets (guardados com a aba); abas de antes disso herdam o conjunto antigo.
   const [mapWidgets, setMapWidgets] = useState<MapWidgets>(() => (INITIAL_TAB.widgets as MapWidgets | undefined) ?? loadWidgets());
+  /** Anotações da aba (desenhos, textos, alfinetes) e a barra de ferramentas. */
+  const [annotations, setAnnotations] = useState<AnnotationFeature[]>(() => cleanAnnotations((INITIAL_TAB.annotations ?? []) as AnnotationFeature[]));
+  const annotationsRef = useRef(annotations);
+  annotationsRef.current = annotations;
+  const [annotationsHidden, setAnnotationsHidden] = useState(Boolean(INITIAL_TAB.annotationsHidden));
+  const [drawTool, setDrawTool] = useState<AnnotationTool>("off");
+  const drawToolRef = useRef(drawTool);
+  drawToolRef.current = drawTool;
+  const [drawColor, setDrawColor] = useState(TOOLS[0]!.color);
+  const [selectedAnnotation, setSelectedAnnotation] = useState<string | null>(null);
+  /** Nota de um alfinete aberta com um clique (fora do modo de desenho). */
+  const [pinNote, setPinNote] = useState<AnnotationFeature | null>(null);
+  const pinEl = useMemo(() => document.createElement("div"), []);
+  const editorRef = useRef<AnnotationEditor | null>(null);
+  /** A mudança veio do editor: não recarregar o editor com ela. */
+  const fromEditor = useRef(false);
   /** Raio ao redor: o próximo clique no mapa escolhe o centro (em vez de abrir o cartão). */
   const [placingRadius, setPlacingRadius] = useState(false);
   const placingRadiusRef = useRef(false);
@@ -376,6 +398,18 @@ export function App() {
       }
     })().catch((e: Error) => console.warn("[places]", e.message));
     const off = map.onMapPick((p) => {
+      // Desenhando: o clique é do editor de anotações.
+      if (drawToolRef.current !== "off") return;
+      // Clique num alfinete: abre a nota dele.
+      const pt = map.native.project(p.lngLat);
+      const pin = map.native.getLayer(PIN_HIT_LAYER) ? map.native.queryRenderedFeatures([pt.x, pt.y], { layers: [PIN_HIT_LAYER] })[0] : undefined;
+      const pinFeature = pin && annotationsRef.current.find((a) => String(a.id) === String(pin.properties.id));
+      if (pinFeature) {
+        setPick(null);
+        setPinNote(pinFeature);
+        return;
+      }
+      setPinNote(null);
       if (placingRadiusRef.current) {
         setPlacingRadius(false);
         setMapWidgets((w) => (w.radius ? { ...w, radius: { ...w.radius, settings: { ...w.radius.settings, center: p.lngLat } } } : w));
@@ -534,6 +568,7 @@ export function App() {
       ...(Object.keys(f).length ? { f } : {}),
       ...(Object.keys(st).length ? { st } : {}),
       ...(Object.keys(mapWidgets).length ? { w: mapWidgets as TabWidgets } : {}),
+      ...(annotations.length ? { a: annotations } : {}),
       ...(maquete ? { maquete: { c: [round(maquete.center[0]), round(maquete.center[1])], r: maquete.radius, ...(maquete.title ? { t: maquete.title } : {}) } } : {}),
     });
     const local = user.datasets.filter((d) => active.has(d.id)).length;
@@ -567,10 +602,102 @@ export function App() {
   useEffect(() => {
     setTabs((list) =>
       list.map((t) =>
-        t.id === currentTab ? { ...t, active: [...active], hidden: [...hidden], filters, paintDataset, theme, look, styles, widgets: mapWidgets as TabWidgets, regionViews: undefined } : t,
+        t.id === currentTab
+          ? { ...t, active: [...active], hidden: [...hidden], filters, paintDataset, theme, look, styles, widgets: mapWidgets as TabWidgets, annotations, annotationsHidden, regionViews: undefined }
+          : t,
       ),
     );
-  }, [currentTab, active, hidden, filters, paintDataset, theme, look, styles, mapWidgets]);
+  }, [currentTab, active, hidden, filters, paintDataset, theme, look, styles, mapWidgets, annotations, annotationsHidden]);
+
+  // ---------- Anotações ----------
+  useEffect(() => {
+    if (!map) return;
+    const editor = new AnnotationEditor(map.native, {
+      onChange: (features) => {
+        fromEditor.current = true;
+        setAnnotations(features);
+      },
+      onSelect: (id) => setSelectedAnnotation(id),
+      // Texto e alfinete: logo depois de pôr no mapa, abre o cartão para escrever.
+      onCreated: (f) => {
+        if (!f.properties.kind) return;
+        setDrawTool("select");
+        window.setTimeout(() => editorRef.current?.select(f.id), 60);
+      },
+    });
+    editorRef.current = editor;
+    editor.load(annotationsHidden ? [] : annotationsRef.current);
+    return () => {
+      editor.destroy();
+      editorRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map]);
+  // Mudou fora do editor (aba, camada escondida, link, apagar todas): recarrega o editor.
+  useEffect(() => {
+    if (fromEditor.current) {
+      fromEditor.current = false;
+      return;
+    }
+    editorRef.current?.load(annotationsHidden ? [] : annotations);
+  }, [annotations, annotationsHidden]);
+  useEffect(() => {
+    editorRef.current?.setTool(drawTool, drawColor);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drawTool]);
+  useEffect(() => editorRef.current?.setColor(drawColor), [drawColor]);
+  // Textos e rótulos por cima de tudo.
+  useEffect(() => {
+    map?.setOverlayData(labelsOverlay(annotationsHidden ? [] : annotations));
+  }, [map, annotations, annotationsHidden]);
+  // Nota do alfinete no cartão do mapa.
+  useEffect(() => {
+    if (!map || !pinNote) return;
+    map.showPopup(pinNote.geometry.coordinates as [number, number], pinEl, () => setPinNote(null));
+  }, [map, pinNote, pinEl]);
+
+  const chooseTool = (tool: AnnotationTool) => {
+    setAnnotationsHidden(false);
+    setPick(null);
+    setPinNote(null);
+    // Cada personagem desenha na sua cor (dá para trocar na barra).
+    const area = tool === "rectangle" || tool === "circle";
+    const def = TOOLS.find((t) => t.tool === tool || (area && t.tool === "polygon"));
+    if (def && !(area && (drawTool === "polygon" || drawTool === "rectangle" || drawTool === "circle"))) setDrawColor(def.color);
+    if (tool !== "select") setSelectedAnnotation(null);
+    setDrawTool(tool);
+  };
+  const closeDrawing = () => {
+    editorRef.current?.deselectAll();
+    setSelectedAnnotation(null);
+    setDrawTool("off");
+  };
+  const toggleDrawing = () => (drawTool === "off" ? chooseTool("select") : closeDrawing());
+  const annotationBounds = (f: AnnotationFeature): [number, number, number, number] => {
+    const pts = (f.geometry.type === "Point" ? [f.geometry.coordinates] : f.geometry.type === "LineString" ? f.geometry.coordinates : f.geometry.coordinates[0]!) as number[][];
+    const xs = pts.map((p) => p[0]!);
+    const ys = pts.map((p) => p[1]!);
+    return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+  };
+  const focusAnnotation = (f: AnnotationFeature) => {
+    map?.fitBounds(annotationBounds(f), 16);
+    chooseTool("select");
+    window.setTimeout(() => editorRef.current?.select(f.id), 80);
+  };
+  const exportAnnotations = () => {
+    const blob = new Blob([JSON.stringify({ type: "FeatureCollection", features: annotations }, null, 2)], { type: "application/geo+json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${(tabs.find((t) => t.id === currentTab)?.title ?? "mapa").replace(/[\\/:*?"<>|]+/g, " ")} - anotacoes.geojson`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+  const clearAnnotations = () => {
+    if (!window.confirm(`Apagar as ${annotations.length} anotações desta aba?`)) return;
+    closeDrawing();
+    setAnnotations([]);
+  };
+  const selectedFeature = selectedAnnotation ? annotations.find((a) => String(a.id) === selectedAnnotation) : undefined;
   // Estilos no mapa: os salvos e, por cima, o rascunho do editor. Aplica só o que mudou.
   useEffect(() => {
     if (!map) return;
@@ -915,6 +1042,11 @@ export function App() {
     setStyleEditing(null);
     setMapWidgets((target.widgets ?? {}) as MapWidgets);
     setPlacingRadius(false);
+    setDrawTool("off");
+    setSelectedAnnotation(null);
+    setPinNote(null);
+    setAnnotations(cleanAnnotations((target.annotations ?? []) as AnnotationFeature[]));
+    setAnnotationsHidden(Boolean(target.annotationsHidden));
     if ((target.theme ?? "light") !== theme) changeTheme(target.theme ?? "light");
     if ((target.look ?? "data") !== look) changeLook(target.look ?? "data");
     setCurrentTab(id);
@@ -962,7 +1094,7 @@ export function App() {
     if (!source) return;
     const live = id === currentTab;
     const copy = createTab(tabs, {
-      ...(live ? { active: [...active], hidden: [...hidden], filters, paintDataset, theme, look, styles, widgets: mapWidgets as TabWidgets } : source),
+      ...(live ? { active: [...active], hidden: [...hidden], filters, paintDataset, theme, look, styles, widgets: mapWidgets as TabWidgets, annotations, annotationsHidden } : source),
       title: `${source.title} (cópia)`,
       camera: live && map ? map.camera : (cameras.current.get(id) ?? source.camera),
     });
@@ -1240,6 +1372,42 @@ export function App() {
   };
 
   const layerCards: { key: string; node: (badge: string, tone: string) => ReactNode }[] = [];
+  if (annotations.length > 0) {
+    layerCards.push({
+      key: "annotations",
+      node: (badge) => (
+        <LayerCard
+          badge={badge}
+          tone="#8b7cf6"
+          title="Anotações"
+          origin="user"
+          meta={`${annotations.length} ${annotations.length === 1 ? "anotação" : "anotações"} · neste navegador`}
+          visible={!annotationsHidden}
+          onVisible={(v) => {
+            if (!v) closeDrawing();
+            setAnnotationsHidden(!v);
+          }}
+          actions={[
+            { label: "Desenhar e editar", icon: "draw", onClick: () => chooseTool("select") },
+            { label: "Baixar em GeoJSON", icon: "download", onClick: exportAnnotations },
+            { label: "Apagar todas", icon: "trash", onClick: clearAnnotations, danger: true },
+          ]}
+        >
+          <ul className="annot-list">
+            {annotations.map((f) => (
+              <li key={String(f.id)}>
+                <button type="button" onClick={() => focusAnnotation(f)} title="Ver e editar">
+                  <AgentFace kind={agentOf(f)} size={24} />
+                  <span className="annot-list-name">{f.properties.label?.trim() || kindLabel(f)}</span>
+                  <i style={{ background: f.properties.color }} aria-hidden="true" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </LayerCard>
+      ),
+    });
+  }
   for (const u of server.uploads) {
     layerCards.push({
       key: `upload:${u.key}`,
@@ -1727,7 +1895,12 @@ export function App() {
       </div>
 
       <div className="workspace">
-        <Rail panel={panel} onPanel={setPanel} badges={{ layers: [...active].length || undefined, details: pick ? 1 : undefined }} />
+        <Rail
+          panel={panel}
+          onPanel={setPanel}
+          badges={{ layers: [...active].length || undefined, details: pick ? 1 : undefined }}
+          extras={[{ key: "draw", label: "Anotar", icon: "draw", active: drawTool !== "off", onClick: toggleDrawing }]}
+        />
         {panel && (
           <div className={`world-scope world-${PANEL_WORLD[panel]}`}>
             {panels[panel]}
@@ -1761,6 +1934,57 @@ export function App() {
               })}
             </div>
           )}
+          {map && drawTool !== "off" && !maquete && (
+            <AnnotationToolbar
+              tool={drawTool}
+              color={selectedFeature?.properties.color ?? drawColor}
+              onTool={chooseTool}
+              onColor={(hex) => {
+                setDrawColor(hex);
+                if (selectedAnnotation) editorRef.current?.update(selectedAnnotation, { color: hex });
+              }}
+              onUndo={() => editorRef.current?.undo()}
+              onClose={closeDrawing}
+            />
+          )}
+          {map && drawTool !== "off" && selectedFeature && !maquete && (
+            <AnnotationCard
+              key={String(selectedFeature.id)}
+              map={map}
+              feature={selectedFeature}
+              layers={widgetLayers.map((l) => ({ id: l.id, name: l.name, info: l.info }))}
+              onUpdate={(props) => editorRef.current?.update(selectedFeature.id, props)}
+              onDelete={() => editorRef.current?.remove(selectedFeature.id)}
+              onClose={() => {
+                editorRef.current?.deselectAll();
+                setSelectedAnnotation(null);
+              }}
+            />
+          )}
+          {map &&
+            pinNote &&
+            createPortal(
+              <div className="pin-note">
+                <header>
+                  <AgentFace kind="pino" size={30} />
+                  <b>{pinNote.properties.label?.trim() || "Alfinete"}</b>
+                </header>
+                {pinNote.properties.note?.trim() ? <p>{pinNote.properties.note}</p> : <p className="muted">Sem nota.</p>}
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  onClick={() => {
+                    const f = pinNote;
+                    setPinNote(null);
+                    map.hidePopup();
+                    focusAnnotation(f);
+                  }}
+                >
+                  Editar
+                </button>
+              </div>,
+              pinEl,
+            )}
           {/* Indicadores do lugar: marca o centro do mapa, de onde vêm os números. */}
           {mapWidgets.place && !mapWidgets.place.rect.minimized && !maquete && <span className="map-crosshair" aria-hidden="true" />}
           {placingRadius && (

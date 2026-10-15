@@ -25,7 +25,9 @@
     "papaparse": "^5.7.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "read-excel-file": "9.3.10"
+    "read-excel-file": "9.3.10",
+    "terra-draw": "1.37.0",
+    "terra-draw-maplibre-gl-adapter": "1.5.0"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",

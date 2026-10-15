@@ -81,6 +81,12 @@ importers:
       read-excel-file:
         specifier: 9.3.10
         version: 9.3.10
+      terra-draw:
+        specifier: 1.37.0
+        version: 1.37.0
+      terra-draw-maplibre-gl-adapter:
+        specifier: 1.5.0
+        version: 1.5.0(maplibre-gl@6.13.0)(terra-draw@1.37.0)
     devDependencies:
       '@types/node':
         specifier: ^26.6.5
@@ -879,6 +885,15 @@ packages:
   string-template@0.2.1:
     resolution: {integrity: sha512-Yptehjogou2xm4UJbxJ4CxgZx12HBfeystp0y3x7s4Dj32ltVVG1Gg8YhKjHZkHicuKpZX/ffilA8505VbUbpw==}
 
+  terra-draw-maplibre-gl-adapter@1.5.0:
+    resolution: {integrity: sha512-wUv7WDIKln+cWkJOJZ68cOLwFhcBXlSN3GF56Dx8GLnmTTnQEZbIyzWRHjsxhn+TOXvxBOlCDl5JmCghIW3L4g==}
+    peerDependencies:
+      maplibre-gl: '>=4'
+      terra-draw: ^1.0.0
+
+  terra-draw@1.37.0:
+    resolution: {integrity: sha512-t8aGT6tZM+ZTygPg3nRG0/B/OtjiQfrjJauMB1MLyJTFvt4gDNSgk7InFIYzGc/zOwHICJEEDn8Hq+pKzC8mag==}
+
   three@0.134.0:
     resolution: {integrity: sha512-LbBerg7GaSPjYtTOnu41AMp7tV6efUNR3p4Wk5NzkSsNTBuA5mDGOfwwZL1jhhVMLx9V20HolIUo0+U3AXehbg==}
 
@@ -1597,6 +1612,13 @@ snapshots:
   std-env@4.3.0: {}
 
   string-template@0.2.1: {}
+
+  terra-draw-maplibre-gl-adapter@1.5.0(maplibre-gl@6.13.0)(terra-draw@1.37.0):
+    dependencies:
+      maplibre-gl: 6.13.0
+      terra-draw: 1.37.0
+
+  terra-draw@1.37.0: {}
 
   three@0.134.0: {}
 

@@ -1211,3 +1211,78 @@ body, .app { background: var(--cv-surface); }
 .empty-state-agent { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; padding: 8px 4px; }
 .empty-icon:has(.agent-face) { width: auto; height: auto; background: none; }
 .widget-option-icon { background: var(--world-bg); color: var(--world-ink); border-radius: var(--cv-radius-md); }
+
+/* =====================================================================================================
+ * Anotações: a barra é uma "doca" com a turma; o ativo fica feliz, sobe um pouco e fala a dica num balão.
+ * ===================================================================================================== */
+/* Doca embaixo, no centro (longe da busca e das gavetas); o balão de dica fica acima dela. */
+.annot-dock-wrap { position: absolute; bottom: 34px; left: 50%; z-index: 6; transform: translateX(-50%); display: flex; flex-direction: column-reverse; align-items: center; gap: 10px; pointer-events: none; max-width: calc(100% - 140px); }
+.annot-dock-wrap > * { pointer-events: auto; }
+.annot-dock { display: flex; align-items: center; gap: 4px; padding: 6px 8px; border-radius: var(--cv-radius-xl); background: var(--cv-float); box-shadow: var(--cv-shadow-3); animation: cv-pop 260ms var(--cv-spring); flex-wrap: wrap; justify-content: center; }
+.annot-tool { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 62px; padding: 6px 6px 4px; border: 0; border-radius: var(--cv-radius-lg); background: transparent; color: var(--cv-text); font: inherit; cursor: pointer; transition: background 120ms var(--cv-ease); }
+.annot-tool:hover { background: var(--cv-surface); }
+.annot-tool-face { display: grid; place-items: center; width: 40px; height: 40px; transition: transform 220ms var(--cv-spring); }
+.annot-tool:hover .annot-tool-face { transform: translateY(-2px) rotate(-4deg); }
+.annot-tool.is-on { background: var(--cv-lilac-bg); }
+.annot-tool.is-on .annot-tool-face { transform: translateY(-3px) scale(1.08); }
+.annot-tool-label { font-size: 11px; font-weight: 600; color: var(--cv-text-muted); white-space: nowrap; }
+.annot-tool.is-on .annot-tool-label { color: var(--cv-lilac-ink); }
+.annot-select .annot-tool-face { width: 34px; height: 34px; margin: 3px; border-radius: var(--cv-radius-full); background: var(--cv-surface); color: var(--cv-text); }
+.annot-select.is-on .annot-tool-face { background: var(--cv-lilac-fill); }
+.annot-sep { width: 1px; height: 36px; margin: 0 4px; background: var(--cv-border); }
+.annot-colors { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.annot-color { width: 22px; height: 22px; padding: 0; border: 2px solid var(--cv-float); border-radius: var(--cv-radius-full); box-shadow: 0 0 0 1px var(--cv-border); cursor: pointer; transition: transform 160ms var(--cv-spring); }
+.annot-color:hover { transform: scale(1.12); }
+.annot-color.is-on { box-shadow: 0 0 0 2px var(--cv-text); transform: scale(1.12); }
+.annot-done { margin-left: 4px; }
+.annot-bubble { position: relative; display: flex; align-items: center; flex-wrap: wrap; justify-content: center; gap: 8px; max-width: 560px; padding: 8px 14px; border-radius: var(--cv-radius-lg); background: var(--cv-lilac-bg); color: var(--cv-lilac-ink); font-size: 13px; line-height: 18px; box-shadow: var(--cv-shadow-2); }
+.annot-bubble::before { content: ""; position: absolute; bottom: -6px; left: 50%; width: 12px; height: 12px; margin-left: -6px; transform: rotate(45deg); background: inherit; border-radius: 2px; }
+.annot-bubble b { font-family: var(--cv-font-display); }
+.annot-bubble .segmented { background: var(--cv-float); }
+
+/* Cartão da anotação escolhida (à direita, abaixo da busca) */
+.annot-card { position: absolute; top: 72px; right: 72px; z-index: 6; width: 300px; max-height: calc(100% - 96px); overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 14px; border-radius: var(--cv-radius-xl); background: var(--cv-float); box-shadow: var(--cv-shadow-3); animation: cv-pop 240ms var(--cv-spring); }
+.annot-card-head { display: flex; align-items: center; gap: 10px; }
+.annot-card-title { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.annot-card-title b { font-family: var(--cv-font-display); font-size: 17px; letter-spacing: -0.01em; }
+.annot-card-title .muted { font-size: 12px; }
+.annot-card .widget-field input, .annot-card .widget-field textarea {
+  padding: 8px 10px; border: 1px solid var(--cv-control-border); border-radius: var(--cv-radius-sm); background: var(--cv-field);
+  color: var(--cv-text); font: inherit; font-size: 14px; font-weight: 400; resize: vertical;
+}
+.annot-card .widget-field input:focus, .annot-card .widget-field textarea:focus { outline: none; border-color: var(--cv-accent); box-shadow: 0 0 0 3px var(--cv-focus-ring); }
+.annot-inside h5 { margin: 0 0 6px; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--cv-text-muted); }
+.annot-inside ul { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.annot-inside li { display: flex; flex-direction: column; gap: 4px; padding: 8px 0; border-top: 1px solid var(--cv-border); }
+.annot-inside-row { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; font-weight: 600; }
+.annot-inside-row b { font-size: 18px; letter-spacing: -0.02em; }
+.annot-inside-sub { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; color: var(--cv-text-muted); }
+.annot-inside-sub span { display: inline-flex; align-items: center; gap: 4px; }
+.annot-inside-sub i { width: 8px; height: 8px; border-radius: 50%; }
+.annot-inside-sub b { color: var(--cv-text); font-weight: 600; }
+.annot-inside p { margin: 0; font-size: 12px; }
+
+/* Lista de anotações no cartão da camada */
+.annot-list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.annot-list button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 4px 6px; margin: 0 -6px; border: 0; border-radius: var(--cv-radius-sm); background: none; color: var(--cv-text); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.annot-list button:hover { background: var(--cv-surface); }
+.annot-list-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.annot-list i { flex: none; width: 10px; height: 10px; border-radius: 50%; }
+
+/* Nota do alfinete (cartão do mapa) */
+.pin-note { width: 260px; display: flex; flex-direction: column; gap: 8px; padding: 14px 16px 4px; }
+.pin-note header { display: flex; align-items: center; gap: 8px; padding-right: 28px; }
+.pin-note b { font-family: var(--cv-font-display); font-size: 17px; letter-spacing: -0.01em; }
+.pin-note p { margin: 0; font-size: 14px; line-height: 20px; white-space: pre-wrap; }
+.pin-note .btn { align-self: flex-start; }
+@media (max-width: 767px) {
+  .annot-dock-wrap { left: 8px; right: 60px; bottom: 30px; transform: none; max-width: none; }
+  .annot-tool { min-width: 52px; }
+  .annot-card { left: 8px; right: 8px; top: auto; bottom: 8px; width: auto; max-height: 55%; }
+}
+/* Com a gaveta aberta, a doca de anotações centraliza no espaço livre à direita dela (não fica por baixo). */
+@media (min-width: 768px) {
+  .workspace:has(> .world-scope .panel) .annot-dock-wrap { left: calc(50% + 186px); max-width: calc(100% - 372px - 140px); }
+}
+.annot-card .widget-field { flex: none; }
+.pin-note .agent-face { flex: none; width: 30px; height: 30px; }

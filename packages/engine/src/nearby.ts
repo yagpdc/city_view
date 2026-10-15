@@ -5,7 +5,8 @@
 import { VectorTile } from "@mapbox/vector-tile";
 import { PbfReader } from "pbf";
 import type { PMTiles } from "pmtiles";
-import { areaBounds, circleArea, geodesicDistanceM, type Position } from "./geo";
+import { matchesWhere, type Where } from "./filter";
+import { areaBounds, circleArea, geodesicDistanceM, pointInArea, type AreaGeometry, type Position } from "./geo";
 
 export interface NearbyPoint {
   lngLat: Position;
@@ -73,6 +74,52 @@ export async function loadNearby(
   const byCategory = new Array<number>(options.categories).fill(0);
   for (const p of points) if (p.category !== null && p.category < byCategory.length) byCategory[p.category]!++;
   return { center, radiusM, total: points.length, byCategory, points };
+}
+
+/**
+ * Conta, ponto a ponto, os registros dentro de uma área (anotações), lendo os tiles do zoom dos pontos.
+ * `null` quando a área cobre tiles demais nesse zoom (quem chama soma os hexágonos).
+ */
+export async function countPointsInArea(
+  pmtiles: PMTiles,
+  options: { area: AreaGeometry; zoom: number; categoryProperty: string; categories: number; allowed: number[] | null; where?: Where },
+): Promise<{ count: number; byCategory: number[] } | null> {
+  const { area, zoom, categoryProperty, allowed, where } = options;
+  const [w, s, e, n] = areaBounds(area);
+  const x0 = lonToTile(w, zoom), x1 = lonToTile(e, zoom), y0 = latToTile(n, zoom), y1 = latToTile(s, zoom);
+  if ((x1 - x0 + 1) * (y1 - y0 + 1) > MAX_TILES) return null;
+  const byCategory = new Array<number>(options.categories).fill(0);
+  const seen = new Set<string | number>();
+  let count = 0;
+  const jobs: Promise<void>[] = [];
+  for (let x = x0; x <= x1; x++) {
+    for (let y = y0; y <= y1; y++) {
+      jobs.push(
+        cachedTile(pmtiles, zoom, x, y).then((layer) => {
+          if (!layer) return;
+          for (let i = 0; i < layer.length; i++) {
+            const feature = layer.feature(i);
+            const f = feature.toGeoJSON(x, y, zoom) as unknown as { geometry: { type: string; coordinates: Position }; properties: Record<string, string | number> };
+            if (f.geometry.type !== "Point") continue;
+            const lngLat: Position = [f.geometry.coordinates[0], f.geometry.coordinates[1]];
+            if (lngLat[0] < w || lngLat[0] > e || lngLat[1] < s || lngLat[1] > n || !pointInArea(lngLat, area)) continue;
+            // O mesmo ponto pode vir em dois tiles (borda): conta uma vez.
+            const key = feature.id ?? `${lngLat[0]},${lngLat[1]}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            const { [categoryProperty]: c, ...properties } = f.properties;
+            const category = typeof c === "number" ? c : null;
+            if (allowed && (category === null || !allowed.includes(category))) continue;
+            if (where && !matchesWhere(properties, where)) continue;
+            count++;
+            if (category !== null && category < byCategory.length) byCategory[category]!++;
+          }
+        }),
+      );
+    }
+  }
+  await Promise.all(jobs);
+  return { count, byCategory };
 }
 
 /** Tiles de pontos já decodificados, por arquivo (buscas seguidas não baixam de novo). */

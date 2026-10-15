@@ -703,6 +703,18 @@ export class CityMap {
     this.whenStyleReady(() => this.attachOverlay(overlay));
   }
 
+  /**
+   * Troca só os dados de uma camada externa GeoJSON já ligada (sem piscar); sem ela, liga com `overlay`.
+   * Os dados novos ficam guardados para quando o estilo do mapa for trocado.
+   */
+  setOverlayData(overlay: MapOverlay & { source: { type: "geojson"; data: GeoJSON.GeoJSON } }): void {
+    const current = this.overlays.get(overlay.id);
+    const source = this.map.getSource(overlay.id) as GeoJSONSource | undefined;
+    if (!current || !source) return this.setOverlay(overlay);
+    current.source = overlay.source;
+    source.setData(overlay.source.data);
+  }
+
   removeOverlay(id: string): void {
     const overlay = this.overlays.get(id);
     if (!overlay) return;
@@ -714,8 +726,9 @@ export class CityMap {
   private attachOverlay(overlay: MapOverlay): void {
     if (this.map.getSource(overlay.id)) return;
     this.map.addSource(overlay.id, overlay.source);
-    // Abaixo dos rótulos; as de apoio (ex.: cobertura de fotos de rua) são reposicionadas em raiseSupportOverlays.
-    const firstSymbol = this.map.getStyle().layers.find((l) => l.type === "symbol")?.id;
+    // Abaixo dos rótulos (ou no topo, se pedido); as de apoio (ex.: cobertura de fotos de rua) são reposicionadas em
+    // raiseSupportOverlays.
+    const firstSymbol = overlay.top ? undefined : this.map.getStyle().layers.find((l) => l.type === "symbol")?.id;
     for (const layer of overlay.layers) this.map.addLayer(layer, firstSymbol);
     this.raiseSupportOverlays();
   }
@@ -748,6 +761,16 @@ export class CityMap {
   viewportSummary(datasetId: string): (AreaSummary & { mode: "points" | "hex" }) | null {
     if (!this.styleReady) return null;
     return this.datasets.find((d) => d.id === datasetId)?.viewportSummary() ?? null;
+  }
+
+  /**
+   * O que um dataset tem dentro de uma área desenhada (anotações): ponto a ponto nas áreas pequenas, pelos
+   * hexágonos nas grandes, respeitando o filtro do cartão. null se o dataset não está no mapa.
+   */
+  async areaSummary(datasetId: string, area: AreaGeometry): Promise<AreaSummary | null> {
+    const dataset = this.datasets.find((d) => d.id === datasetId);
+    if (!dataset) return null;
+    return dataset.areaSummary(area);
   }
 
   /** Registros de um dataset na área visível, com as colunas (widgets de tabela e gráfico); null se escondido. */
@@ -1076,4 +1099,6 @@ export interface MapOverlay {
   id: string;
   source: SourceSpecification;
   layers: LayerSpecification[];
+  /** Acima de tudo, inclusive dos rótulos do mapa base (ex.: textos das anotações). */
+  top?: boolean;
 }
