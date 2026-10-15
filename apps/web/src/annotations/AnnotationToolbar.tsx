@@ -1,15 +1,17 @@
 import { AGENTS, AgentFace } from "../components/Agents";
 import { Icon } from "../components/Icon";
-import { ANNOTATION_COLORS, AREA_SHAPES, TOOLS, type AnnotationTool } from "./model";
+import { ANNOTATION_COLORS, AREA_SHAPES, LINE_SHAPES, TOOLS, toolGroup, type AnnotationTool } from "./model";
 
 /**
- * Barra de anotações: cada ferramenta é um personagem da turma (Bolha traço livre, Hexa linha, Quadra área,
- * Lume texto, Pino alfinete). O ativo fica feliz e fala a dica num balão embaixo.
+ * Doca de anotações: cada ferramenta é um personagem da turma (Bolha traço, Hexa área, Quadra pinta ruas e prédios,
+ * Lume texto, Pino alfinete com foto). O ativo fica feliz e fala a dica num balão. Selecionar e Imagem são
+ * utilitários, sem personagem.
  */
 export function AnnotationToolbar({
   tool,
   color,
   onTool,
+  onImage,
   onColor,
   onUndo,
   onClose,
@@ -17,12 +19,14 @@ export function AnnotationToolbar({
   tool: AnnotationTool;
   color: string;
   onTool: (tool: AnnotationTool) => void;
+  /** Escolher uma imagem para sobrepor ao mapa. */
+  onImage: () => void;
   onColor: (hex: string) => void;
   onUndo: () => void;
   onClose: () => void;
 }) {
-  const areaTool = tool === "polygon" || tool === "rectangle" || tool === "circle";
-  const active = TOOLS.find((t) => t.tool === tool || (t.tool === "polygon" && areaTool));
+  const active = toolGroup(tool);
+  const shapes = active?.tool === "freehand" ? LINE_SHAPES : active?.tool === "polygon" ? AREA_SHAPES : null;
   return (
     <div className="annot-dock-wrap">
       <div className="annot-dock" role="toolbar" aria-label="Ferramentas de anotação">
@@ -40,7 +44,7 @@ export function AnnotationToolbar({
         </button>
         <span className="annot-sep" aria-hidden="true" />
         {TOOLS.map((t) => {
-          const on = t.tool === tool || (t.tool === "polygon" && areaTool);
+          const on = active?.tool === t.tool;
           return (
             <button
               key={t.tool}
@@ -57,6 +61,12 @@ export function AnnotationToolbar({
             </button>
           );
         })}
+        <button type="button" className="annot-tool annot-select" onClick={onImage} title="Imagem: sobreponha uma planta, croqui ou foto e encaixe pelos cantos">
+          <span className="annot-tool-face">
+            <Icon name="imagePlus" size={20} />
+          </span>
+          <span className="annot-tool-label">Imagem</span>
+        </button>
         <span className="annot-sep" aria-hidden="true" />
         <span className="annot-colors" role="radiogroup" aria-label="Cor">
           {ANNOTATION_COLORS.map((c) => (
@@ -85,9 +95,9 @@ export function AnnotationToolbar({
         <div className="annot-bubble" role="status">
           <b>{AGENTS[active.agent].name}</b>
           <span>{active.hint}</span>
-          {areaTool && (
-            <span className="segmented segmented-sm" role="radiogroup" aria-label="Formato da área">
-              {AREA_SHAPES.map((s) => (
+          {shapes && (
+            <span className="segmented segmented-sm" role="radiogroup" aria-label="Formato">
+              {shapes.map((s) => (
                 <button key={s.tool} type="button" role="radio" aria-checked={tool === s.tool} className={tool === s.tool ? "is-active" : ""} onClick={() => onTool(s.tool)}>
                   {s.label}
                 </button>

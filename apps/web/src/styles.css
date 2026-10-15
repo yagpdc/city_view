@@ -1286,3 +1286,13 @@ body, .app { background: var(--cv-surface); }
 }
 .annot-card .widget-field { flex: none; }
 .pin-note .agent-face { flex: none; width: 30px; height: 30px; }
+
+/* Foto no cartão da anotação (alfinete com foto, imagem sobreposta) e na nota do alfinete */
+.annot-photo { display: flex; flex-direction: column; gap: 8px; }
+.annot-photo img { width: 100%; max-height: 180px; object-fit: cover; border-radius: var(--cv-radius-md); background: var(--cv-surface); }
+.annot-photo p { margin: 0; font-size: 12px; }
+.annot-photo-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.annot-tip { margin: 0; padding: 8px 10px; border-radius: var(--cv-radius-sm); background: var(--cv-lilac-bg); color: var(--cv-lilac-ink); font-size: 12px; line-height: 17px; }
+.annot-card input[type="range"] { width: 100%; accent-color: var(--cv-accent); padding: 0; border: 0; background: none; }
+.pin-note.has-photo { padding-top: 0; }
+.pin-note-photo { display: block; width: calc(100% + 32px); margin: 0 -16px 4px; max-height: 170px; object-fit: cover; }

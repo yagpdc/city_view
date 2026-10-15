@@ -16,7 +16,7 @@ import {
   type HexColor,
 } from "terra-draw";
 import { TerraDrawMapLibreGLAdapter } from "terra-draw-maplibre-gl-adapter";
-import { TOOL_MODE, cleanAnnotations, type AnnotationFeature, type AnnotationTool } from "./model";
+import { DRAG_TOOLS, IMAGE_MODE, TOOL_MODE, cleanAnnotations, isPainted, type AnnotationFeature, type AnnotationTool } from "./model";
 
 type NativeMap = CityMap["native"];
 
@@ -54,7 +54,8 @@ export class AnnotationEditor {
 
   /** Troca todas as anotações (troca de aba, camada escondida/mostrada, link aberto). */
   load(features: AnnotationFeature[]): void {
-    this.features = cleanAnnotations(features);
+    // Ruas e prédios pintados são desenhados pelo app, não pelo editor.
+    this.features = cleanAnnotations(features).filter((f) => !isPainted(f));
     features = this.features;
     if (!this.draw) return;
     this.loading = true;
@@ -77,11 +78,26 @@ export class AnnotationEditor {
    * clique, que termina a linha). A rodinha continua aproximando. Selecionar e "off" devolvem o mapa.
    */
   private lockMap(): void {
-    const drawing = this.tool !== "off" && this.tool !== "select";
+    const drawing = DRAG_TOOLS.includes(this.tool);
     for (const handler of [this.map.dragPan, this.map.dragRotate, this.map.doubleClickZoom]) {
       if (drawing) handler.disable();
       else handler.enable();
     }
+  }
+
+  /** Põe uma anotação pronta (ex.: imagem sobreposta) e a seleciona para ajustar. */
+  add(feature: AnnotationFeature): void {
+    if (!this.draw) return;
+    // O editor recusa coordenadas com mais casas que a precisão configurada (7, ~1 cm).
+    const round = (v: unknown): unknown => (Array.isArray(v) ? v.map(round) : typeof v === "number" ? Math.round(v * 1e7) / 1e7 : v);
+    const geometry = { ...feature.geometry, coordinates: round((feature.geometry as { coordinates: unknown }).coordinates) };
+    const [result] = this.draw.addFeatures([{ ...feature, geometry } as unknown as GeoJSONStoreFeatures]);
+    if (result && !result.valid) {
+      console.warn("[anotações] o editor recusou a feição:", result.reason);
+      return;
+    }
+    this.emitSoon();
+    this.select(feature.id);
   }
 
   setColor(color: string): void {
@@ -170,12 +186,15 @@ export class AnnotationEditor {
             rectangle: { feature: { draggable: true, coordinates: { draggable: true, resizable: "opposite" } } },
             circle: { feature: { draggable: true, coordinates: { draggable: true, resizable: "center-fixed" } } },
             point: { feature: { draggable: true } },
+            // Imagem sobreposta: arrasta inteira ou cada canto (perspectiva), sem criar pontos novos.
+            [IMAGE_MODE]: { feature: { draggable: true, coordinates: { draggable: true } } },
           },
           styles: {
             selectedLineStringColor: colorOf,
             selectedLineStringWidth: 5,
             selectedPolygonColor: colorOf,
-            selectedPolygonFillOpacity: 0.26,
+            // A imagem selecionada não ganha véu colorido por cima.
+            selectedPolygonFillOpacity: (f) => (f.properties.mode === IMAGE_MODE ? 0 : 0.26),
             selectedPolygonOutlineColor: colorOf,
             selectedPolygonOutlineWidth: 3.5,
             selectedPointColor: colorOf,
@@ -195,6 +214,8 @@ export class AnnotationEditor {
         // Traço livre: segurar e arrastar (como caneta) ou clicar para começar e clicar para terminar.
         new TerraDrawFreehandLineStringMode({ styles: line, drawInteraction: "click-move-or-drag" }),
         new TerraDrawLineStringMode({ styles: line }),
+        // Contorno da imagem sobreposta (a imagem em si é uma camada do app por baixo).
+        new TerraDrawPolygonMode({ modeName: IMAGE_MODE, styles: { fillColor: "#8b7cf6", fillOpacity: 0, outlineColor: "#8b7cf6", outlineWidth: 1.5 } }),
         new TerraDrawPolygonMode({ styles: { ...area, closingPointColor: "#ffffff", closingPointOutlineColor: colorOf, closingPointWidth: 5, closingPointOutlineWidth: 2.5 } }),
         // Retângulo e círculo: arrastar de um canto ao outro (ou clicar e clicar).
         new TerraDrawRectangleMode({ styles: area, drawInteraction: "click-move-or-drag" }),

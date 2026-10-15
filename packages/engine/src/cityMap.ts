@@ -728,8 +728,12 @@ export class CityMap {
     this.map.addSource(overlay.id, overlay.source);
     // Abaixo dos rótulos (ou no topo, se pedido); as de apoio (ex.: cobertura de fotos de rua) são reposicionadas em
     // raiseSupportOverlays.
-    const firstSymbol = overlay.top ? undefined : this.map.getStyle().layers.find((l) => l.type === "symbol")?.id;
-    for (const layer of overlay.layers) this.map.addLayer(layer, firstSymbol);
+    const layers = this.map.getStyle().layers;
+    const firstSymbol = layers.find((l) => l.type === "symbol")?.id;
+    // "under": abaixo dos dados (ex.: imagem sobreposta), acima do mapa base.
+    const firstData = layers.find((l) => l.id.startsWith("cv-") && ![...this.overlays.values()].some((o) => o.layers.some((x) => x.id === l.id)))?.id;
+    const beforeId = overlay.top ? undefined : overlay.under ? (firstData ?? firstSymbol) : firstSymbol;
+    for (const layer of overlay.layers) this.map.addLayer(layer, beforeId);
     this.raiseSupportOverlays();
   }
 
@@ -1101,4 +1105,6 @@ export interface MapOverlay {
   layers: LayerSpecification[];
   /** Acima de tudo, inclusive dos rótulos do mapa base (ex.: textos das anotações). */
   top?: boolean;
+  /** Abaixo dos dados, acima do mapa base (ex.: imagem sobreposta). */
+  under?: boolean;
 }

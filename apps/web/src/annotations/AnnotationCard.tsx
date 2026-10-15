@@ -1,9 +1,10 @@
 import { categoryColor, formatArea, formatDistance, lineLengthM, polygonMeasure, type AreaSummary, type CityMap } from "@cityview/engine";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AGENTS, AgentFace } from "../components/Agents";
 import { Icon } from "../components/Icon";
 import type { DatasetInfo } from "../components/PickDetails";
-import { ANNOTATION_COLORS, agentOf, isArea, kindLabel, type AnnotationFeature } from "./model";
+import { ANNOTATION_COLORS, agentOf, isArea, isImage, kindLabel, type AnnotationFeature } from "./model";
+import { deletePhoto, photoUrl, putPhoto } from "./photos";
 
 const int = new Intl.NumberFormat("pt-BR");
 const dec = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
@@ -15,6 +16,73 @@ export interface CountLayer {
   id: string;
   name: string;
   info: DatasetInfo;
+}
+
+/** Foto guardada neste navegador (alfinete com foto, imagem sobreposta): mostra e deixa trocar ou tirar. */
+function PhotoField({ photo, label, onChange, removable }: { photo?: string; label: string; onChange: (id: string | undefined) => void; removable: boolean }) {
+  const input = useRef<HTMLInputElement>(null);
+  const [url, setUrl] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    let live = true;
+    setUrl(null);
+    if (photo) void photoUrl(photo).then((u) => live && setUrl(u));
+    return () => {
+      live = false;
+    };
+  }, [photo]);
+  const pick = async (file: File | undefined) => {
+    if (!file) return;
+    setBusy(true);
+    try {
+      const stored = await putPhoto(file);
+      if (photo) void deletePhoto(photo);
+      onChange(stored.id);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="annot-photo">
+      {photo && url && <img src={url} alt="" />}
+      {photo && !url && <p className="muted">Esta foto ficou no navegador de quem a pôs (fotos não vão no link).</p>}
+      <span className="annot-photo-actions">
+        <button type="button" className="btn btn-sm" onClick={() => input.current?.click()} disabled={busy}>
+          <Icon name="imagePlus" size={16} />
+          {busy ? "Preparando…" : photo ? `Trocar ${label}` : `Pôr ${label}`}
+        </button>
+        {photo && removable && (
+          <button
+            type="button"
+            className="btn btn-sm btn-ghost"
+            onClick={() => {
+              void deletePhoto(photo);
+              onChange(undefined);
+            }}
+          >
+            Tirar
+          </button>
+        )}
+      </span>
+      <input
+        ref={input}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        hidden
+        onChange={(e) => {
+          void pick(e.target.files?.[0]);
+          e.target.value = "";
+        }}
+      />
+    </div>
+  );
+}
+
+/** Soma o comprimento de linha(s) (traço, rua pintada). */
+function lengthOf(g: AnnotationFeature["geometry"]): number | null {
+  if (g.type === "LineString") return lineLengthM(g.coordinates as [number, number][]);
+  if (g.type === "MultiLineString") return g.coordinates.reduce((sum, l) => sum + lineLengthM(l as [number, number][]), 0);
+  return null;
 }
 
 /**
@@ -38,9 +106,11 @@ export function AnnotationCard({
 }) {
   const p = feature.properties;
   const agent = agentOf(feature);
-  const ring = feature.geometry.type === "Polygon" ? (feature.geometry.coordinates[0] as [number, number][]) : null;
+  const g = feature.geometry;
+  // Área e perímetro: da área desenhada e do térreo do prédio pintado (a imagem não tem medida).
+  const ring = isImage(feature) ? null : g.type === "Polygon" ? (g.coordinates[0] as [number, number][]) : g.type === "MultiPolygon" ? (g.coordinates[0]?.[0] as [number, number][]) : null;
   const measure = ring ? polygonMeasure(ring.slice(0, -1)) : null;
-  const length = feature.geometry.type === "LineString" ? lineLengthM(feature.geometry.coordinates as [number, number][]) : null;
+  const length = lengthOf(g);
 
   // Contagem por camada dentro da área (refaz quando a forma muda).
   const geomKey = JSON.stringify(feature.geometry);
@@ -80,7 +150,16 @@ export function AnnotationCard({
         </button>
       </header>
 
-      {p.kind === "text" ? (
+      {p.kind === "image" ? (
+        <>
+          <PhotoField photo={p.photo} label="imagem" removable={false} onChange={(id) => id && onUpdate({ photo: id })} />
+          <label className="widget-field">
+            <span>Transparência</span>
+            <input type="range" min={0.15} max={1} step={0.05} value={Number(p.opacity ?? 0.85)} onChange={(e) => onUpdate({ opacity: e.target.value })} />
+          </label>
+          <p className="annot-tip">Arraste os cantos para encaixar a imagem nas ruas; arraste o meio para mover.</p>
+        </>
+      ) : p.kind === "text" ? (
         <label className="widget-field">
           <span>Texto</span>
           <input autoFocus value={p.label ?? ""} onChange={(e) => onUpdate({ label: e.target.value })} placeholder="Escreva o texto…" maxLength={120} />
@@ -92,12 +171,16 @@ export function AnnotationCard({
         </label>
       )}
       {p.kind === "pin" && (
-        <label className="widget-field">
-          <span>Nota</span>
-          <textarea value={p.note ?? ""} onChange={(e) => onUpdate({ note: e.target.value })} placeholder="O que lembrar deste lugar…" rows={3} maxLength={1000} />
-        </label>
+        <>
+          <label className="widget-field">
+            <span>Nota</span>
+            <textarea value={p.note ?? ""} onChange={(e) => onUpdate({ note: e.target.value })} placeholder="O que lembrar deste lugar…" rows={3} maxLength={1000} />
+          </label>
+          <PhotoField photo={p.photo} label="foto" removable onChange={(id) => onUpdate({ photo: id })} />
+        </>
       )}
 
+      {p.kind !== "image" && (
       <span className="annot-colors" role="radiogroup" aria-label="Cor">
         {ANNOTATION_COLORS.map((c) => (
           <button
@@ -113,8 +196,23 @@ export function AnnotationCard({
           />
         ))}
       </span>
+      )}
 
-      {measure && (
+      {measure && !isArea(feature) && (
+        <dl className="widget-stats">
+          <div>
+            <dt>Térreo</dt>
+            <dd className="num">{formatArea(measure.areaM2)}</dd>
+          </div>
+          {p.height !== undefined && (
+            <div>
+              <dt>Altura</dt>
+              <dd className="num">{dec.format(Number(p.height))} m</dd>
+            </div>
+          )}
+        </dl>
+      )}
+      {measure && isArea(feature) && (
         <>
           <dl className="widget-stats">
             <div>

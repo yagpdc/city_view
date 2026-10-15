@@ -88,7 +88,8 @@ Ordem pensada por encanto/esforço (ver [PRODUCT.md](PRODUCT.md)).
 - [x] Cartão no mapa ao clicar + "por perto" (Lugares em 200 m/500 m/1 km, por grupo e os mais próximos, distância geodésica)
 - [x] Anotações: traço livre, linha, área (livre, retângulo, círculo), texto e alfinete com nota; guardadas na aba, no link e em GeoJSON
 - [x] "O que tem dentro" de áreas desenhadas (contagem por camada e categoria, densidade)
-- [ ] Próximo nas anotações: alfinete com foto, imagem sobreposta pelos 4 cantos, pintar ruas e prédios, territórios, modo apresentação
+- [x] Alfinete com foto, imagem sobreposta pelos 4 cantos, pintar ruas e prédios com um clique
+- [ ] Próximo nas anotações: territórios, modo apresentação, fotos no link (quando houver espaço de trabalho)
 - [x] Link compartilhável com câmera, camadas, camadas da biblioteca (refeitas na fonte) e aparência
 - [ ] Link: filtros do dataset, seleção e maquete (visualização avançada)
 - [ ] Widgets do viewport (contagem, categorias, histograma)

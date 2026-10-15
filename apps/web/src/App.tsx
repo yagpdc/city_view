@@ -10,8 +10,11 @@ import { AgentFace } from "./components/Agents";
 import { AnnotationCard } from "./annotations/AnnotationCard";
 import { AnnotationEditor } from "./annotations/editor";
 import { AnnotationToolbar } from "./annotations/AnnotationToolbar";
-import { PIN_HIT_LAYER, labelsOverlay } from "./annotations/labels";
-import { TOOLS, agentOf, cleanAnnotations, kindLabel, type AnnotationFeature, type AnnotationTool } from "./annotations/model";
+import { PAINT_HIT_LAYERS, PHOTO_ICON_PREFIX, PIN_HIT_LAYER, labelsOverlay, paintOverlay } from "./annotations/labels";
+import { IMAGE_MODE, TOOLS, agentOf, cleanAnnotations, isImage, isPainted, kindLabel, toolGroup, type AnnotationFeature, type AnnotationTool } from "./annotations/model";
+import { paintAt } from "./annotations/paint";
+import { deletePhoto, photoMarker, photoUrl, putPhoto } from "./annotations/photos";
+import { PinNote } from "./annotations/PinNote";
 import { ViewportSummary, type ViewportWidget } from "./components/WidgetsPanel";
 import { FloatingWidget, type WidgetRect } from "./components/FloatingWidget";
 import { ColumnChartWidget, KpiWidget, NoteWidget, OpportunityWidget, PlaceWidget, RadiusWidget, RankingWidget, VisibleTableWidget, type PublicVariable, type WidgetLayer, type WidgetSettings } from "./components/MapWidgets";
@@ -237,6 +240,10 @@ export function App() {
   const drawToolRef = useRef(drawTool);
   drawToolRef.current = drawTool;
   const [drawColor, setDrawColor] = useState(TOOLS[0]!.color);
+  const drawColorRef = useRef(drawColor);
+  drawColorRef.current = drawColor;
+  /** Escolher a imagem para sobrepor (ferramenta Imagem). */
+  const imageInput = useRef<HTMLInputElement>(null);
   const [selectedAnnotation, setSelectedAnnotation] = useState<string | null>(null);
   /** Nota de um alfinete aberta com um clique (fora do modo de desenho). */
   const [pinNote, setPinNote] = useState<AnnotationFeature | null>(null);
@@ -615,7 +622,8 @@ export function App() {
     const editor = new AnnotationEditor(map.native, {
       onChange: (features) => {
         fromEditor.current = true;
-        setAnnotations(features);
+        // O editor não conhece ruas e prédios pintados (são do app): ficam como estavam.
+        setAnnotations((prev) => [...features, ...prev.filter(isPainted)]);
       },
       onSelect: (id) => setSelectedAnnotation(id),
       // Texto e alfinete: logo depois de pôr no mapa, abre o cartão para escrever.
@@ -646,10 +654,136 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawTool]);
   useEffect(() => editorRef.current?.setColor(drawColor), [drawColor]);
-  // Textos e rótulos por cima de tudo.
+  // Textos e rótulos por cima de tudo; ruas e prédios pintados abaixo dos rótulos do mapa base.
   useEffect(() => {
     map?.setOverlayData(labelsOverlay(annotationsHidden ? [] : annotations));
   }, [map, annotations, annotationsHidden]);
+  useEffect(() => {
+    map?.setOverlayData(paintOverlay(annotationsHidden ? [] : annotations, selectedAnnotation));
+  }, [map, annotations, annotationsHidden, selectedAnnotation]);
+  // Imagens sobrepostas: uma camada de imagem por anotação, abaixo dos dados, presa aos quatro cantos.
+  const imageLayers = useRef(new Map<string, { geom: string; opacity: number }>());
+  useEffect(() => {
+    if (!map) return;
+    const wanted = annotationsHidden ? [] : annotations.filter(isImage);
+    const keep = new Set<string>();
+    for (const f of wanted) {
+      const id = `cv-annot-img-${f.id}`;
+      const ring = f.geometry.type === "Polygon" ? f.geometry.coordinates[0] : undefined;
+      if (!ring || ring.length < 4 || !f.properties.photo) continue;
+      keep.add(id);
+      const corners = ring.slice(0, 4).map(([x, y]) => [x!, y!]) as [[number, number], [number, number], [number, number], [number, number]];
+      const geom = JSON.stringify([corners, f.properties.photo]);
+      const opacity = Number(f.properties.opacity ?? 0.85);
+      const current = imageLayers.current.get(id);
+      if (current?.geom === geom) {
+        // Só a transparência mudou: sem recriar a camada.
+        if (current.opacity !== opacity && map.native.getLayer(`${id}-layer`)) map.native.setPaintProperty(`${id}-layer`, "raster-opacity", opacity);
+        imageLayers.current.set(id, { geom, opacity });
+        continue;
+      }
+      imageLayers.current.set(id, { geom, opacity });
+      void photoUrl(f.properties.photo).then((url) => {
+        if (!url || imageLayers.current.get(id)?.geom !== geom) return;
+        map.setOverlay({
+          id,
+          under: true,
+          source: { type: "image", url, coordinates: corners },
+          layers: [{ id: `${id}-layer`, type: "raster", source: id, paint: { "raster-opacity": opacity, "raster-fade-duration": 0 } }],
+        });
+      });
+    }
+    for (const id of [...imageLayers.current.keys()]) {
+      if (keep.has(id)) continue;
+      imageLayers.current.delete(id);
+      map.removeOverlay(id);
+    }
+  }, [map, annotations, annotationsHidden]);
+  // Miniatura das fotos dos alfinetes: registrada no mapa quando a camada pede (e de novo após trocar o estilo).
+  useEffect(() => {
+    if (!map) return;
+    const native = map.native;
+    const onMissing = (e: { id: string }) => {
+      if (!e.id.startsWith(PHOTO_ICON_PREFIX)) return;
+      void photoMarker(e.id.slice(PHOTO_ICON_PREFIX.length)).then((img) => {
+        if (img && !native.hasImage(e.id)) native.addImage(e.id, img, { pixelRatio: 2 });
+      });
+    };
+    native.on("styleimagemissing", onMissing);
+    return () => {
+      native.off("styleimagemissing", onMissing);
+    };
+  }, [map]);
+  // Pintar (clique numa rua ou prédio) e escolher uma rua/prédio já pintado (pintar ou selecionar).
+  useEffect(() => {
+    if (!map) return;
+    const native = map.native;
+    const onClick = (e: { point: { x: number; y: number } }) => {
+      const tool = drawToolRef.current;
+      if (tool !== "paint" && tool !== "select") return;
+      const layers = PAINT_HIT_LAYERS.filter((id) => native.getLayer(id));
+      const hit = layers.length ? native.queryRenderedFeatures([e.point.x, e.point.y], { layers })[0] : undefined;
+      if (hit) {
+        const id = String(hit.properties.id);
+        // Depois do "desmarcar" do editor, que roda no mesmo clique.
+        window.setTimeout(() => setSelectedAnnotation(id), 0);
+        return;
+      }
+      if (tool !== "paint") return;
+      const painted = paintAt(native, e.point, drawColorRef.current);
+      if (!painted) {
+        setShareStatus("Clique bem em cima de uma rua ou de um prédio (aproxime o mapa para ver os prédios).");
+        return;
+      }
+      setAnnotations((prev) => [...prev, painted]);
+      window.setTimeout(() => setSelectedAnnotation(String(painted.id)), 0);
+    };
+    native.on("click", onClick);
+    return () => {
+      native.off("click", onClick);
+    };
+  }, [map]);
+  /** Muda uma anotação: as do editor pelo editor; ruas e prédios pintados aqui. */
+  const updateAnnotation = (f: AnnotationFeature, props: Record<string, string | undefined>) => {
+    if (isPainted(f)) setAnnotations((prev) => prev.map((a) => (a.id === f.id ? { ...a, properties: { ...a.properties, ...props } } : a)));
+    else editorRef.current?.update(f.id, props);
+  };
+  const removeAnnotation = (f: AnnotationFeature) => {
+    if (f.properties.photo) void deletePhoto(f.properties.photo);
+    if (isPainted(f)) {
+      setAnnotations((prev) => prev.filter((a) => a.id !== f.id));
+      setSelectedAnnotation(null);
+    } else editorRef.current?.remove(f.id);
+  };
+  /** Imagem escolhida: guarda neste navegador e põe no centro do mapa, já selecionada para encaixar pelos cantos. */
+  const placeImage = async (file: File) => {
+    if (!map) return;
+    const stored = await putPhoto(file);
+    const box = map.native.getContainer();
+    const W = box.clientWidth;
+    const H = box.clientHeight;
+    let w = W * 0.42;
+    let h = (w * stored.height) / stored.width;
+    if (h > H * 0.6) {
+      w *= (H * 0.6) / h;
+      h = H * 0.6;
+    }
+    const corner = (x: number, y: number) => {
+      const ll = map.native.unproject([x, y]);
+      return [ll.lng, ll.lat];
+    };
+    const tl = corner(W / 2 - w / 2, H / 2 - h / 2);
+    const ring = [tl, corner(W / 2 + w / 2, H / 2 - h / 2), corner(W / 2 + w / 2, H / 2 + h / 2), corner(W / 2 - w / 2, H / 2 + h / 2), tl];
+    const feature: AnnotationFeature = {
+      type: "Feature",
+      id: crypto.randomUUID(),
+      geometry: { type: "Polygon", coordinates: [ring] },
+      properties: { mode: IMAGE_MODE, kind: "image", photo: stored.id, opacity: "0.85", color: "#8b7cf6", tool: "image" },
+    };
+    setAnnotationsHidden(false);
+    setDrawTool("select");
+    window.setTimeout(() => editorRef.current?.add(feature), 60);
+  };
   // Nota do alfinete no cartão do mapa.
   useEffect(() => {
     if (!map || !pinNote) return;
@@ -660,10 +794,9 @@ export function App() {
     setAnnotationsHidden(false);
     setPick(null);
     setPinNote(null);
-    // Cada personagem desenha na sua cor (dá para trocar na barra).
-    const area = tool === "rectangle" || tool === "circle";
-    const def = TOOLS.find((t) => t.tool === tool || (area && t.tool === "polygon"));
-    if (def && !(area && (drawTool === "polygon" || drawTool === "rectangle" || drawTool === "circle"))) setDrawColor(def.color);
+    // Cada personagem desenha na sua cor (dá para trocar na barra); trocar de formato não troca a cor.
+    const def = toolGroup(tool);
+    if (def && toolGroup(drawTool)?.tool !== def.tool) setDrawColor(def.color);
     if (tool !== "select") setSelectedAnnotation(null);
     setDrawTool(tool);
   };
@@ -1933,9 +2066,10 @@ export function App() {
               onTool={chooseTool}
               onColor={(hex) => {
                 setDrawColor(hex);
-                if (selectedAnnotation) editorRef.current?.update(selectedAnnotation, { color: hex });
+                if (selectedFeature) updateAnnotation(selectedFeature, { color: hex });
               }}
               onUndo={() => editorRef.current?.undo()}
+              onImage={() => imageInput.current?.click()}
               onClose={closeDrawing}
             />
           )}
@@ -1945,8 +2079,8 @@ export function App() {
               map={map}
               feature={selectedFeature}
               layers={widgetLayers.map((l) => ({ id: l.id, name: l.name, info: l.info }))}
-              onUpdate={(props) => editorRef.current?.update(selectedFeature.id, props)}
-              onDelete={() => editorRef.current?.remove(selectedFeature.id)}
+              onUpdate={(props) => updateAnnotation(selectedFeature, props)}
+              onDelete={() => removeAnnotation(selectedFeature)}
               onClose={() => {
                 editorRef.current?.deselectAll();
                 setSelectedAnnotation(null);
@@ -1956,25 +2090,15 @@ export function App() {
           {map &&
             pinNote &&
             createPortal(
-              <div className="pin-note">
-                <header>
-                  <AgentFace kind="pino" size={30} />
-                  <b>{pinNote.properties.label?.trim() || "Alfinete"}</b>
-                </header>
-                {pinNote.properties.note?.trim() ? <p>{pinNote.properties.note}</p> : <p className="muted">Sem nota.</p>}
-                <button
-                  type="button"
-                  className="btn btn-sm"
-                  onClick={() => {
-                    const f = pinNote;
-                    setPinNote(null);
-                    map.hidePopup();
-                    focusAnnotation(f);
-                  }}
-                >
-                  Editar
-                </button>
-              </div>,
+              <PinNote
+                feature={pinNote}
+                onEdit={() => {
+                  const f = pinNote;
+                  setPinNote(null);
+                  map.hidePopup();
+                  focusAnnotation(f);
+                }}
+              />,
               pinEl,
             )}
           {/* Indicadores do lugar: marca o centro do mapa, de onde vêm os números. */}
@@ -2101,6 +2225,17 @@ export function App() {
 
       {libraryOpen && <LibraryPanel onClose={() => setLibraryOpen(false)} onAddLayer={addLibraryLayer} />}
 
+      <input
+        ref={imageInput}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        hidden
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          if (file) void placeImage(file);
+        }}
+      />
       <input
         ref={reopenInput}
         type="file"
