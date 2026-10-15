@@ -1,6 +1,6 @@
 # ADR 0005 — Identidade arredondada e pastel, com mundos de cor e personagens-agente
 
-**Data:** 2026-10-15 · **Estado:** aceito
+**Data:** 2026-10-15 · **Estado:** aceito (revisado no mesmo dia: uma cor só na plataforma, item 2)
 
 ## Contexto
 
@@ -28,6 +28,14 @@ já conversar com essa linguagem. Prancha aprovada: https://claude.ai/artifact/T
    (`BRAND_DATA_LIGHT` em `packages/engine/src/style.ts`).
 6. **Movimento na medida:** gavetas e widgets abrem com um quique leve (`--cv-spring`), desligado com
    `prefers-reduced-motion`.
+
+## Revisão (2026-10-15)
+
+Vendo no ar, o lilás com azul ficou bom e a variedade por área ficou colorida demais. **A plataforma tem uma cor
+só, o lilás da marca** (fundo `#E9E4FF`, destaque `#8B7CF6`, tinta `#4B3FB5`), em todas as gavetas, widgets e
+botões ativos, sobre neutros quentes e tinta escura. O selo "Público" ficou neutro; "Seu dado", lilás. As cores
+menta, pêssego, céu, limão e rosa são **dos personagens**; não pintam a interface. Estados (sucesso, atenção,
+erro) só para mensagens.
 
 ## Consequências
 

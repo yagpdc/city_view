@@ -31,7 +31,7 @@ export function FloatingWidget({
   onClose,
   onFocus,
   z,
-  world = "peach",
+  world = "lilac",
   children,
 }: {
   title: string;
@@ -43,7 +43,7 @@ export function FloatingWidget({
   onFocus?: () => void;
   /** Ordem de empilhamento entre os widgets (maior = na frente). */
   z?: number;
-  /** Mundo de cor da moldura (docs/DESIGN.md): análise é pêssego; agentes, limão. */
+  /** Mundo de cor da moldura (docs/DESIGN.md): o lilás da plataforma; outro só para algo de agente. */
   world?: "lilac" | "mint" | "peach" | "sky" | "lemon" | "pink";
   children: ReactNode;
 }) {

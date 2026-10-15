@@ -7,16 +7,16 @@ Biblioteca visual completa (pranchetas, estados, claro/escuro): https://claude.a
 Prancha aprovada: https://claude.ai/artifact/TmPnN6hJEeiYaaFp4MdFCN. **Arredondada, pastel, minimalista** — e sério nos dados.
 
 - **Base:** chão `#F6F5F1`, superfície `#FFFFFF`, borda `#E9E6DF`, texto suave `#6B6A72`, tinta `#1D1E24` (texto e botão principal, em pílula). Destaque `--cv-accent` lilás `#8B7CF6`.
-- **Mundos de cor** (fundo · personagem · tinta), um por área, nas gavetas, no botão redondo ativo e no que se abre a partir delas (`.world-*` define `--world-bg/fill/ink`):
+- **Uma cor só na plataforma: o lilás da marca** — fundo `#E9E4FF`, personagem/destaque `#B9AEFF` e `#8B7CF6`, tinta `#4B3FB5`. Todas as gavetas, widgets e botões ativos usam esse mundo (`.world-lilac`, `--world-bg/fill/ink`). Selo "Público" neutro, "Seu dado" lilás. Estados (sucesso/atenção/erro) só em mensagens.
+- **Cores dos personagens** (não pintam a interface):
 
-| Mundo | Área | Fundo | Personagem | Tinta |
-|---|---|---|---|---|
-| Lilás | Camadas, marca | `#E9E4FF` | `#B9AEFF` | `#4B3FB5` |
-| Menta | Adicionar, biblioteca | `#DDF4E8` | `#9BE0BE` | `#1F7A52` |
-| Pêssego | Widgets, análise | `#FFE7D6` | `#FFC09A` | `#A4501E` |
-| Céu | Detalhes, lugar | `#DDEEFF` | `#A8D1FF` | `#2463A8` |
-| Limão | Agentes, IA | `#FFF4C7` | `#FFE07A` | `#7A5D00` |
-| Rosa | Ajustes, compartilhar | `#FFE3EE` | `#FFB3CF` | `#A8336A` |
+| Personagem | Corpo | Fundo quando precisa |
+|---|---|---|
+| Pino (lilás) | `#B9AEFF` | `#E9E4FF` |
+| Hexa (menta) | `#9BE0BE` | `#DDF4E8` |
+| Bolha (pêssego) | `#FFC09A` | `#FFE7D6` |
+| Quadra (céu) | `#A8D1FF` | `#DDEEFF` |
+| Lume (limão) | `#FFE07A` | `#FFF4C7` |
 
 - **Nunca no mapa:** a cor do mapa é dos dados (paleta de categorias abaixo).
 - **Personagens** (`components/Agents.tsx`, `AgentFace`): Pino (alfinete, explorador), Hexa (hexágono, analista), Bolha (arrumadeira), Quadra (cartógrafa), Lume (vigia); humores neutro, pensando, feliz, alerta. Rosto só em agentes, vazios, carregamentos e na marca.

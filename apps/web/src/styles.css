@@ -600,7 +600,8 @@ a { color: var(--cv-link); }
   line-height: 16px;
   vertical-align: 1px;
 }
-.origin-public { background: var(--cv-info-bg); color: var(--cv-info); }
+/* Poucas cores: público em neutro, seu dado no lilás da marca. */
+.origin-public { background: var(--cv-surface-press); color: var(--cv-text); }
 .origin-user { background: var(--cv-action-subtle); color: var(--cv-action-subtle-text); }
 .origin-sample { background: var(--cv-surface-press); color: var(--cv-text-muted); }
 .panel-intro { margin: 0 4px 4px; font-size: 13px; line-height: 18px; color: var(--cv-text-muted); }
@@ -1095,8 +1096,8 @@ a { color: var(--cv-link); }
 .widget-ranking-value { flex: none; font-size: 13px; font-weight: 600; }
 .widget-gap { font-size: 12px; }
 .widget-gap-badge { flex: none; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; }
-.widget-gap-badge.is-missing { background: var(--cv-warning-bg); color: var(--cv-warning); }
-.widget-gap-badge.is-extra { background: var(--cv-success-bg); color: var(--cv-success); }
+.widget-gap-badge.is-missing { background: var(--cv-lilac-bg); color: var(--cv-lilac-ink); }
+.widget-gap-badge.is-extra { background: var(--cv-surface-press); color: var(--cv-text); }
 
 /* Número em destaque */
 .widget-kpi { display: flex; flex-direction: column; gap: 2px; padding: 8px 0; }
@@ -1113,6 +1114,7 @@ a { color: var(--cv-link); }
  * Identidade (ADR 0005): arredondada, pastel, minimalista. Cada área tem o seu mundo de cor (--world-*),
  * títulos em Bricolage Grotesque, botões em pílula, botão principal em tinta. O mapa e os dados não mudam.
  * ===================================================================================================== */
+/* A interface usa só .world-lilac; as outras ficam prontas para algo de agente (ADR 0005, revisão). */
 .world-lilac { --world-bg: var(--cv-lilac-bg); --world-fill: var(--cv-lilac-fill); --world-ink: var(--cv-lilac-ink); }
 .world-mint { --world-bg: var(--cv-mint-bg); --world-fill: var(--cv-mint-fill); --world-ink: var(--cv-mint-ink); }
 .world-peach { --world-bg: var(--cv-peach-bg); --world-fill: var(--cv-peach-fill); --world-ink: var(--cv-peach-ink); }

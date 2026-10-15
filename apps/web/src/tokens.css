@@ -61,8 +61,8 @@
   --cv-map-point-ring: #ffffff;
 
   /*
-   * Mundos de cor: cada área do app tem o seu (fundo, personagem/destaque, tinta para texto).
-   * Nunca no mapa: lá a cor é dos dados.
+   * Paleta da plataforma: neutros quentes + o lilás da marca (lilac-*). As outras cores são dos personagens
+   * (components/Agents.tsx) e não pintam a interface. Nunca no mapa: lá a cor é dos dados.
    */
   --cv-lilac-bg: #e9e4ff;
   --cv-lilac-fill: #b9aeff;

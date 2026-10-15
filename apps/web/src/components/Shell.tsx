@@ -4,13 +4,16 @@ import { Icon, type IconName } from "./Icon";
 /** Painéis do trilho à esquerda: uma tarefa por vez (docs/DESIGN.md · Estrutura). */
 export type PanelId = "layers" | "add" | "details" | "settings" | "widgets";
 
-/** Mundo de cor de cada área (gaveta, botão redondo ativo e o que se abre a partir dela). */
-export const PANEL_WORLD: Record<PanelId, "lilac" | "mint" | "peach" | "sky" | "pink"> = {
+/**
+ * Cor de cada área. A plataforma tem uma cor só, o lilás da marca (2026-10-15): todas as gavetas usam o mesmo
+ * mundo; as outras cores ficam para os personagens. Mantido por área para um dia diferenciar sem mexer no resto.
+ */
+export const PANEL_WORLD: Record<PanelId, "lilac"> = {
   layers: "lilac",
-  add: "mint",
-  details: "sky",
-  widgets: "peach",
-  settings: "pink",
+  add: "lilac",
+  details: "lilac",
+  widgets: "lilac",
+  settings: "lilac",
 };
 
 const RAIL: { id: PanelId; label: string; icon: IconName }[] = [
