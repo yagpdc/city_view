@@ -67,8 +67,21 @@ export class AnnotationEditor {
   setTool(tool: AnnotationTool, color?: string): void {
     this.tool = tool;
     if (color) this.color = color;
+    this.lockMap();
     if (!this.draw) return;
     this.draw.setMode(tool === "off" ? "static" : TOOL_MODE[tool]);
+  }
+
+  /**
+   * Com uma ferramenta de desenho na mão, arrastar desenha: o mapa não se move (nem gira, nem aproxima no duplo
+   * clique, que termina a linha). A rodinha continua aproximando. Selecionar e "off" devolvem o mapa.
+   */
+  private lockMap(): void {
+    const drawing = this.tool !== "off" && this.tool !== "select";
+    for (const handler of [this.map.dragPan, this.map.dragRotate, this.map.doubleClickZoom]) {
+      if (drawing) handler.disable();
+      else handler.enable();
+    }
   }
 
   setColor(color: string): void {
@@ -111,6 +124,8 @@ export class AnnotationEditor {
   destroy(): void {
     this.map.off("style.load", this.restart);
     window.clearTimeout(this.emitTimer);
+    this.tool = "off";
+    this.lockMap();
     this.draw?.stop();
     this.draw = null;
   }
@@ -181,8 +196,9 @@ export class AnnotationEditor {
         new TerraDrawFreehandLineStringMode({ styles: line, drawInteraction: "click-move-or-drag" }),
         new TerraDrawLineStringMode({ styles: line }),
         new TerraDrawPolygonMode({ styles: { ...area, closingPointColor: "#ffffff", closingPointOutlineColor: colorOf, closingPointWidth: 5, closingPointOutlineWidth: 2.5 } }),
-        new TerraDrawRectangleMode({ styles: area }),
-        new TerraDrawCircleMode({ styles: area }),
+        // Retângulo e círculo: arrastar de um canto ao outro (ou clicar e clicar).
+        new TerraDrawRectangleMode({ styles: area, drawInteraction: "click-move-or-drag" }),
+        new TerraDrawCircleMode({ styles: area, drawInteraction: "click-move-or-drag" }),
         new TerraDrawPointMode({
           styles: {
             // Texto: o ponto quase some (quem aparece é o texto, desenhado pelo app); alfinete: pastilha com anel.

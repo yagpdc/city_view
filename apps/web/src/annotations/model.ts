@@ -35,7 +35,7 @@ export const ANNOTATION_COLORS: { id: string; label: string; hex: string }[] = [
 export const TOOLS: { tool: Exclude<AnnotationTool, "off" | "select" | "rectangle" | "circle">; agent: AgentKind; label: string; hint: string; color: string }[] = [
   { tool: "freehand", agent: "bolha", label: "Traço livre", hint: "desenha à mão: segure e arraste, ou clique para começar e clique para terminar.", color: "#ee7a37" },
   { tool: "line", agent: "hexa", label: "Linha", hint: "traça rotas: clique ponto a ponto, duplo clique para terminar.", color: "#2fae76" },
-  { tool: "polygon", agent: "quadra", label: "Área", hint: "marca áreas e já conta o que tem dentro.", color: "#3d8fe0" },
+  { tool: "polygon", agent: "quadra", label: "Área", hint: "marca áreas e já conta o que tem dentro. Livre: clique ponto a ponto; retângulo e círculo: arraste.", color: "#3d8fe0" },
   { tool: "text", agent: "lume", label: "Texto", hint: "escreve no mapa: clique onde quer o texto.", color: "#1d1e24" },
   { tool: "pin", agent: "pino", label: "Alfinete", hint: "marca um lugar com uma nota.", color: "#8b7cf6" },
 ];
@@ -88,5 +88,12 @@ export function kindLabel(f: AnnotationFeature): string {
 
 /** Tira o que é do editor e não da pessoa (alças de seleção, pontos do meio) de uma lista de feições. */
 export function cleanAnnotations<T extends { properties: Record<string, unknown> | null }>(features: T[]): T[] {
-  return features.filter((f) => f.properties && f.properties.mode !== "select" && !f.properties.selectionPoint && !f.properties.midPoint);
+  return features.filter((f) => {
+    const p = f.properties;
+    if (!p || p.mode === "select" || p.selectionPoint || p.midPoint) return false;
+    // Ponto só é anotação quando é alfinete ou texto (modo "point"); os outros são marcadores internos do editor
+    // (início do traço livre, ponto em edição).
+    const geometry = (f as { geometry?: { type?: string } }).geometry;
+    return geometry?.type !== "Point" || p.mode === "point";
+  });
 }
