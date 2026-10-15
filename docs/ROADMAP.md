@@ -1,4 +1,4 @@
-# City View — Roadmap (24+ meses)
+# Pinny — Roadmap (24+ meses)
 
 > Documento vivo. Cada fase termina com algo **usável** rodando localmente.
 > Visão de produto e jornada do usuário: [PRODUCT.md](PRODUCT.md).

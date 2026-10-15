@@ -48,7 +48,7 @@ export const TOOLS: ToolDef[] = [
   { tool: "polygon", agent: "hexa", label: "Área", hint: "marca áreas e já conta o que tem dentro. Livre: clique ponto a ponto; retângulo e círculo: arraste.", color: "#2fae76" },
   { tool: "paint", agent: "quadra", label: "Pintar", hint: "pinta ruas e prédios: clique numa rua (pinta ela inteira, no que está na tela) ou num prédio.", color: "#e45d93" },
   { tool: "text", agent: "lume", label: "Texto", hint: "escreve no mapa: clique onde quer o texto.", color: "#1d1e24" },
-  { tool: "pin", agent: "pino", label: "Alfinete", hint: "marca um lugar com nota e foto.", color: "#8b7cf6" },
+  { tool: "pin", agent: "pinny", label: "Alfinete", hint: "marca um lugar com nota e foto.", color: "#8b7cf6" },
 ];
 
 /** A que ferramenta da doca pertence cada ferramenta (traço reto é da Bolha; retângulo e círculo, da Hexa). */
@@ -107,7 +107,7 @@ export const isArea = (f: AnnotationFeature) => f.geometry.type === "Polygon" &&
 export function agentOf(f: AnnotationFeature): AgentKind {
   const k = f.properties.kind;
   if (k === "text") return "lume";
-  if (k === "pin" || k === "image") return "pino";
+  if (k === "pin" || k === "image") return "pinny";
   if (k === "paint") return "quadra";
   if (f.geometry.type === "Polygon") return "hexa";
   return "bolha";

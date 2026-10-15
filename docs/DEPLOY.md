@@ -1,4 +1,4 @@
-# Pôr o City View no ar
+# Pôr o Pinny no ar
 
 Uma VM Linux só (Ubuntu 24.04, ARM ou x86) entrega o site, a demo do SDK e os tiles públicos.
 **Arquivos do usuário não vão para o servidor**: são processados no navegador ([ADR 0002](adr/0002-dados-do-usuario-so-no-navegador.md)),

@@ -2013,8 +2013,8 @@ export function App() {
 
       <div className="app-strip">
         <span className="brand">
-          <AgentFace kind="pino" size={26} />
-          City View
+          <AgentFace kind="pinny" size={26} />
+          Pinny
         </span>
         <MapTabs tabs={tabs} current={currentTab} onSelect={(id) => switchTab(id)} onNew={newTab} onClose={closeTab} onRename={renameTab} onMove={moveTab} onDuplicate={duplicateTab} onCloseOthers={closeOtherTabs} />
       </div>

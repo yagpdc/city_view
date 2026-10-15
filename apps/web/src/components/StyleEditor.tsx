@@ -239,7 +239,7 @@ export function StyleEditor({
       onChange(next);
       setNote(missing.length ? `Aplicado. Esta camada não tem ${missing.map((m) => `"${m}"`).join(", ")}: essa parte ficou de fora.` : "Estilo aplicado. Salve para manter.");
     } catch {
-      setNote("Esse arquivo não é um estilo do City View.");
+      setNote("Esse arquivo não é um estilo do Pinny.");
     }
   };
 

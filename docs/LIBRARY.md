@@ -1,6 +1,6 @@
 # Biblioteca de dados
 
-A City View não produz nem hospeda dados de terceiros. A **biblioteca** é um índice pesquisável de fontes públicas: o usuário encontra uma tabela/série, baixa direto da fonte oficial ou coloca no mapa — o dado vai da fonte para o navegador, sem passar por nós.
+A Pinny não produz nem hospeda dados de terceiros. A **biblioteca** é um índice pesquisável de fontes públicas: o usuário encontra uma tabela/série, baixa direto da fonte oficial ou coloca no mapa — o dado vai da fonte para o navegador, sem passar por nós.
 
 Começa pelo Brasil e foi desenhada para crescer para qualquer fonte e país.
 

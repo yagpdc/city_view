@@ -1,4 +1,4 @@
-# Design system — City View
+# Design system — Pinny
 
 Biblioteca visual completa (pranchetas, estados, claro/escuro): https://claude.ai/artifact/NdEzL6qSo6r4uS2jUewFPH
 
@@ -12,15 +12,15 @@ Prancha aprovada: https://claude.ai/artifact/TmPnN6hJEeiYaaFp4MdFCN. **Arredonda
 
 | Personagem | Corpo | Fundo quando precisa |
 |---|---|---|
-| Pino (lilás) | `#B9AEFF` | `#E9E4FF` |
+| Pinny (lilás) | `#B9AEFF` | `#E9E4FF` |
 | Hexa (menta) | `#9BE0BE` | `#DDF4E8` |
 | Bolha (pêssego) | `#FFC09A` | `#FFE7D6` |
 | Quadra (céu) | `#A8D1FF` | `#DDEEFF` |
 | Lume (limão) | `#FFE07A` | `#FFF4C7` |
 
 - **Nunca no mapa:** a cor do mapa é dos dados (paleta de categorias abaixo).
-- **Personagens** (`components/Agents.tsx`, `AgentFace`): Pino (alfinete, explorador), Hexa (hexágono, analista), Bolha (arrumadeira), Quadra (cartógrafa), Lume (vigia); humores neutro, pensando, feliz, alerta. Rosto só em agentes, vazios, carregamentos e na marca.
-- **Personagens como ferramentas:** na doca de anotações cada personagem opera uma ferramenta (Bolha traço, Hexa área que calcula, Quadra pinta ruas e prédios, Lume texto, Pino alfinete com foto; Selecionar e Imagem são utilitários sem personagem); o ativo fica feliz, sobe um pouco e "fala" a dica num balão lilás. O que ele desenha sai na cor dele (dá para trocar).
+- **Personagens** (`components/Agents.tsx`, `AgentFace`): Pinny (alfinete, explorador), Hexa (hexágono, analista), Bolha (arrumadeira), Quadra (cartógrafa), Lume (vigia); humores neutro, pensando, feliz, alerta. Rosto só em agentes, vazios, carregamentos e na marca.
+- **Personagens como ferramentas:** na doca de anotações cada personagem opera uma ferramenta (Bolha traço, Hexa área que calcula, Quadra pinta ruas e prédios, Lume texto, Pinny alfinete com foto; Selecionar e Imagem são utilitários sem personagem); o ativo fica feliz, sobe um pouco e "fala" a dica num balão lilás. O que ele desenha sai na cor dele (dá para trocar).
 - **Tipografia:** títulos em Bricolage Grotesque 700 (`--cv-font-display`), interface Figtree, números DM Mono.
 - **Forma:** cantos 6/10/14/20/26 e pílula; nada quadrado. Gaveta = fundo do mundo + cartões brancos. Widget = moldura no mundo + miolo branco.
 - **Movimento:** abrir gaveta e widget com quique leve (`--cv-spring`, 260–280 ms); nada com `prefers-reduced-motion`.

@@ -19,7 +19,7 @@ export function PinNote({ feature, onEdit }: { feature: AnnotationFeature; onEdi
     <div className={`pin-note ${url ? "has-photo" : ""}`}>
       {url && <img className="pin-note-photo" src={url} alt="" />}
       <header>
-        <AgentFace kind="pino" size={30} />
+        <AgentFace kind="pinny" size={30} />
         <b>{label?.trim() || "Alfinete"}</b>
       </header>
       {note?.trim() ? <p>{note}</p> : <p className="muted">Sem nota.</p>}

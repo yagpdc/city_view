@@ -1,5 +1,5 @@
 /**
- * @cityview/sdk — o mapa da City View para embutir no seu produto.
+ * @cityview/sdk — o mapa do Pinny para embutir no seu produto.
  *
  * ```ts
  * import CityView from "@cityview/sdk";
@@ -14,7 +14,7 @@ export type Theme = "light" | "dark";
 export interface MapOptions {
   /** Elemento (ou seletor CSS) onde o mapa será desenhado. Ele deve ter altura definida. */
   container: HTMLElement | string;
-  /** URL do dataset processado pela City View. */
+  /** URL do dataset processado pelo Pinny. */
   dataset: string;
   /** URL do mapa base. Padrão: mapa base servido junto (provisório até termos CDN). */
   basemap?: string;

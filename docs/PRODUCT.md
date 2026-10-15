@@ -3,7 +3,7 @@
 > O cliente sobe os dados dele e eles aparecem dentro de um Brasil já cheio de contexto.
 > A análise nasce do cruzamento.
 
-A City View centraliza o que vem de fora (dados do cliente, APIs, fontes públicas) e deixa fácil analisar tudo junto no mapa. O SDK leva essa mesma experiência para dentro do produto do cliente.
+A Pinny centraliza o que vem de fora (dados do cliente, APIs, fontes públicas) e deixa fácil analisar tudo junto no mapa. O SDK leva essa mesma experiência para dentro do produto do cliente.
 
 ## A jornada que precisa encantar
 

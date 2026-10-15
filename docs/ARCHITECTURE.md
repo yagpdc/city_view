@@ -5,7 +5,7 @@ Decisões podem ser revistas via ADR em `docs/adr/`.
 ## Visão geral
 
 ```
- Empresa cliente                         City View
+ Empresa cliente                         Pinny
  ───────────────                         ─────────────────────────────────────────────
  dados (CSV/Parquet) ──upload/API──▶  crates/tiler (Rust)
                                         ├─ lê e valida (Parquet/CSV)
@@ -55,7 +55,7 @@ Decisões podem ser revistas via ADR em `docs/adr/`.
 
 ## Recursos gratuitos que reaproveitamos
 
-A City View não produz nem vende dados. Usamos dados abertos como **referência visual** (mapa base, relevo) e mantemos um **catálogo de fontes** (datapacks) que o usuário pode baixar e aplicar no próprio mapa — ex.: IBGE (malhas, censo), Receita Federal (CNPJs), OSM, Overture. Cada item do catálogo traz conector, licença e receita de importação; o dado importado passa a ser do usuário.
+A Pinny não produz nem vende dados. Usamos dados abertos como **referência visual** (mapa base, relevo) e mantemos um **catálogo de fontes** (datapacks) que o usuário pode baixar e aplicar no próprio mapa — ex.: IBGE (malhas, censo), Receita Federal (CNPJs), OSM, Overture. Cada item do catálogo traz conector, licença e receita de importação; o dado importado passa a ser do usuário.
 
 - **Mapa base:** Protomaps (OSM, ODbL) em PMTiles + estilos/fontes
 - **Relevo:** Terrarium (AWS Open Data), Copernicus DEM

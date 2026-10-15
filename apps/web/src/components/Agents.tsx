@@ -4,11 +4,11 @@
  * dado, número e mapa nunca ganham carinha.
  */
 
-export type AgentKind = "pino" | "hexa" | "bolha" | "quadra" | "lume";
+export type AgentKind = "pinny" | "hexa" | "bolha" | "quadra" | "lume";
 export type AgentMood = "neutral" | "thinking" | "happy" | "alert";
 
 export const AGENTS: Record<AgentKind, { name: string; role: string; fill: string }> = {
-  pino: { name: "Pino", role: "Explorador: acha lugares e registros", fill: "var(--cv-lilac-fill)" },
+  pinny: { name: "Pinny", role: "Explorador: acha lugares e registros", fill: "var(--cv-lilac-fill)" },
   hexa: { name: "Hexa", role: "Analista: conta, compara e ranqueia", fill: "var(--cv-mint-fill)" },
   bolha: { name: "Bolha", role: "Arrumadeira: limpa e junta planilhas", fill: "var(--cv-peach-fill)" },
   quadra: { name: "Quadra", role: "Cartógrafa: monta o mapa e o estilo", fill: "var(--cv-sky-fill)" },
@@ -53,7 +53,7 @@ export function AgentFace({ kind, mood = "neutral", size = 48, label }: { kind: 
   const a11y = label ? { role: "img", "aria-label": label } : { "aria-hidden": true as const };
   return (
     <svg width={size} height={size} viewBox="0 0 96 96" className={`agent-face agent-${kind}`} {...a11y}>
-      {kind === "pino" && (
+      {kind === "pinny" && (
         <>
           <path d="M48 8C70 8 84 24 84 44C84 66 60 84 48 92C36 84 12 66 12 44C12 24 26 8 48 8Z" fill={fill} />
           <circle cx="30" cy="26" r="5" fill="#fff" opacity="0.5" />

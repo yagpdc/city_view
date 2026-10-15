@@ -4,7 +4,7 @@ import { ANNOTATION_COLORS, AREA_SHAPES, LINE_SHAPES, TOOLS, toolGroup, type Ann
 
 /**
  * Doca de anotações: cada ferramenta é um personagem da turma (Bolha traço, Hexa área, Quadra pinta ruas e prédios,
- * Lume texto, Pino alfinete com foto). O ativo fica feliz e fala a dica num balão. Selecionar e Imagem são
+ * Lume texto, Pinny alfinete com foto). O ativo fica feliz e fala a dica num balão. Selecionar e Imagem são
  * utilitários, sem personagem.
  */
 export function AnnotationToolbar({

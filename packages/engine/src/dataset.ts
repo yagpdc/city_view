@@ -89,7 +89,7 @@ export type DatasetPick =
       name?: string;
     };
 
-/** Paleta de dados City View (docs/DESIGN.md): todas ≥ 3:1 sobre o mapa claro e o escuro. */
+/** Paleta de dados Pinny (docs/DESIGN.md): todas ≥ 3:1 sobre o mapa claro e o escuro. */
 export const CATEGORY_COLORS = [
   "#2f6fd6",
   "#e8590c",

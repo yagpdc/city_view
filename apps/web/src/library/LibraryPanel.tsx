@@ -181,7 +181,7 @@ export function LibraryPanel({ onClose, onAddLayer }: { onClose: () => void; onA
         <div className="wizard-body">
           <p className="wizard-lead muted">
             {int.format(total)} tabelas e séries de {LIBRARY_SOURCES.length} fontes públicas. Baixe direto da fonte oficial ou coloque no
-            mapa — o dado vem da fonte para o seu navegador; a City View não hospeda nada.
+            mapa — o dado vem da fonte para o seu navegador; o Pinny não hospeda nada.
           </p>
           <div className="library-sources" role="radiogroup" aria-label="Fonte">
             <button

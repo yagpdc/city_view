@@ -1,5 +1,5 @@
 /*
- * Tokens do design system City View (fonte: docs/DESIGN.md, ADR 0005).
+ * Tokens do design system Pinny (fonte: docs/DESIGN.md, ADR 0005).
  * Marca: arredondada, pastel, minimalista; tinta escura nos botões; cada área do app com o seu "mundo" de cor.
  * Componentes usam só --cv-*; o tema escuro troca os valores em .theme-dark.
  */

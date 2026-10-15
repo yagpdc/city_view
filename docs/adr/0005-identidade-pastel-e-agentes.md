@@ -19,7 +19,7 @@ já conversar com essa linguagem. Prancha aprovada: https://claude.ai/artifact/T
    a cor de destaque dele. O que abre a partir de uma gaveta herda o mundo dela. **Nunca no mapa**: lá a
    cor é dos dados (paleta de categorias inalterada).
 3. **Formas que lembram o mapa:** cantos generosos (10–26 px, pílulas), e uma turma de personagens-agente
-   (`components/Agents.tsx`): Pino (alfinete, explorador), Hexa (hexágono, analista), Bolha (arrumadeira),
+   (`components/Agents.tsx`): Pinny (alfinete, explorador), Hexa (hexágono, analista), Bolha (arrumadeira),
    Quadra (quadra com bandeirinha, cartógrafa), Lume (sol, vigia). Rosto só em agentes, vazios,
    carregamentos e na marca; dado, número e mapa nunca ganham carinha.
 4. **Tipografia:** Bricolage Grotesque nos títulos, Figtree na interface, DM Mono nos números. Todas OFL,

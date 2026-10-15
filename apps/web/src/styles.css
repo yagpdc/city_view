@@ -502,7 +502,7 @@ input[type="range"] { accent-color: var(--cv-action); }
 .map-area { flex: 1; position: relative; min-width: 0; }
 .map { position: absolute; inset: 0; }
 
-/* Controles do MapLibre no padrão City View: botões de 44 px, sombra nível 2 */
+/* Controles do MapLibre no padrão Pinny: botões de 44 px, sombra nível 2 */
 .maplibregl-ctrl-top-right { margin: var(--cv-space-3) var(--cv-space-3) 0 0; }
 .maplibregl-ctrl-top-right .maplibregl-ctrl { margin: 0 0 var(--cv-space-3) 0; }
 .maplibregl-ctrl-group:not(:empty) {
@@ -1125,7 +1125,7 @@ a { color: var(--cv-link); }
 
 body, .app { background: var(--cv-surface); }
 
-/* Marca na faixa do topo: o Pino + nome em Bricolage */
+/* Marca na faixa do topo: o Pinny + nome em Bricolage */
 .app-strip { background: var(--cv-surface); border-bottom: 0; }
 .app-strip .brand { gap: 8px; font-family: var(--cv-font-display); font-size: 17px; font-weight: 700; letter-spacing: -0.02em; }
 .app-strip .brand .agent-face { flex: none; }

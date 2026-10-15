@@ -95,7 +95,7 @@ function LayerSelect({ layers, value, onChange }: { layers: WidgetLayer[]; value
 }
 
 /** Quem da turma aparece no vazio de cada widget (o agente que faria aquele trabalho). */
-const EMPTY_AGENT: Partial<Record<IconName, AgentKind>> = { chart: "hexa", ranking: "hexa", sigma: "hexa", idea: "pino", target: "pino", table: "bolha", landmark: "quadra" };
+const EMPTY_AGENT: Partial<Record<IconName, AgentKind>> = { chart: "hexa", ranking: "hexa", sigma: "hexa", idea: "pinny", target: "pinny", table: "bolha", landmark: "quadra" };
 
 /** Estado vazio comum: o agente da tarefa (pensando), título e o que fazer. */
 function WidgetEmpty({ icon, title, children }: { icon: IconName; title: string; children: ReactNode }) {
