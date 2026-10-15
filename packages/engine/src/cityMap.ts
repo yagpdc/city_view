@@ -368,6 +368,11 @@ export class CityMap {
     return d.columnRange(column);
   }
 
+  /** Contagem por região do arquivo inteiro: nível ("uf", "mun") → código → [total, c0, c1…]; null se não tem. */
+  datasetRegions(id: string): Record<string, Record<string, number[]>> | null {
+    return this.datasets.find((d) => d.id === id)?.meta.regions ?? null;
+  }
+
   /** O arquivo tem contagem por região? */
   datasetHasRegions(id: string): boolean {
     return this.datasets.find((d) => d.id === id)?.hasRegions ?? false;

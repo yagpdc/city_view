@@ -42,6 +42,45 @@ function loadMunicipios(): Promise<Municipio[]> {
   return municipios;
 }
 
+/** Uma região do IBGE para listas e rankings: nome, UF, população, área e o retângulo para enquadrar. */
+export interface RegionInfo {
+  code: string;
+  name: string;
+  uf: string;
+  population: number;
+  areaKm2: number;
+  bounds: Bounds;
+}
+
+const directories = new Map<"uf" | "mun", Promise<Map<string, RegionInfo>>>();
+
+/** Estados ou municípios por código (malhas do catálogo), carregado uma vez por nível. */
+export function regionDirectory(level: "uf" | "mun"): Promise<Map<string, RegionInfo>> {
+  let pending = directories.get(level);
+  if (!pending) {
+    pending =
+      level === "mun"
+        ? loadMunicipios().then(
+            (list) =>
+              new Map(list.map((m) => [m.code, { code: m.code, name: m.name.replace(/ · \w\w$/, ""), uf: m.name.slice(-2), population: m.population, areaKm2: m.areaKm2, bounds: m.bounds }])),
+          )
+        : fetch(dataUrl("estados-populacao"))
+            .then((r) => (r.ok ? r.json() : { features: [] }))
+            .then(
+              (fc: { features: { geometry: AreaGeometry; properties: Record<string, string | number> }[] }) =>
+                new Map(
+                  fc.features.map((f) => {
+                    const code = String(f.properties.codigo);
+                    return [code, { code, name: String(f.properties.nome), uf: String(f.properties.uf), population: Number(f.properties.populacao), areaKm2: Number(f.properties.area_km2), bounds: areaBounds(f.geometry) }];
+                  }),
+                ),
+            )
+            .catch(() => new Map());
+    directories.set(level, pending);
+  }
+  return pending;
+}
+
 export function radiusArea(center: [number, number], radiusKm: number): Area {
   return {
     kind: "raio",

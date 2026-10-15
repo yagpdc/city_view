@@ -1066,3 +1066,45 @@ a { color: var(--cv-link); }
 .map-crosshair::after { top: 10px; left: 0; width: 22px; height: 2px; }
 .layer-card-text .origin-tag, .area-summary-layer .origin-tag { margin-right: 0; }
 .layer-card-meta { min-width: 0; }
+
+/* Widget que filtra o mapa: barras clicáveis, faixa arrastada no histograma e selo do filtro ativo */
+.widget-bars.is-pickable li { padding: 0; }
+.widget-bar-button { display: flex; flex-direction: column; gap: 4px; width: calc(100% + 12px); margin: -4px -6px; padding: 4px 6px; border: 0; border-radius: var(--cv-radius-sm); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.widget-bar-button:hover { background: var(--cv-surface); }
+.widget-bar-button[aria-pressed="true"] .widget-bar-label span:nth-child(2) { font-weight: 700; }
+.widget-bars li.is-off { opacity: 0.4; }
+.widget-histogram.is-pickable span { cursor: pointer; }
+.widget-histogram span.is-picked { opacity: 1; background: var(--cv-action-press, var(--cv-action)); box-shadow: 0 0 0 2px var(--cv-focus-ring, transparent); }
+.widget-active-filter { display: flex; align-items: center; gap: 6px; padding: 2px 2px 2px 10px; border-radius: 999px; background: var(--cv-action-subtle); color: var(--cv-action-subtle-text); font-size: 12px; font-weight: 600; }
+.widget-active-filter span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.widget-active-filter .icon-button { color: inherit; }
+
+/* Ranking e Oportunidade */
+.widget-toggles { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.widget-toggles .segmented button { height: 26px; }
+.widget-ranking { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.widget-ranking li + li { border-top: 1px solid var(--cv-border); }
+.widget-ranking button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 4px; border: 0; border-radius: var(--cv-radius-sm); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.widget-ranking button:hover { background: var(--cv-surface); }
+.widget-rank { flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--cv-surface); font-size: 11px; font-weight: 700; color: var(--cv-text-muted); }
+.widget-ranking li:nth-child(-n + 3) .widget-rank { background: var(--cv-action-subtle); color: var(--cv-action-subtle-text); }
+.widget-ranking-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.widget-ranking-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; }
+.widget-ranking-name .muted { font-weight: 400; }
+.widget-ranking .widget-bar-track span { background: var(--cv-action); }
+.widget-ranking-value { flex: none; font-size: 13px; font-weight: 600; }
+.widget-gap { font-size: 12px; }
+.widget-gap-badge { flex: none; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+.widget-gap-badge.is-missing { background: var(--cv-warning-bg); color: var(--cv-warning); }
+.widget-gap-badge.is-extra { background: var(--cv-success-bg); color: var(--cv-success); }
+
+/* Número em destaque */
+.widget-kpi { display: flex; flex-direction: column; gap: 2px; padding: 8px 0; }
+.widget-kpi-label { font-size: 12px; font-weight: 600; color: var(--cv-text-muted); }
+.widget-kpi b { font-size: 40px; line-height: 46px; font-weight: 600; letter-spacing: -0.03em; color: var(--cv-text); }
+.widget-kpi .muted { font-size: 12px; }
+
+/* Nota */
+.widget-note-wrap { padding: 0; }
+.widget-note-text { flex: 1; width: 100%; min-height: 120px; padding: 12px; border: 0; border-radius: inherit; background: none; color: var(--cv-text); font: inherit; font-size: 14px; line-height: 21px; resize: none; }
+.widget-note-text:focus { outline: none; box-shadow: inset 0 0 0 2px var(--cv-focus-ring, var(--cv-action)); }

@@ -4,6 +4,7 @@
  */
 import type { BasemapLook, DataStyle, DatasetFilter, Theme } from "@cityview/engine";
 import type { ItemChoice } from "./library/types";
+import type { TabWidgets } from "./mapTabs";
 
 /** Como refazer uma camada da biblioteca: fonte, item, escolhas e a variável. */
 export interface LibraryRecipe {
@@ -26,6 +27,8 @@ export interface SharedState {
   maquete?: { c: [number, number]; r: number; t?: string };
   /** Estilos do editor das camadas do link (id no mapa → estilo). */
   st?: Record<string, DataStyle>;
+  /** Widgets abertos (tipo → posição e ajustes), para quem abrir ver o mesmo painel. */
+  w?: TabWidgets;
 }
 
 /** Parâmetro do hash usado pela câmera (MapLibre `hash: "map"`). */

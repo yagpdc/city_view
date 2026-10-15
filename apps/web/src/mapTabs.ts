@@ -24,7 +24,12 @@ export interface MapTab {
   /** Aparência do mapa base (abas salvas antes disso: claro, "Para dados"). */
   theme?: Theme;
   look?: BasemapLook;
+  /** Widgets soltos sobre o mapa (tipo → posição e ajustes). Abas salvas antes disso: sem. */
+  widgets?: TabWidgets;
 }
+
+/** Widgets de uma aba: tipo → posição, tamanho, ajustes e empilhamento (o app conhece os tipos). */
+export type TabWidgets = Record<string, { rect: { x: number; y: number; w: number; h: number; minimized?: boolean }; settings: object; z?: number }>;
 
 export interface TabsState {
   tabs: MapTab[];

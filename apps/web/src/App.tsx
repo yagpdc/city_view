@@ -8,7 +8,7 @@ import { SearchBox, type SearchResult } from "./components/SearchBox";
 import { CategoryLegend, LayerCard, Panel, PanelCard, Rail, ScaleLegend, type LayerAction, type PanelId } from "./components/Shell";
 import { ViewportSummary, type ViewportWidget } from "./components/WidgetsPanel";
 import { FloatingWidget, type WidgetRect } from "./components/FloatingWidget";
-import { ColumnChartWidget, PlaceWidget, RadiusWidget, VisibleTableWidget, type WidgetLayer, type WidgetSettings } from "./components/MapWidgets";
+import { ColumnChartWidget, KpiWidget, NoteWidget, OpportunityWidget, PlaceWidget, RadiusWidget, RankingWidget, VisibleTableWidget, type PublicVariable, type WidgetLayer, type WidgetSettings } from "./components/MapWidgets";
 import { ValueFilter, type FilterColumn } from "./components/ValueFilter";
 import { placeIcon, placeIconSvgs } from "./placeIcons";
 import { Icon, type IconName } from "./components/Icon";
@@ -29,7 +29,7 @@ import { coverageOverlay, nearestStreetImage, setLocalStreetImages, streetImager
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { StyleEditor } from "./components/StyleEditor";
 import { MapTabs } from "./components/MapTabs";
-import { createTab, loadTabs, saveTabs, type MapTab } from "./mapTabs";
+import { createTab, loadTabs, saveTabs, type MapTab, type TabWidgets } from "./mapTabs";
 import { DropZone } from "./import/DropZone";
 import "./import/import.css";
 import { ImportWizard, type ImportRestore, type ImportedDataset } from "./import/ImportWizard";
@@ -83,7 +83,7 @@ const MaqueteView = lazy(() => import("./components/MaqueteView").then((m) => ({
 const isNarrowScreen = () => window.matchMedia("(max-width: 767px)").matches;
 
 /** Widgets soltos sobre o mapa (um de cada tipo). */
-type WidgetKind = "summary" | "chart" | "table" | "radius" | "place";
+type WidgetKind = "summary" | "chart" | "ranking" | "opportunity" | "kpi" | "table" | "radius" | "place" | "note";
 interface MapWidget {
   rect: WidgetRect;
   settings: WidgetSettings;
@@ -95,11 +95,16 @@ type MapWidgets = Partial<Record<WidgetKind, MapWidget>>;
 const WIDGET_KINDS: { kind: WidgetKind; title: string; icon: IconName; text: string; size: [number, number] }[] = [
   { kind: "summary", title: "Na tela", icon: "gauge", text: "Quantos registros de cada camada estão visíveis agora, por categoria.", size: [300, 360] },
   { kind: "chart", title: "Gráfico por coluna", icon: "barChart", text: "Escolha uma coluna: os valores mais comuns, ou soma, média e distribuição se for número.", size: [320, 400] },
+  { kind: "ranking", title: "Ranking de regiões", icon: "ranking", text: "Onde a camada mais (ou menos) aparece: estados ou municípios, em total ou por 1.000 habitantes.", size: [320, 440] },
+  { kind: "opportunity", title: "Oportunidade", icon: "idea", text: "Seus dados × dado público: onde há menos (ou mais) registros do que a população ou outra grandeza indica.", size: [340, 460] },
+  { kind: "kpi", title: "Número em destaque", icon: "sigma", text: "Um número grande do que está na tela: contagem, soma, média, menor ou maior de uma coluna.", size: [280, 300] },
   { kind: "table", title: "Tabela dos visíveis", icon: "table", text: "Os registros na tela em linhas: ordene, clique para ver no mapa, baixe em CSV.", size: [360, 380] },
   { kind: "radius", title: "Raio ao redor", icon: "target", text: "Escolha um ponto e um raio: quanto de cada camada há em volta, e a densidade.", size: [320, 420] },
   { kind: "place", title: "Indicadores do lugar", icon: "landmark", text: "O município no centro do mapa: população, área, densidade e as suas camadas nele.", size: [300, 380] },
+  { kind: "note", title: "Nota", icon: "note", text: "Um texto sobre o mapa: o que ele mostra e o que observar. Vai junto no link compartilhado.", size: [280, 220] },
 ];
 
+/** Antes das abas guardarem os widgets: um conjunto só, para todas (vira o da aba aberta na primeira vez). */
 const WIDGETS_KEY = "cityview.widgets";
 /** Versão anterior: só o "Na tela", com a posição direto. */
 const SUMMARY_WIDGET_KEY = "cityview.widget-na-tela";
@@ -161,6 +166,7 @@ const INITIAL_TABS = (() => {
   if (!SHARED?.layers) return state;
   const shared = createTab(state.tabs, {
     title: SHARED.n || "Link compartilhado",
+    widgets: SHARED.w ?? {},
     active: SHARED.layers,
     filters: SHARED.f ?? {},
     ...(SHARED.st && { styles: Object.fromEntries(Object.entries(SHARED.st).map(([id, s]) => [id, normalizeDataStyle(s)])) }),
@@ -213,14 +219,8 @@ export function App() {
   const [filters, setFilters] = useState<LayerFilters>(INITIAL_TAB.filters);
   const initialFilters = useRef(filters);
   /** Widgets soltos sobre o mapa (posição, tamanho, minimizado e ajustes de cada um). */
-  const [mapWidgets, setMapWidgets] = useState<MapWidgets>(loadWidgets);
-  useEffect(() => {
-    try {
-      localStorage.setItem(WIDGETS_KEY, JSON.stringify(mapWidgets));
-    } catch {
-      // Modo privado: segue sem lembrar.
-    }
-  }, [mapWidgets]);
+  // Cada aba tem os seus widgets (guardados com a aba); abas de antes disso herdam o conjunto antigo.
+  const [mapWidgets, setMapWidgets] = useState<MapWidgets>(() => (INITIAL_TAB.widgets as MapWidgets | undefined) ?? loadWidgets());
   /** Raio ao redor: o próximo clique no mapa escolhe o centro (em vez de abrir o cartão). */
   const [placingRadius, setPlacingRadius] = useState(false);
   const placingRadiusRef = useRef(false);
@@ -532,6 +532,7 @@ export function App() {
       look,
       ...(Object.keys(f).length ? { f } : {}),
       ...(Object.keys(st).length ? { st } : {}),
+      ...(Object.keys(mapWidgets).length ? { w: mapWidgets as TabWidgets } : {}),
       ...(maquete ? { maquete: { c: [round(maquete.center[0]), round(maquete.center[1])], r: maquete.radius, ...(maquete.title ? { t: maquete.title } : {}) } } : {}),
     });
     const local = user.datasets.filter((d) => active.has(d.id)).length;
@@ -564,9 +565,11 @@ export function App() {
   // O que está na tela é a aba atual: cada mudança vai para ela.
   useEffect(() => {
     setTabs((list) =>
-      list.map((t) => (t.id === currentTab ? { ...t, active: [...active], hidden: [...hidden], filters, paintDataset, theme, look, styles, regionViews: undefined } : t)),
+      list.map((t) =>
+        t.id === currentTab ? { ...t, active: [...active], hidden: [...hidden], filters, paintDataset, theme, look, styles, widgets: mapWidgets as TabWidgets, regionViews: undefined } : t,
+      ),
     );
-  }, [currentTab, active, hidden, filters, paintDataset, theme, look, styles]);
+  }, [currentTab, active, hidden, filters, paintDataset, theme, look, styles, mapWidgets]);
   // Estilos no mapa: os salvos e, por cima, o rascunho do editor. Aplica só o que mudou.
   useEffect(() => {
     if (!map) return;
@@ -745,6 +748,29 @@ export function App() {
     [active, demoMeta, places, tileMetas, datasetInfos, filters],
   );
 
+  /** Grandezas públicas por região para o widget Oportunidade: população (IBGE) e as camadas da biblioteca no projeto. */
+  const publicVariables = useMemo<PublicVariable[]>(
+    () => [
+      { id: "pop", label: "População (IBGE 2022)", unit: "pessoas", level: "mun", values: {}, phrase: "a população" },
+      ...libraryLayers
+        .filter((l) => active.has(l.manifest.id) || hidden.has(l.manifest.id))
+        .map((l) => ({
+          id: l.manifest.id,
+          label: `${l.variable} · ${l.period}`,
+          phrase: `o indicador "${l.variable}"`,
+          unit: l.unit,
+          level: (l.level === "uf" ? "uf" : "mun") as "uf" | "mun",
+          values: Object.fromEntries(
+            (l.data.features as { properties: { codigo: string | number; valor: number } }[])
+              .filter((f) => typeof f.properties.valor === "number")
+              .map((f) => [String(f.properties.codigo), f.properties.valor]),
+          ),
+        })),
+    ],
+    [libraryLayers, active, hidden],
+  );
+  const flyToBounds = (b: [number, number, number, number]) => map?.fitBounds(b, 12);
+
   /** Linha da tabela: vai até o registro e abre o cartão dele. */
   const showRecord = (datasetId: string, r: ViewportRecord) => {
     if (!map) return;
@@ -886,6 +912,8 @@ export function App() {
     setPaintDataset(target.paintDataset ?? null);
     setStyles(tabStyles(target));
     setStyleEditing(null);
+    setMapWidgets((target.widgets ?? {}) as MapWidgets);
+    setPlacingRadius(false);
     if ((target.theme ?? "light") !== theme) changeTheme(target.theme ?? "light");
     if ((target.look ?? "data") !== look) changeLook(target.look ?? "data");
     setCurrentTab(id);
@@ -933,7 +961,7 @@ export function App() {
     if (!source) return;
     const live = id === currentTab;
     const copy = createTab(tabs, {
-      ...(live ? { active: [...active], hidden: [...hidden], filters, paintDataset, theme, look, styles } : source),
+      ...(live ? { active: [...active], hidden: [...hidden], filters, paintDataset, theme, look, styles, widgets: mapWidgets as TabWidgets } : source),
       title: `${source.title} (cópia)`,
       camera: live && map ? map.camera : (cameras.current.get(id) ?? source.camera),
     });
@@ -1715,7 +1743,11 @@ export function App() {
                 return (
                   <FloatingWidget key={kind} title={title} icon={icon} rect={w.rect} z={w.z} onFocus={() => focusWidget(kind)} onRect={(rect) => updateWidget(kind, { rect })} onClose={() => closeWidget(kind)}>
                     {kind === "summary" && <ViewportSummary widgets={widgets} />}
-                    {kind === "chart" && <ColumnChartWidget map={map} layers={widgetLayers} {...settingsProps} />}
+                    {kind === "chart" && <ColumnChartWidget map={map} layers={widgetLayers} {...settingsProps} onFilter={updateFilter} />}
+                    {kind === "ranking" && <RankingWidget map={map} layers={widgetLayers} {...settingsProps} onFly={flyToBounds} />}
+                    {kind === "opportunity" && <OpportunityWidget map={map} layers={widgetLayers} variables={publicVariables} {...settingsProps} onFly={flyToBounds} />}
+                    {kind === "kpi" && <KpiWidget map={map} layers={widgetLayers} {...settingsProps} />}
+                    {kind === "note" && <NoteWidget {...settingsProps} />}
                     {kind === "table" && <VisibleTableWidget map={map} layers={widgetLayers} {...settingsProps} onRecord={showRecord} />}
                     {kind === "radius" && <RadiusWidget map={map} layers={widgetLayers} {...settingsProps} placing={placingRadius} onPlacing={setPlacingRadius} />}
                     {kind === "place" && <PlaceWidget map={map} layers={widgetLayers} placeFacts={placeFacts} />}
