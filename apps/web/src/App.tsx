@@ -2017,6 +2017,14 @@ export function App() {
           Pinny
         </span>
         <MapTabs tabs={tabs} current={currentTab} onSelect={(id) => switchTab(id)} onNew={newTab} onClose={closeTab} onRename={renameTab} onMove={moveTab} onDuplicate={duplicateTab} onCloseOthers={closeOtherTabs} />
+        {/* Busca e Compartilhar no fim da faixa das abas: sempre à vista; as abas rolam para o lado se crescerem até eles. */}
+        <div className="strip-actions">
+          <SearchBox search={search} onSelect={selectSearch} />
+          <button type="button" className="btn btn-primary map-action-share" onClick={() => void copyShareLink()} aria-label="Compartilhar" title="Compartilhar">
+            <Icon name="share" size={16} />
+            <span>Compartilhar</span>
+          </button>
+        </div>
       </div>
 
       <div className="workspace">
@@ -2112,14 +2120,6 @@ export function App() {
               </button>
             </div>
           )}
-          {/* Busca e Compartilhar no canto superior direito: as gavetas abrem pela esquerda e não cobrem a busca. */}
-          <div className="map-actions">
-            <SearchBox search={search} onSelect={selectSearch} />
-            <button type="button" className="btn btn-primary map-action-share" onClick={() => void copyShareLink()}>
-              <Icon name="share" size={16} />
-              <span>Compartilhar</span>
-            </button>
-          </div>
           {contextMenu && (
             <div
               className="map-context-menu layer-menu-list"

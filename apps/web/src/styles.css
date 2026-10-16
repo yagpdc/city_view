@@ -915,7 +915,6 @@ a { color: var(--pn-link); }
 .app-strip .brand { flex: none; display: inline-flex; align-items: center; gap: 8px; padding: 0 14px 0 14px; font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
 .app-strip .brand-mark { width: 22px; height: 22px; border-radius: 7px; }
 .app-strip .map-tabs { flex: 1; min-width: 0; border-bottom: 0; }
-.map-actions { position: absolute; top: var(--pn-space-3); right: var(--pn-space-3); z-index: 4; display: flex; align-items: center; gap: 8px; }
 .map-action-icon {
   width: 40px; height: 40px; display: grid; place-items: center; border: 0; border-radius: var(--pn-radius-md);
   background: var(--pn-float); color: var(--pn-text); box-shadow: var(--pn-shadow-2); cursor: pointer;
@@ -981,12 +980,6 @@ a { color: var(--pn-link); }
 .widget-option > div { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
 .widget-option-icon { width: 40px; height: 40px; display: grid; place-items: center; border-radius: var(--pn-radius-md); background: var(--pn-action-subtle); color: var(--pn-action-subtle-text); }
 
-/* Busca ao lado do Compartilhar (canto superior direito), longe das gavetas que abrem pela esquerda */
-.map-actions .map-search { position: relative; top: auto; left: auto; width: clamp(220px, 30vw, 380px); }
-@media (max-width: 767px) {
-  .map-actions { left: 8px; right: 8px; }
-  .map-actions .map-search { flex: 1; width: auto; min-width: 0; }
-}
 
 /* Widgets de gráfico, tabela, raio e lugar: conteúdo num cartão branco, como as gavetas */
 .widget-stack, .floating-widget-body > .widget-empty {
@@ -1181,7 +1174,7 @@ body, .app { background: var(--pn-surface); }
 .rail-item.is-active:hover { background: var(--world-fill); }
 
 /* Busca e Compartilhar em pílula */
-.map-actions .search, .map-search .search { border-radius: var(--pn-radius-full); }
+.strip-actions .map-search { border-radius: var(--pn-radius-full); }
 .map-action-share { border-radius: var(--pn-radius-full); height: 44px; padding: 0 20px; font-size: 14px; }
 
 /* Widgets: moldura no mundo do widget, miolo branco onde mora o dado */
@@ -1296,3 +1289,23 @@ body, .app { background: var(--pn-surface); }
 .annot-card input[type="range"] { width: 100%; accent-color: var(--pn-accent); padding: 0; border: 0; background: none; }
 .pin-note.has-photo { padding-top: 0; }
 .pin-note-photo { display: block; width: calc(100% + 32px); margin: 0 -16px 4px; max-height: 170px; object-fit: cover; }
+
+/* Faixa do topo: marca, abas (rolam para o lado quando crescem) e, no fim, busca + Compartilhar sempre à vista */
+.app-strip { position: relative; z-index: 20; align-items: center; gap: 8px; min-height: 52px; padding-right: 10px; }
+.app-strip .map-tabs { flex: 1 1 auto; min-width: 0; height: 52px; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; scrollbar-color: var(--pn-border-strong) transparent; }
+.app-strip .map-tabs::-webkit-scrollbar { display: block; height: 4px; }
+.app-strip .map-tabs::-webkit-scrollbar-thumb { background: var(--pn-border-strong); border-radius: 2px; }
+.app-strip .map-tab { flex: 0 0 auto; width: 180px; min-width: 0; }
+.strip-actions { flex: none; display: flex; align-items: center; gap: 8px; }
+.strip-actions .map-search { position: relative; top: auto; left: auto; z-index: auto; width: clamp(200px, 24vw, 340px); height: 38px; border-color: var(--pn-border); box-shadow: none; }
+.strip-actions .map-search input { font-size: 14px; }
+.strip-actions .map-action-share { height: 38px; padding: 0 16px; font-size: 13px; }
+/* O topo do mapa ficou livre: botões redondos e cartão da anotação sobem. */
+.rail { top: 12px; }
+.annot-card { top: 12px; }
+@media (max-width: 767px) {
+  .strip-actions .map-search { width: 150px; }
+  .strip-actions .map-action-share { width: 38px; padding: 0; }
+  .strip-actions .map-action-share span { display: none; }
+  .app-strip .map-tab { width: 120px; }
+}
