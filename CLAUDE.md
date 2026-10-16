@@ -30,8 +30,8 @@ Especialistas em `.claude/agents/`. Delegue ao agente quando o assunto for dele:
 ## Layout padrão da interface
 
 ```
-[marca | Mapa 1 × | Mapa 2 × | +]                                  faixa do topo: marca + abas (components/MapTabs.tsx)
-[gaveta ... mapa em tela cheia ......... [busca][Compartilhar]]
+[marca | Mapa 1 × | Mapa 2 × | + ……(rolam)…… [busca][Compartilhar]]   faixa do topo: marca + abas + ações sempre à vista
+[gaveta ... mapa em tela cheia ...............................]
 [(abre    widgets soltos (ex.: "Na tela")                       (●)]
 [ à esq.)                                                       (●)]
  (●) = botões redondos à direita (Camadas · Adicionar · Detalhes · Widgets · Ajustes): lado oposto às gavetas
